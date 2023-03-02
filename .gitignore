@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+src/test*
+.vscode/settings.json
+.vscode/tasks.json
