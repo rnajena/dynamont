@@ -94,13 +94,13 @@ void logForward(float* signal, string* seq, float* MM, float* MC, int T, int N, 
         for(int j=0;j<N;j++){
             float mm=-INFINITY;
             if(i>0 && j>0){
-                mm = logplus(mm, MC[(i-1)*N+(j-1)]) + score5mer(signal[i], seq->substr(j-2, 5), model);
+                mm = logplus(mm, MC[(i-1)*N+(j-1)] + score5mer(signal[i], seq->substr(j-2, 5), model));
             }
             MM[i*N+j] = mm;
             float mc=-INFINITY;
             if(i>0){
-                mc = logplus(mc, MC[(i-1)*N+j]) + score5mer(signal[i], seq->substr(j-2, 5), model);
-                mc = logplus(mc, MM[(i-1)*N+j]) + score5mer(signal[i], seq->substr(j-2, 5), model);
+                mc = logplus(mc, MC[(i-1)*N+j] + score5mer(signal[i], seq->substr(j-2, 5), model));
+                mc = logplus(mc, MM[(i-1)*N+j] + score5mer(signal[i], seq->substr(j-2, 5), model));
             }
             if(i==0 && j==0){
                 mc+=0;
