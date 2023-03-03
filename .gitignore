@@ -32,5 +32,6 @@
 *.app
 
 src/test*
+stc/segment
 .vscode/settings.json
 .vscode/tasks.json
