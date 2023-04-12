@@ -43,7 +43,7 @@ void fillBASE2ID() {
 }
 
 /**
- * Converts a number of a given base to a decimal number.
+ * Converts a number of a given base (ALPHABET_SIZE) to a decimal number.
  * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
  * 
  * @param i input number in the given base
@@ -61,7 +61,7 @@ int toDeci(int i) {
 }
 
 /**
- * Converts a number of a given base to a decimal number.
+ * Converts a number of a given base (ALPHABET_SIZE) to a decimal number.
  * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
  * 
  * @param i input number in the given base as an array
@@ -174,18 +174,18 @@ float logPlus(const float &a, const float &b) {
  */
 void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model){
     int tempKmer[K];
-    fill_n(tempKmer, K, -1);
+    // fill_n(tempKmer, K, -1);
     int kmer = -1;
     float mm;
     float mc;
     // i iterates through the signal
     for(int i=0; i<T; i++){
         // j iterates through the read sequence
-        for(int j=2; j<N-2; j++){ // we exclude the first and last 2 nucleotides for segmentation for now
-            // cout<<"iteration: "<<i<<", "<<j<<endl;
-            sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
-            // copy(seq + (j-(K/2)), seq + (j+(K/2)+1), tempKmer);
-            kmer = toDeci(tempKmer);
+        // we exclude the first and last 2 nucleotides for segmentation for now
+        for(int j=2; j<N-2; j++){
+            // sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
+            copy(seq + (j-(K/2)), seq + (j+(K/2)+1), tempKmer); // TODO is this better/faster than slice?
+            kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
             mm=-INFINITY;
             if(i>0 && j>2){
                 mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i], kmer, model)));
@@ -200,14 +200,6 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
                 mc = logPlus(mc, 0);
             }
             MC[i*N+j]=mc;
-            
-            // cout<<"MC\n";
-            // for(int k=0; k<T; k++){
-            //     for(int l=0; l<N; l++){
-            //         cout<<MC[k*N+l]<<", ";
-            //     }
-            //     cout<<endl;
-            // }
         }
     }
 }
@@ -225,12 +217,13 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
  */
 void logB(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model) {
     int tempKmer[K];
-    fill_n(tempKmer, K, -1);
+    // fill_n(tempKmer, K, -1);
     int kmer = -1;
 
     for(int i=T-1; i>=0; i--){
         for(int j=N-3; j>=2; j--){ // we exclude the first and last 2 nucleotides for segmentation for now
-            sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
+            // sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
+            copy(seq + (j-(K/2)), seq + (j+(K/2)+1), tempKmer);
             kmer = toDeci(tempKmer);
             float mm=-INFINITY;
             if(i<T-1 && j<N-3){
@@ -266,7 +259,7 @@ float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int 
     float backZ = backMC[2]; // 2 because we exclude the first and last 2 nucleotides for segmentation for now
     // TODO? check if forZ ~= backZ
     float* LP = new float[T*N];
-    fill_n(LP, T*N, -1);
+    fill_n(LP, T*N, -INFINITY);
     // LP = {-1.0f};
     for(int i=0; i<T; i++){
         for(int j=0; j<N; j++){
@@ -274,7 +267,7 @@ float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int 
             LP[x] = forMM[x] + backMM[x] - forZ;
         }
     }
-    // TODO? check LP: no value > log(1) allowed
+    // TODO? check LP: no value > log(1) (=0) allowed
     return LP;
 }
 
@@ -357,58 +350,50 @@ int main(int argc, char* argv[]) {
 
         // initialize matrices
         float forMM[T*N];
-        fill_n(forMM, T*N, -1);
+        fill_n(forMM, T*N, -INFINITY);
         float forMC[T*N];
-        fill_n(forMC, T*N, -1);
+        fill_n(forMC, T*N, -INFINITY);
         float backMM[T*N];
-        fill_n(backMM, T*N, -1);
+        fill_n(backMM, T*N, -INFINITY);
         float backMC[T*N];
-        fill_n(backMC, T*N, -1);
+        fill_n(backMC, T*N, -INFINITY);
         
         vector<tuple<float, float>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
         readKmerModel(MODELPATH, &model);
 
-        // cout<<"forMC\n";
-        // for(int i=0; i<T; i++){
-        //     for(int j=0; j<N; j++){
-        //         cout<<forMC[i*N+j]<<", ";
-        //     }
-        //     cout<<endl;
-        // }
-
         // calculate segmentation probabilities, fill matrices
         logF(sig, seq, forMM, forMC, T, N, &model);
 
-        // cout<<"forMC\n";
-        // for(int i=0; i<T; i++){
-        //     for(int j=0; j<N; j++){
-        //         cout<<forMC[i*N+j]<<", ";
-        //     }
-        //     cout<<endl;
-        // }
+        cout<<"forMM\n";
+        for(int i=0; i<T; i++){
+            for(int j=0; j<N; j++){
+                cout<<forMM[i*N+j]<<", ";
+            }
+            cout<<endl;
+        }
 
         logB(sig, seq, backMM, backMC, T, N, &model);
         
-        // cout<<"backMM\n";
-        // for(int i=0; i<T; i++){
-        //     for(int j=0; j<N; j++){
-        //         cout<<backMM[i*N+j]<<", ";
-        //     }
-        //     cout<<endl;
-        // }
+        cout<<"backMM\n";
+        for(int i=0; i<T; i++){
+            for(int j=0; j<N; j++){
+                cout<<backMM[i*N+j]<<", ";
+            }
+            cout<<endl;
+        }
 
         float* LP = logP(forMM, forMC, backMM, backMC, T, N);
 
         // temporary testcode
-        // cout<<"LP: "<<*LP<<endl;
-        // cout<<"LP\n";
-        // for(int i=0; i<T; i++){
-        //     for(int j=0; j<N; j++){
-        //         int x = i*N+j;
-        //         cout<<LP[x]<<", ";
-        //     }
-        //     cout<<endl;
-        // }
+        cout<<"LP: "<<*LP<<endl;
+        cout<<"LP\n";
+        for(int i=0; i<T; i++){
+            for(int j=0; j<N; j++){
+                int x = i*N+j;
+                cout<<LP[x]<<", ";
+            }
+            cout<<endl;
+        }
 
 
         // TODO: calculate where to put segment the signal
