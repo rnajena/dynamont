@@ -33,7 +33,7 @@
 
 src/test*
 stc/segment
-.vscode/settings.json
-.vscode/tasks.json
 src/dp.cpp
 src/dp.h
+.vscode/
+backup/

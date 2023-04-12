@@ -1,24 +1,98 @@
-#include <iostream> // cout
+#include <iostream>
 #include <fstream> // file io
 #include <sstream> // file io
 #include <string>
 #include <map> // dictionary
 #include <tuple>
 #include <algorithm> // reverse strings
-#include <filesystem> // reading files in directory (fast5)
 #include <vector>
 #include <cmath> // exp
 #include <limits> // for inifinity
 #include <math.h> // log1p
-
-// #include "dp.h"
+#include <iterator>
 
 using namespace std;
-namespace fs = filesystem;
+
+map<char, int> BASE2ID;
+int ALPHABET_SIZE;
+
+// TODO move to config file?
+const string MODELPATH = "data/template_median69pA.model";
+const string TERM_STRING = "€";
+const int K = 5; // our model works with this kmer size
 
 // Asserts floating point compatibility at compile time
 // necessary for INFINITY usage
 static_assert(numeric_limits<float>::is_iec559, "IEEE 754 required");
+
+/**
+ * Fill the BASE2ID map with the base and ID pairs.
+ */
+void fillBASE2ID() {
+    ALPHABET_SIZE = 5;
+    BASE2ID.insert(pair<char, int>('A', 0));
+    BASE2ID.insert(pair<char, int>('C', 1));
+    BASE2ID.insert(pair<char, int>('G', 2));
+    BASE2ID.insert(pair<char, int>('T', 3));
+    BASE2ID.insert(pair<char, int>('N', 4));
+    BASE2ID.insert(pair<char, int>('a', 0));
+    BASE2ID.insert(pair<char, int>('c', 1));
+    BASE2ID.insert(pair<char, int>('g', 2));
+    BASE2ID.insert(pair<char, int>('t', 3));
+    BASE2ID.insert(pair<char, int>('n', 4));
+}
+
+/**
+ * Converts a number of a given base to a decimal number.
+ * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
+ * 
+ * @param i input number in the given base
+*/
+int toDeci(int i) {
+    int ret = 0, r = 0;
+    int m = 1;
+    while(i > 0) {
+        r = i % 10;
+        ret += m*r;
+        m *= ALPHABET_SIZE;
+        i /= 10;
+    }
+    return ret;
+}
+
+/**
+ * Converts a number of a given base to a decimal number.
+ * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
+ * 
+ * @param i input number in the given base as an array
+*/
+int toDeci(int *i) {
+    int c[K];
+    copy(i, i+K, c);
+    reverse(c, c+K); //array is a kmer, so should have length K
+    int ret = 0;
+    int m = 1;
+    for(int r = 0; r < ALPHABET_SIZE; r++) {
+        ret += m*c[r];
+        m *= ALPHABET_SIZE;
+    }
+    return ret;
+}
+
+/**
+ * Converts the kmer to the integer representation using the BASE2ID map
+ *
+ * @param s kmer containing nucleotides 
+ * @return integer representation of the given kmer
+ */
+int kmer2int(const string &s) {
+    int i = 0;
+    for (char const &c:s){
+        i *= 10; // move the number to the left
+        i+=BASE2ID.at(c);
+    }
+    return toDeci(i);
+}
 
 // https://stackoverflow.com/questions/10847007/using-the-gaussian-probability-density-function-in-c
 /**
@@ -27,12 +101,13 @@ static_assert(numeric_limits<float>::is_iec559, "IEEE 754 required");
  * @param x value
  * @param m mean
  * @param s standard deviation 
+ * @return probabily density at position x for N~(m, s²)
  */
-float normal_pdf(float x, float m, float s) {
-    static const float inv_sqrt_2pi = 0.3989422804014327;
-    float a = (x - m) / s;
+float normal_pdf(const float &x, const float &m, const float &s) {
+    static const float INV_SQRT_2PI = 0.3989422804014327;
+    const float a = (x - m) / s;
 
-    return inv_sqrt_2pi / s * exp(-0.5f * a * a);
+    return INV_SQRT_2PI / s * exp(-0.5f * a * a);
 }
 
 /**
@@ -43,45 +118,24 @@ float normal_pdf(float x, float m, float s) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return probability density value for x in the given normal distribution
  */
-float score5mer(float x, string kmer, map<string,tuple<float, float>>* model) {
-    tuple<float, float> kmerModel = model->find(kmer)->second;
+float scoreKmer(const float &x, const int &kmer, vector<tuple<float, float>>* model) {
+    tuple<float, float> kmerModel = (*model)[kmer];
+    // cout<<kmer<<", "<<get<0>(kmerModel)<<", "<<get<1>(kmerModel)<<"\t"<<x<<", "<<normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel))<<", "<<log(normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel)))<<endl;
     return normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel));
 }
 
 /**
- * Calculate forward matrices
- *
- * @param signal ONT raw signal with pA values
- * @param seq nucleotide sequence represented by the ONT signal
- * @param MM matrix containing values for segment borders 
- * @param MC matrix containing values for extending segment
- * @param T length of the ONT raw signal
- * @param N length of nucleotide sequence
- * @param model map containing kmers as keys and (mean, stdev) tuples as values
- */
-void forward(float* signal, string* seq, float* MM, float* MC, int T, int N, map<string,tuple<float, float>>* model){
-    // int T = sizeof(signal)/sizeof(*signal);
-    // int N = seq->size();
-    // float MM[T*N] = {-1};
-    // float MC[T*N] = {-1};
-    // TODO start at j = 2? 5mers?
-    for(int i=0;i<T;i++){
-        for(int j=0;j<N;j++){
-            float mm=0;
-            if(i>0 && j>0){
-                mm+=MC[(i-1)*N+(j-1)]*score5mer(signal[i], seq->substr(j-2, 5), model);
-            }
-            MM[i*N+j] = mm;
-            float mc=0;
-            if(i>0){
-                mc+=MC[(i-1)*N+j]*score5mer(signal[i], seq->substr(j-2, 5), model);
-                mc+=MM[(i-1)*N+j]*score5mer(signal[i], seq->substr(j-2, 5), model);
-            }
-            if(i==0 && j==0){
-                mc+=1;
-            }
-            MC[i*N+j]=mc;
-        }
+ * Slices seq and writes the sliced interval [j,k) into s
+ * 
+ * @param seq array to be sliced
+ * @param s array to write slice into
+ * @param j start of slice (inclusive)
+ * @param k end of slice (exclusive)
+*/
+void sliceSeq(const int* seq, int* s, const int &start, const int &end) {
+    int i = 0;
+    for(int j=start; j<end; j++, i++) {
+        s[i] = seq[j];
     }
 }
 
@@ -90,13 +144,17 @@ void forward(float* signal, string* seq, float* MM, float* MC, int T, int N, map
  *
  * @param a first value
  * @param b second value
- * @returns log(exp(a) + exp(b))
+ * @return log(exp(a) + exp(b))
  */
-float logplus(float a, float b) {
-    // safety check, should not occure
-    // if(a==b && isinf(a) && isinf(b)) {
-    //     return a;
-    // }
+float logPlus(const float &a, const float &b) {
+    // safety check
+    if(a==b && isinf(a) && isinf(b)) {
+        return a;
+    } else if (isinf(a)) {
+        return b;
+    } else if (isinf(b)) {
+        return a;
+    }
     if(a>=b){
         return a + log1p(b-a);
     }
@@ -106,35 +164,50 @@ float logplus(float a, float b) {
 /**
  * Calculate forward matrices using logarithmic values
  *
- * @param signal ONT raw signal with pA values
+ * @param sig ONT raw signal with pA values
  * @param seq nucleotide sequence represented by the ONT signal
- * @param MM matrix containing values for segment borders 
- * @param MC matrix containing values for extending segment
- * @param T length of the ONT raw signal
+ * @param MM matrix containing forward-values for segment borders 
+ * @param MC matrix containing forward-values for extending segment
+ * @param T length of the ONT raw signal + 1
  * @param N length of nucleotide sequence
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logForward(float* signal, string* seq, float* MM, float* MC, int T, int N, map<string,tuple<float, float>>* model){
-    // int T = sizeof(signal)/sizeof(*signal);
-    // int N = seq->size();
-    // float MM[T*N] = {-1};
-    // float MC[T*N] = {-1};
-    for(int i=0;i<T;i++){
-        for(int j=2;j<N-2;j++){
-            float mm=-INFINITY;
+void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model){
+    int tempKmer[K];
+    fill_n(tempKmer, K, -1);
+    int kmer = -1;
+    float mm;
+    float mc;
+    // i iterates through the signal
+    for(int i=0; i<T; i++){
+        // j iterates through the read sequence
+        for(int j=2; j<N-2; j++){ // we exclude the first and last 2 nucleotides for segmentation for now
+            // cout<<"iteration: "<<i<<", "<<j<<endl;
+            sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
+            // copy(seq + (j-(K/2)), seq + (j+(K/2)+1), tempKmer);
+            kmer = toDeci(tempKmer);
+            mm=-INFINITY;
             if(i>0 && j>2){
-                mm = logplus(mm, MC[(i-1)*N+(j-1)] + log(score5mer(signal[i], seq->substr(j-2, 5), model)));
+                mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i], kmer, model)));
             }
             MM[i*N+j] = mm;
-            float mc=-INFINITY;
+            mc=-INFINITY;
             if(i>0){
-                mc = logplus(mc, MC[(i-1)*N+j] + log(score5mer(signal[i], seq->substr(j-2, 5), model)));
-                mc = logplus(mc, MM[(i-1)*N+j] + log(score5mer(signal[i], seq->substr(j-2, 5), model)));
+                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i], kmer, model)));
+                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i], kmer, model)));
             }
             if(i==0 && j==2){
-                mc+=0;
+                mc = logPlus(mc, 0);
             }
             MC[i*N+j]=mc;
+            
+            // cout<<"MC\n";
+            // for(int k=0; k<T; k++){
+            //     for(int l=0; l<N; l++){
+            //         cout<<MC[k*N+l]<<", ";
+            //     }
+            //     cout<<endl;
+            // }
         }
     }
 }
@@ -142,124 +215,211 @@ void logForward(float* signal, string* seq, float* MM, float* MC, int T, int N, 
 /**
  * Calculate backward matrices using logarithmic values
  *
- * @param signal ONT raw signal with pA values
+ * @param sig ONT raw signal with pA values
  * @param seq nucleotide sequence represented by the ONT signal
- * @param MM matrix containing values for segment borders 
- * @param MC matrix containing values for extending segment
- * @param T length of the ONT raw signal
+ * @param MM matrix containing backward-values for segment borders
+ * @param MC matrix containing backward-values for extending segment
+ * @param T length of the ONT raw signal + 1
  * @param N length of nucleotide sequence
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logBackward(float* signal, string* seq, float* MM, float* MC, int T, int N, map<string,tuple<float, float>>* model) {
-    for(int i=T-1;i>=0;i--){
-        for(int j=N-3;j>=2;j--){
+void logB(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model) {
+    int tempKmer[K];
+    fill_n(tempKmer, K, -1);
+    int kmer = -1;
+
+    for(int i=T-1; i>=0; i--){
+        for(int j=N-3; j>=2; j--){ // we exclude the first and last 2 nucleotides for segmentation for now
+            sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
+            kmer = toDeci(tempKmer);
             float mm=-INFINITY;
             if(i<T-1 && j<N-3){
-                mm = logplus(mm, MC[(i+1)*N+(j+1)] + log(score5mer(signal[i], seq->substr(j-2, 5), model)));
+                mm = logPlus(mm, MC[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer, model)));
             }
             MM[i*N+j] = mm;
             float mc=-INFINITY;
             if(i<T-1){
-                mc = logplus(mc, MC[(i+1)*N+j] + log(score5mer(signal[i], seq->substr(j-2, 5), model)));
-                mc = logplus(mc, MM[(i+1)*N+j] + log(score5mer(signal[i], seq->substr(j-2, 5), model)));
+                mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer, model)));
+                mc = logPlus(mc, MM[(i+1)*N+j] + log(scoreKmer(sig[i], kmer, model)));
             }
             if(i==T-1 && j==N-3){
-                mc+=0;
+                mc = logPlus(mc, 0);
             }
             MC[i*N+j]=mc;
         }
     }
 }
 
-// https://stackoverflow.com/questions/11140483/how-to-get-list-of-files-with-a-specific-extension-in-a-given-folder
 /**
- * Collect all fast5 files in the given directory
+ * Calculate the logarithmic probability matrix
  *
- * @param directory path to the parent directory containing files with the given extension
- * @param ext collecting files containing this extension
- * @return list of all files with the given extension in the directory
+ * @param forMM matrix containing forward-values for segment borders
+ * @param forMC matrix containing forward-values for extending segment
+ * @param backMM matrix containing backward-values for extending segment
+ * @param backMC matrix containing backward-values for extending segment
+ * @param T length of the ONT raw signal + 1
+ * @param N length of nucleotide sequence
+ * @return matrix containing logarithmic probabilities for segment borders
  */
-vector<fs::path> extractFiles(fs::path const & directory, string const & ext = ".fast5") {
-    vector<fs::path> paths;
-    if (fs::exists(directory) && fs::is_directory(directory)) {
-        for (auto const & entry : fs::recursive_directory_iterator(directory)) {
-            if (fs::is_regular_file(entry) && entry.path().extension() == ext)
-                paths.emplace_back(entry.path().filename());
+float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int &T, const int &N) {
+    float forZ = forMC[T*N -2]; // -2 because we exclude the first and last 2 nucleotides for segmentation for now
+    float backZ = backMC[2]; // 2 because we exclude the first and last 2 nucleotides for segmentation for now
+    // TODO? check if forZ ~= backZ
+    float* LP = new float[T*N];
+    fill_n(LP, T*N, -1);
+    // LP = {-1.0f};
+    for(int i=0; i<T; i++){
+        for(int j=0; j<N; j++){
+            int x = i*N+j;
+            LP[x] = forMM[x] + backMM[x] - forZ;
         }
     }
-    // else throw exception?
-    return paths;
-}  
+    // TODO? check LP: no value > log(1) allowed
+    return LP;
+}
 
 /**
  * Read the normal distribution parameters from a given TSV file
  *
  * @param file path to the TSV file containing the parameters
- * @param return map containing kmers as keys and (mean, stdev) tuples as values
+ * @param model kmer model to fill
  */
-map<string,tuple<float, float>> readKmerModel(string file) {
-    ifstream inputFile;
-    inputFile.open(file);
+void readKmerModel(const string &file, vector<tuple<float, float>>* model) {
+    ifstream inputFile(file);
     string line, kmer, tmp;
     float mean, stdev;
-    map<string,tuple<float, float>> model;
+    getline(inputFile, line);
 
     while(getline(inputFile, line)) { // read line
-        stringstream inputString(line); // parse line to inputString
-        getline(inputString, kmer, '\t');
+        stringstream buffer(line); // parse line to stringstream for getline
+        getline(buffer, kmer, '\t');
         reverse(kmer.begin(), kmer.end()); // 3-5 -> 5-3 orientation
-        getline(inputString, tmp, '\t');
+        getline(buffer, tmp, '\t');
         mean = atof(tmp.c_str());
-        getline(inputString, tmp, '\t');
+        getline(buffer, tmp, '\t');
         stdev = atof(tmp.c_str());
-        model[kmer]=make_tuple(mean, stdev);
+        (*model)[kmer2int(kmer)]=make_tuple(mean, stdev);
     }
-    return model;
-}
-
-
-// https://stackoverflow.com/questions/865668/parsing-command-line-arguments-in-c
-/**
- * Return the value of the command line argument
- *
- * @param begin command line arguments
- * @param end end of command line arguments
- * @param option command line argument to search for
- * @return value of the given argument if there is one
- */
-char* getCmdOption(char ** begin, char ** end, const string & option) {
-
-    char ** itr = find(begin, end, option);
-    if (itr != end && ++itr != end)
-    {
-        return *itr;
-    }
-    return 0;
-}
-
-// https://stackoverflow.com/questions/865668/parsing-command-line-arguments-in-c
-/**
- * Checks if command line argument exists
- * 
- * @param begin command line arguments
- * @param end end of command line arguments
- * @param option command line argument to search for
- * @return True or False
- */
-bool cmdOptionExists(char** begin, char** end, const string& option) {
-    return find(begin, end, option) != end;
+    inputFile.close();
 }
 
 int main(int argc, char* argv[]) {
+    cout<<"START\n";
+    // read data from stdin
+    string input;
+    string signal;
+    string read;
+    fillBASE2ID();
 
-    if(cmdOptionExists(argv, argv+argc, "-h")) {
-        // TODO print help message
+    while(true) {
+        // 107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7 CAAAAA
+        // read input, signal and read whitespace separated in single line
+        getline(cin, signal, ' ');
+        getline(cin, read);
+
+        // break loop if termination character ...
+        if (signal.find(TERM_STRING) != string::npos) {
+            break;
+        // ... or signal or read is missing
+        } else if (signal.empty()) {
+            cout<<"Signal missing!\n";
+            break;
+        } else if (read.empty()) {
+            cout<<"Read missing!\n";
+            break;
+        }
+        
+        // process signal: convert string to float array
+        int T = count(signal.begin(), signal.end(), ',')+2;
+        // cout<<"T: "<<T<<endl;
+        float sig[T - 1] = {-INFINITY};
+        string value;
+        stringstream ss(signal);
+        int i = 0;
+        while(getline(ss, value, ',')) {
+            sig[i++] = stof(value);
+        }
+
+        // process read: convert string to int array
+        int N = read.size();
+        int seq[N];
+        fill_n(seq, N, -1);
+        i = 0;
+        for (const char &c: read) { //string::size_type i = 0; i < read.size(); i++) {
+            try {
+                seq[i++] = BASE2ID.at(c);
+            } catch (const std::out_of_range) {
+                // TODO handle unknown nucleotide in read
+                cout<<"Unknown nucleotide: "<<c<<endl;
+                break;
+            }
+        }
+
+        // initialize matrices
+        float forMM[T*N];
+        fill_n(forMM, T*N, -1);
+        float forMC[T*N];
+        fill_n(forMC, T*N, -1);
+        float backMM[T*N];
+        fill_n(backMM, T*N, -1);
+        float backMC[T*N];
+        fill_n(backMC, T*N, -1);
+        
+        vector<tuple<float, float>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
+        readKmerModel(MODELPATH, &model);
+
+        // cout<<"forMC\n";
+        // for(int i=0; i<T; i++){
+        //     for(int j=0; j<N; j++){
+        //         cout<<forMC[i*N+j]<<", ";
+        //     }
+        //     cout<<endl;
+        // }
+
+        // calculate segmentation probabilities, fill matrices
+        logF(sig, seq, forMM, forMC, T, N, &model);
+
+        // cout<<"forMC\n";
+        // for(int i=0; i<T; i++){
+        //     for(int j=0; j<N; j++){
+        //         cout<<forMC[i*N+j]<<", ";
+        //     }
+        //     cout<<endl;
+        // }
+
+        logB(sig, seq, backMM, backMC, T, N, &model);
+        
+        // cout<<"backMM\n";
+        // for(int i=0; i<T; i++){
+        //     for(int j=0; j<N; j++){
+        //         cout<<backMM[i*N+j]<<", ";
+        //     }
+        //     cout<<endl;
+        // }
+
+        float* LP = logP(forMM, forMC, backMM, backMC, T, N);
+
+        // temporary testcode
+        // cout<<"LP: "<<*LP<<endl;
+        // cout<<"LP\n";
+        // for(int i=0; i<T; i++){
+        //     for(int j=0; j<N; j++){
+        //         int x = i*N+j;
+        //         cout<<LP[x]<<", ";
+        //     }
+        //     cout<<endl;
+        // }
+
+
+        // TODO: calculate where to put segment the signal
+
+        // TODO: write solution to stdout
+
+        // TODO: remove temporary data
+
     }
 
-    // input fast5 parent directory
-    char * fast5_directory = getCmdOption(argv, argv + argc, "-f5");
+    cout<<"End\n";
 
-    if (fast5_directory) {
-        vector<fs::path> fast5s = extractFiles(fast5_directory);
-    }
+    return 0;
 }
