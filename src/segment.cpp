@@ -293,8 +293,10 @@ int main(int argc, char* argv[]) {
     string signal;
     string read;
     fillBASE2ID();
+    int truish = 1;
 
-    while(true) {
+    while(truish) {
+        truish = 0;
         // 107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7 CAAAAA
         // read input, signal and read whitespace separated in single line
         getline(cin, signal, ' ');
@@ -374,23 +376,23 @@ int main(int argc, char* argv[]) {
             cout<<endl;
         }
 
-        // logB(sig, seq, backMM, backMC, T, N, &model);
-        
-        // cout<<"backMM\n";
-        // for(int i=0; i<T; i++){
-        //     for(int j=0; j<N; j++){
-        //         cout<<backMM[i*N+j]<<", ";
-        //     }
-        //     cout<<endl;
-        // }
+        //logB(sig, seq, backMM, backMC, T, N, &model);
+        //
+        //cout<<"backMM\n";
+        //for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        cout<<backMM[i*N+j]<<", ";
+        //    }
+        //    cout<<endl;
+        //}
 
-        // cout<<"backMC\n";
-        // for(int i=0; i<T; i++){
-        //     for(int j=0; j<N; j++){
-        //         // cout<<backMC[i*N+j]<<", ";
-        //     }
-        //     cout<<endl;
-        // }
+        //cout<<"backMC\n";
+        //for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        // cout<<backMC[i*N+j]<<", ";
+        //    }
+        //    cout<<endl;
+        //}
 
         // float* LP = logP(forMM, forMC, backMM, backMC, T, N);
 
