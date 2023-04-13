@@ -67,13 +67,10 @@ int toDeci(int i) {
  * @param i input number in the given base as an array
 */
 int toDeci(int *i) {
-    int* c = new int[K];
-    copy(i, i+K, c);
-    reverse(c, c+K); //array is a kmer, so should have length K
     int ret = 0;
     int m = 1;
-    for(int r = 0; r < ALPHABET_SIZE; r++) {
-        ret += m*c[r];
+    for(int r = K - 1; r >= 0; r--) {
+        ret += m*i[r];
         m *= ALPHABET_SIZE;
     }
     return ret;
@@ -123,21 +120,6 @@ float scoreKmer(const float &x, const int &kmer, vector<tuple<float, float>>* mo
     return normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel));
 }
 
-// /**
-//  * Slices seq and writes the sliced interval [j,k) into s
-//  * 
-//  * @param seq array to be sliced
-//  * @param s array to write slice into
-//  * @param j start of slice (inclusive)
-//  * @param k end of slice (exclusive)
-// */
-// void sliceSeq(const int* seq, int* s, const int &start, const int &end) {
-//     int i = 0;
-//     for(int j=start; j<end; j++, i++) {
-//         s[i] = seq[j];
-//     }
-// }
-
 /**
  * Calculate addition of a+b in log space as efficiently as possible
  *
@@ -176,8 +158,10 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
     for(int i=0; i<T; i++){
         // j iterates through the read sequence
         for(int j=0; j<N; j++){
-            copy(seq + (j-(K/2)+1), seq + (j+(K/2)+2), tempKmer); // add +2 bc of index transformation
-            kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
+            if (j>0) {
+                copy(seq + (j+1-(K/2)), seq + (j+2+(K/2)), tempKmer); // add +2 bc of index transformation
+                kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
+            }
             mm=-INFINITY;
             if(i>0 && j>0){
               mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
