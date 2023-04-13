@@ -17,7 +17,7 @@ map<char, int> BASE2ID;
 int ALPHABET_SIZE;
 
 // TODO move to config file?
-const string MODELPATH = "data/template_median69pA.model";
+const string MODELPATH = "../data/template_median69pA.model";
 const string TERM_STRING = "€";
 const int K = 5; // our model works with this kmer size
 
@@ -180,13 +180,13 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
             kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
             mm=-INFINITY;
             if(i>0 && j>0){
-                mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
+              mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
             }
             MM[i*N+j] = mm;
             mc=-INFINITY;
             if(i>0){
-                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+              mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+              mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
             }
             if(i==0 && j==0){
                 mc = 0; // initialize with log(1) 
@@ -299,6 +299,9 @@ int main(int argc, char* argv[]) {
         // read input, signal and read whitespace separated in single line
         getline(cin, signal, ' ');
         getline(cin, read);
+
+        std::cout << "SSS " << signal << std::endl;
+        std::cout << "RRR " << read << std::endl;
 
         // break loop if termination character ...
         if (signal.find(TERM_STRING) != string::npos) {
