@@ -9,7 +9,7 @@
 #include <cmath> // exp
 #include <limits> // for inifinity
 #include <math.h> // log1p
-#include <iterator>
+// #include <iterator>
 
 using namespace std;
 
@@ -67,7 +67,7 @@ int toDeci(int i) {
  * @param i input number in the given base as an array
 */
 int toDeci(int *i) {
-    int c[K];
+    int* c = new int[K];
     copy(i, i+K, c);
     reverse(c, c+K); //array is a kmer, so should have length K
     int ret = 0;
@@ -120,24 +120,23 @@ float normal_pdf(const float &x, const float &m, const float &s) {
  */
 float scoreKmer(const float &x, const int &kmer, vector<tuple<float, float>>* model) {
     tuple<float, float> kmerModel = (*model)[kmer];
-    // cout<<kmer<<", "<<get<0>(kmerModel)<<", "<<get<1>(kmerModel)<<"\t"<<x<<", "<<normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel))<<", "<<log(normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel)))<<endl;
     return normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel));
 }
 
-/**
- * Slices seq and writes the sliced interval [j,k) into s
- * 
- * @param seq array to be sliced
- * @param s array to write slice into
- * @param j start of slice (inclusive)
- * @param k end of slice (exclusive)
-*/
-void sliceSeq(const int* seq, int* s, const int &start, const int &end) {
-    int i = 0;
-    for(int j=start; j<end; j++, i++) {
-        s[i] = seq[j];
-    }
-}
+// /**
+//  * Slices seq and writes the sliced interval [j,k) into s
+//  * 
+//  * @param seq array to be sliced
+//  * @param s array to write slice into
+//  * @param j start of slice (inclusive)
+//  * @param k end of slice (exclusive)
+// */
+// void sliceSeq(const int* seq, int* s, const int &start, const int &end) {
+//     int i = 0;
+//     for(int j=start; j<end; j++, i++) {
+//         s[i] = seq[j];
+//     }
+// }
 
 /**
  * Calculate addition of a+b in log space as efficiently as possible
@@ -169,17 +168,15 @@ float logPlus(const float &a, const float &b) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model){
-    int tempKmer[K];
+    int* tempKmer = new int[K];
     // fill_n(tempKmer, K, -1);
     int kmer = -1;
     float mm, mc;
     // i iterates through the signal, T = len(sig) + 1
     for(int i=0; i<T; i++){
         // j iterates through the read sequence
-        // we exclude the first and last 2 nucleotides for segmentation for now
         for(int j=0; j<N; j++){
-            // sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
-            copy(seq + (j-(K/2)+2), seq + (j+(K/2)+3), tempKmer); // TODO is this better/faster than slice?
+            copy(seq + (j-(K/2)+1), seq + (j+(K/2)+2), tempKmer); // add +2 bc of index transformation
             kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
             mm=-INFINITY;
             if(i>0 && j>0){
@@ -211,28 +208,27 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logB(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model) {
-    int tempKmer[K];
+    int* tempKmer = new int[K];
     int kmer = -1;
     float mm, mc;
     for(int i=T-1; i>=0; i--){
-        for(int j=N-1; j>=0; j--){ // we exclude the first and last 2 nucleotides for segmentation for now
-            // sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
-            // copy(seq + (j-(K/2)+2), seq + (j+(K/2)+3), tempKmer);
-            // kmer = toDeci(tempKmer);
-            // mm=-INFINITY;
-            // if(i<T-1 && j<N-1){
-            //     mm = logPlus(mm, MC[(i+1)*N+(j+1)] + log(scoreKmer(sig[i-1], kmer, model)));
-            // }
-            // MM[i*N+j] = mm;
-            // mc=-INFINITY;
-            // if(i<T-1){
-            //     mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-            //     mc = logPlus(mc, MM[(i+1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-            // }
-            // if(i==T-1 && j==N-1){
-            //     mc = 0; // initialize with log(1) 
-            // }
-            // MC[i*N+j]=mc;
+        for(int j=N-1; j>=0; j--){
+            copy(seq + (j-(K/2)+1), seq + (j+(K/2)+2), tempKmer);
+            kmer = toDeci(tempKmer);
+            mm=-INFINITY;
+            if(i<T-1 && j<N-1){
+                mm = logPlus(mm, MC[(i+1)*N+(j+1)] + log(scoreKmer(sig[i-1], kmer, model)));
+            }
+            MM[i*N+j] = mm;
+            mc=-INFINITY;
+            if(i<T-1){
+                mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+                mc = logPlus(mc, MM[(i+1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+            }
+            if(i==T-1 && j==N-1){
+                mc = 0; // initialize with log(1) 
+            }
+            MC[i*N+j]=mc;
         }
     }
 }
@@ -250,7 +246,7 @@ void logB(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
  */
 float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int &T, const int &N) {
     float forZ = forMC[T*N -2]; // -2 because we exclude the first and last 2 nucleotides for segmentation for now
-    float backZ = backMC[2]; // 2 because we exclude the first and last 2 nucleotides for segmentation for now
+    // float backZ = backMC[2]; // 2 because we exclude the first and last 2 nucleotides for segmentation for now
     // TODO? check if forZ ~= backZ
     float* LP = new float[T*N];
     fill_n(LP, T*N, -INFINITY);
@@ -318,26 +314,24 @@ int main(int argc, char* argv[]) {
         
         // process signal: convert string to float array
         int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
-        float sig[T - 1] = {-INFINITY};
+        float* sig = new float[T - 1];
+        fill_n(sig, T-1, -INFINITY);
         string value;
         stringstream ss(signal);
         int i = 0;
         while(getline(ss, value, ',')) {
-            sig[i] = stof(value);
-            // cout<<sig[i]<<", ";
-            i++;
+            sig[i++] = stof(value);
         }
 
         // process read: convert string to int array
+        // we exclude the first and last 2 nucleotides for segmentation for now
         int N = read.size() - (K-2); // ignore first and last nucleotides that cannot form a Kmer
-        int seq[read.size()];
+        int* seq = new int[read.size()];
         fill_n(seq, read.size(), -1);
         i = 0;
         for (const char &c: read) { //string::size_type i = 0; i < read.size(); i++) {
             try {
-                seq[i] = BASE2ID.at(c);
-                // cout<<seq[i];
-                i++;
+                seq[i++] = BASE2ID.at(c);
             } catch (const std::out_of_range) {
                 // TODO handle unknown nucleotide in read
                 cout<<"Unknown nucleotide: "<<c<<endl;
@@ -346,13 +340,13 @@ int main(int argc, char* argv[]) {
         }
 
         // initialize matrices
-        float* forMM = new float(T*N);
+        float* forMM = new float[T*N];
         fill_n(forMM, T*N, -INFINITY);
-        float* forMC = new float(T*N);
+        float* forMC = new float[T*N];
         fill_n(forMC, T*N, -INFINITY);
-        float* backMM = new float(T*N);
+        float* backMM = new float[T*N];
         fill_n(backMM, T*N, -INFINITY);
-        float* backMC = new float(T*N);
+        float* backMC = new float[T*N];
         fill_n(backMC, T*N, -INFINITY);
         
         vector<tuple<float, float>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
@@ -377,7 +371,7 @@ int main(int argc, char* argv[]) {
             cout<<endl;
         }
 
-        logB(sig, seq, backMM, backMC, T, N, &model);
+        // logB(sig, seq, backMM, backMC, T, N, &model);
         
         // cout<<"backMM\n";
         // for(int i=0; i<T; i++){
