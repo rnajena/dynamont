@@ -17,7 +17,7 @@ map<char, int> BASE2ID;
 int ALPHABET_SIZE;
 
 // TODO move to config file?
-const string MODELPATH = "data/template_median69pA.model";
+const string MODELPATH = "../data/template_median69pA.model";
 const string TERM_STRING = "€";
 const int K = 5; // our model works with this kmer size
 
@@ -179,17 +179,17 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
         // we exclude the first and last 2 nucleotides for segmentation for now
         for(int j=0; j<N; j++){
             // sliceSeq(seq, tempKmer, j-(K/2), j+(K/2)+1);
-            copy(seq + (j-(K/2)+2), seq + (j+(K/2)+3), tempKmer); // TODO is this better/faster than slice?
+            copy(seq + (j-(K/2)+1), seq + (j+(K/2)+2), tempKmer); // TODO is this better/faster than slice?
             kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
             mm=-INFINITY;
             if(i>0 && j>0){
-                mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
+              mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
             }
             MM[i*N+j] = mm;
             mc=-INFINITY;
             if(i>0){
-                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+              mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+              mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
             }
             if(i==0 && j==0){
                 mc = 0; // initialize with log(1) 
@@ -304,6 +304,9 @@ int main(int argc, char* argv[]) {
         getline(cin, signal, ' ');
         getline(cin, read);
 
+        std::cout << "SSS " << signal << std::endl;
+        std::cout << "RRR " << read << std::endl;
+
         // break loop if termination character ...
         if (signal.find(TERM_STRING) != string::npos) {
             break;
@@ -346,13 +349,13 @@ int main(int argc, char* argv[]) {
         }
 
         // initialize matrices
-        float* forMM = new float(T*N);
+        float* forMM = new float[T*N];
         fill_n(forMM, T*N, -INFINITY);
-        float* forMC = new float(T*N);
+        float* forMC = new float[T*N];
         fill_n(forMC, T*N, -INFINITY);
-        float* backMM = new float(T*N);
+        float* backMM = new float[T*N];
         fill_n(backMM, T*N, -INFINITY);
-        float* backMC = new float(T*N);
+        float* backMC = new float[T*N];
         fill_n(backMC, T*N, -INFINITY);
         
         vector<tuple<float, float>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
@@ -377,7 +380,7 @@ int main(int argc, char* argv[]) {
             cout<<endl;
         }
 
-        logB(sig, seq, backMM, backMC, T, N, &model);
+        //logB(sig, seq, backMM, backMC, T, N, &model);
         
         // cout<<"backMM\n";
         // for(int i=0; i<T; i++){
