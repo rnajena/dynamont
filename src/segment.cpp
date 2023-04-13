@@ -17,7 +17,7 @@ map<char, int> BASE2ID;
 int ALPHABET_SIZE;
 
 // TODO move to config file?
-const string MODELPATH = "../data/template_median69pA.model";
+const string MODELPATH = "data/template_median69pA.model";
 const string TERM_STRING = "€";
 const int K = 5; // our model works with this kmer size
 
