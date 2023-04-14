@@ -159,18 +159,18 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
         // j iterates through the read sequence
         for(int j=0; j<N; j++){
             if (j>0) {
-                copy(seq + (j+1-(K/2)), seq + (j+2+(K/2)), tempKmer); // add +2 bc of index transformation
+                copy(seq + (j+1-(K/2)), seq + (j+2+(K/2)), tempKmer);
                 kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
             }
             mm=-INFINITY;
-            if(i>0 && j>0){
-              mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
+            mc=-INFINITY;
+            if (i>0 && j>0){
+                mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer, model)));
             }
             MM[i*N+j] = mm;
-            mc=-INFINITY;
             if(i>0){
-              mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-              mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
+                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
             }
             if(i==0 && j==0){
                 mc = 0; // initialize with log(1) 
@@ -178,6 +178,7 @@ void logF(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
             MC[i*N+j]=mc;
         }
     }
+    delete[] tempKmer;
 }
 
 /**
@@ -197,24 +198,32 @@ void logB(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
     float mm, mc;
     for(int i=T-1; i>=0; i--){
         for(int j=N-1; j>=0; j--){
-            copy(seq + (j-(K/2)+1), seq + (j+(K/2)+2), tempKmer);
-            kmer = toDeci(tempKmer);
+            // cerr<<"IT: "<<i<<", "<<j<<endl;
+            if (j>0) {
+                copy(seq + (j+1-(K/2)), seq + (j+2+(K/2)), tempKmer);
+                kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
+            }
             mm=-INFINITY;
-            if(i<T-1 && j<N-1){
-                mm = logPlus(mm, MC[(i+1)*N+(j+1)] + log(scoreKmer(sig[i-1], kmer, model)));
-            }
-            MM[i*N+j] = mm;
             mc=-INFINITY;
-            if(i<T-1){
-                mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-                mc = logPlus(mc, MM[(i+1)*N+j] + log(scoreKmer(sig[i-1], kmer, model)));
-            }
             if(i==T-1 && j==N-1){
                 mc = 0; // initialize with log(1) 
             }
+            if(i<T-1){
+                mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer, model)));
+                mm = logPlus(mm, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer, model)));
+                // cerr<<"log(score) "<<log(scoreKmer(sig[i], kmer, model))<<endl;
+                // cerr<<"sig[i]: "<<sig[i]<<", kmer: "<<kmer<<endl;
+            }
+            if(i<T-1 && j<N-1){
+                copy(seq + (j+2-(K/2)), seq + (j+3+(K/2)), tempKmer);
+                kmer = toDeci(tempKmer); // convert kmer of tokens to integer ID
+                mc = logPlus(mc, MM[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer, model)));
+            }
             MC[i*N+j]=mc;
+            MM[i*N+j] = mm;
         }
     }
+    delete[] tempKmer;
 }
 
 /**
@@ -229,7 +238,7 @@ void logB(float* sig, int* seq, float* MM, float* MC, const int &T, const int &N
  * @return matrix containing logarithmic probabilities for segment borders
  */
 float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int &T, const int &N) {
-    float forZ = forMC[T*N -2]; // -2 because we exclude the first and last 2 nucleotides for segmentation for now
+    float forZ = forMC[T*N-1]; // -2 because we exclude the first and last 2 nucleotides for segmentation for now
     // float backZ = backMC[2]; // 2 because we exclude the first and last 2 nucleotides for segmentation for now
     // TODO? check if forZ ~= backZ
     float* LP = new float[T*N];
@@ -241,6 +250,7 @@ float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int 
             LP[x] = forMM[x] + backMM[x] - forZ;
         }
     }
+    // cout<<"Z: "<<forZ<<endl;
     // TODO? check LP: no value > log(1) (=0) allowed
     return LP;
 }
@@ -271,7 +281,7 @@ void readKmerModel(const string &file, vector<tuple<float, float>>* model) {
 }
 
 int main(int argc, char* argv[]) {
-    cout<<"START\n";
+    // cout<<"START\n";
     // read data from stdin
     string input;
     string signal;
@@ -281,13 +291,13 @@ int main(int argc, char* argv[]) {
 
     while(truish) {
         truish = 0;
-        // 107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7 CAAAAA
+        // echo 107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7 CAAAAA| src\segment.exe
         // read input, signal and read whitespace separated in single line
         getline(cin, signal, ' ');
         getline(cin, read);
 
-        std::cout << "SSS " << signal << std::endl;
-        std::cout << "RRR " << read << std::endl;
+        // std::cout << "SSS " << signal << std::endl;
+        // std::cout << "RRR " << read << std::endl;
 
         // break loop if termination character ...
         if (signal.find(TERM_STRING) != string::npos) {
@@ -344,63 +354,89 @@ int main(int argc, char* argv[]) {
         // calculate segmentation probabilities, fill matrices
         logF(sig, seq, forMM, forMC, T, N, &model);
 
-        cout<<"forMM\n";
-        for(int i=0; i<T; i++){
-            for(int j=0; j<N; j++){
-                cout<<forMM[i*N+j]<<", ";
-            }
-            cout<<endl;
-        }
+        // cout<<"forMM\n";
+        // for(int i=0; i<T; i++){
+        //     for(int j=0; j<N; j++){
+        //         cout<<forMM[i*N+j]<<", ";
+        //     }
+        //     cout<<endl;
+        // }
 
-        cout<<"forMC\n";
-        for(int i=0; i<T; i++){
-            for(int j=0; j<N; j++){
-                cout<<forMC[i*N+j]<<", ";
-            }
-            cout<<endl;
-        }
+        // cout<<"forMC\n";
+        // for(int i=0; i<T; i++){
+        //     for(int j=0; j<N; j++){
+        //         cout<<forMC[i*N+j]<<", ";
+        //     }
+        //     cout<<endl;
+        // }
 
-        //logB(sig, seq, backMM, backMC, T, N, &model);
-        //
-        //cout<<"backMM\n";
-        //for(int i=0; i<T; i++){
+        logB(sig, seq, backMM, backMC, T, N, &model);
+        
+        // cout<<"backMM\n";
+        // for(int i=0; i<T; i++){
         //    for(int j=0; j<N; j++){
         //        cout<<backMM[i*N+j]<<", ";
         //    }
         //    cout<<endl;
-        //}
+        // }
 
-        //cout<<"backMC\n";
-        //for(int i=0; i<T; i++){
+        // cout<<"backMC\n";
+        // for(int i=0; i<T; i++){
         //    for(int j=0; j<N; j++){
-        //        // cout<<backMC[i*N+j]<<", ";
+        //        cout<<backMC[i*N+j]<<", ";
         //    }
         //    cout<<endl;
-        //}
+        // }
 
-        // float* LP = logP(forMM, forMC, backMM, backMC, T, N);
-
+        float* LP = logP(forMM, forMC, backMM, backMC, T, N); // log probs
+        
         // temporary testcode
-        // cout<<"LP: "<<*LP<<endl;
         // cout<<"LP\n";
+        // int x = 0;
         // for(int i=0; i<T; i++){
         //     for(int j=0; j<N; j++){
-        //         int x = i*N+j;
+        //         x = i*N+j;
         //         cout<<LP[x]<<", ";
         //     }
         //     cout<<endl;
         // }
 
+        // calculate where to put segment the signal
+        // calculate max or sum of rows, sum better if uncertain
+        float* LSP = new float[T]; // log segment probs
+        int idx = 0;
+        float sum = -INFINITY;
+        for(int i=0;i<T;i++) {
+            sum = -INFINITY;
+            for(int j=0; j<N; j++) {
+                idx = i*N+j;
+                sum = logPlus(sum, LP[idx]);
+            }
+            LSP[i] = sum;
+            cout<<sum<<",";
+        }
+        cout<<endl;
 
-        // TODO: calculate where to put segment the signal
-
-        // TODO: write solution to stdout
-
-        // TODO: remove temporary data
-
+        // TODO: remove data
+        delete[] LP;
+        LP = 0;
+        delete[] LSP;
+        LSP = 0;
+        delete[] sig;
+        sig = 0;
+        delete[] seq;
+        seq = 0;
+        delete[] forMM;
+        forMM = 0;
+        delete[] forMC;
+        forMC = 0;
+        delete[] backMM;
+        backMM = 0;
+        delete[] backMC;
+        backMC = 0;
     }
 
-    cout<<"End\n";
+    // cout<<"End\n";
 
     return 0;
 }
