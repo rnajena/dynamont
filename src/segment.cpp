@@ -1,3 +1,8 @@
+// author: Jannes Spangenberg
+// e-mail: jannes.spangenberg@uni-jena.de
+// github: https://github.com/JannesSP
+// website: https://jannessp.github.io
+
 #include <iostream>
 #include <fstream> // file io
 #include <sstream> // file io
@@ -280,6 +285,9 @@ void readKmerModel(const string &file, vector<tuple<float, float>>* model) {
     inputFile.close();
 }
 
+/**
+ * Read signal and read from stdin until the TERM_STRING is seen
+*/
 int main(int argc, char* argv[]) {
     // cout<<"START\n";
     // read data from stdin
