@@ -6,7 +6,6 @@
 
 from os.path import join, dirname
 from itertools import chain, combinations, product
-import itertools
 import pandas as pd
 
 # TODO change this to the correct kmer size for the model before executing!

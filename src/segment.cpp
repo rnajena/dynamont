@@ -183,7 +183,7 @@ void logF(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const i
             mc=-INFINITY;
             if (i>0 && j>0){
                 mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
-                mm = logPlus(mm, MM[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
+                // mm = logPlus(mm, MM[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
             }
             MM[i*N+j] = mm;
             if(i>0){
@@ -224,9 +224,9 @@ void logB(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const i
             }
             if(i<T-1 && j<N-1){
                 mc = logPlus(mc, MM[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
-                mm = logPlus(mm, MM[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                // mm = logPlus(mm, MM[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
             }
-            MC[i*N+j]=mc;
+            MC[i*N+j] = mc;
             MM[i*N+j] = mm;
         }
     }
@@ -244,8 +244,7 @@ void logB(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const i
  * @return matrix containing logarithmic probabilities for segment borders
  */
 float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int &T, const int &N) {
-    float forZ = forMC[T*N-1]; // -2 because we exclude the first and last 2 nucleotides for segmentation for now
-    // float backZ = backMC[2]; // 2 because we exclude the first and last 2 nucleotides for segmentation for now
+    float forZ = forMC[T*N-1];
     // TODO? check if forZ ~= backZ
     float* LP = new float[T*N];
     fill_n(LP, T*N, -INFINITY);
@@ -275,7 +274,7 @@ void readKmerModel(const string &file, vector<tuple<float, float>>* model) {
     while(getline(inputFile, line)) { // read line
         stringstream buffer(line); // parse line to stringstream for getline
         getline(buffer, kmer, '\t');
-        reverse(kmer.begin(), kmer.end()); // 3-5 -> 5-3 orientation
+        // reverse(kmer.begin(), kmer.end()); // 3-5 -> 5-3 orientation
         getline(buffer, tmp, '\t');
         mean = atof(tmp.c_str());
         getline(buffer, tmp, '\t');
@@ -323,6 +322,7 @@ int main(int argc, char* argv[]) {
         
         // process signal: convert string to float array
         int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
+        cerr<<"T: "<<T<<endl;
         float* sig = new float[T - 1];
         fill_n(sig, T-1, -INFINITY);
         string value;
@@ -336,8 +336,8 @@ int main(int argc, char* argv[]) {
         int N = read.size() + 1;
         int seq_size = read.size() + (K-1);
         int* seq = new int[seq_size];
-        fill_n(seq, seq_size, 4); // default: fill with N
-        i = K/2; // add floor(K/2) Ns to front and end
+        fill_n(seq, seq_size, 0); // default: fill with A
+        i = K/2; // add floor(K/2) 0s to front and end
         for (const char &c: read) {
             try {
                 seq[i] = BASE2ID.at(c);
@@ -382,6 +382,44 @@ int main(int argc, char* argv[]) {
         }
         cout<<endl;
         cout.flush();
+
+        cerr.precision(4);
+        cerr<<"LP\n";
+        for(int i=0; i<T; i++){
+           for(int j=0; j<N; j++){
+               cerr<<LP[i*N+j]<<", ";
+           }
+           cerr<<endl;
+        }
+        // cerr.precision(4);
+        // cerr<<"forMM\n";
+        // for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        cerr<<forMM[i*N+j]<<", ";
+        //    }
+        //    cerr<<endl;
+        // }
+        // cerr<<"forMC\n";
+        // for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        cerr<<forMC[i*N+j]<<", ";
+        //    }
+        //    cerr<<endl;
+        // }
+        // cerr<<"backMM\n";
+        // for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        cerr<<backMM[i*N+j]<<", ";
+        //    }
+        //    cerr<<endl;
+        // }
+        // cerr<<"backMC\n";
+        // for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        cerr<<backMC[i*N+j]<<", ";
+        //    }
+        //    cerr<<endl;
+        // }
 
         delete[] LP;
         LP = 0;

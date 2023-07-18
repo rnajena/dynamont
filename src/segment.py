@@ -56,7 +56,7 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
     segmentation : np.ndarray
     '''
     # prepare cookie for segmentation
-    signal = str(signal.tolist()).replace(' ', '')[1:-1]
+    signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
     cookie = f'{signal} {read}\n'
     # transfer data to bytes - needed in Python 3
     cookie = bytes(cookie, 'UTF-8')
@@ -65,7 +65,7 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
     pipe.stdin.flush()
     # prepare segmentation and return
     crumbs = pipe.stdout.readline().strip().decode('UTF-8')[:-1]
-    print(crumbs)
+    # print(crumbs)
     crumbs = np.array(crumbs.split(','), dtype=float)
     return crumbs
 
@@ -117,56 +117,65 @@ def main() -> None:
     # Test
     # ret = feedSegmentation(np.array([107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7]), 'CAAAAA', pipe)
     # print(ret)
-    l = 30
+    l = 5
 
     signal = np.array(
-        [96.8]*l + # AAGCT
-        [84.4]*l + # AGCTA
-        [95.1]*l + # GCTAG
-        [117.7]*l + # CTAGC
-        [87.5]*l + # TAGCA
-        [79.5]*l + # AGCAT
-        [80.2]*l + # GCATT
-        [82.1]*l + # CATTG
-        [118.7]*l + # ATTGA
-        [118.6]*l + # TTGAT
-        [99.5]*l + # TGATC
-        [83.9]*l + # GATCC
-        [68.4]*l + # ATCCG
-        [111.2]*l + # TCCGA
-        [103.0]*l + # CCGAG
-        [128.6]*l + # CGAGA
-        [106.7]*l + # GAGAC
-        [100.9]*l + # AGACT
-        [76.7]*l + # GACTA
-        [100.2]*l) # ACTAA
-    read = 'GCTAGCATTGATCCGAGACT'[::-1] # sollte 5' -> 3' sein
+        [96.86647]*l + # AAGCT
+        [84.4253]*l + # AGCTA
+        [95.15087]*l + # GCTAG
+        [117.71723]*l + # CTAGC
+        [87.507645]*l + # TAGCA
+        [79.56085]*l + # AGCAT
+        [80.2712]*l + # GCATT
+        [82.19202]*l + # CATTG
+        [118.77031]*l + # ATTGA
+        [118.66758]*l + # TTGAT
+        [99.587555]*l + # TGATC
+        [83.94988]*l + # GATCC
+        [68.43068]*l + # ATCCG
+        [111.2103]*l + # TCCGA
+        [103.08109]*l + # CCGAG
+        [128.6229]*l + # CGAGA
+        [106.73295]*l + # GAGAC
+        [100.980286]*l + # AGACT
+        [76.73934]*l + # GACTA
+        [100.237816]*l) # ACTAA
+    read = 'GCTAGCACTGATCCGAGACT' # TODO spaeter vlt: sollte 5' -> 3' sein
 
     # for signal, read in records:
     #     print(feedSegmentation(signal, read, pipe))
 
-    print(signal)
-    print(read)
+    # read is 5' -> 3'
+    # 96.8,96.8,96.8,96.8,96.8,96.8,96.8,96.8,96.8,96.8,84.4,84.4,84.4,84.4,84.4,84.4,84.4,84.4,84.4,84.4,95.1,95.1,95.1,95.1,95.1,95.1,95.1,95.1,95.1,95.1,117.7,117.7,117.7,117.7,117.7,117.7,117.7,117.7,117.7,117.7,87.5,87.5,87.5,87.5,87.5,87.5,87.5,87.5,87.5,87.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,80.2,80.2,80.2,80.2,80.2,80.2,80.2,80.2,80.2,80.2,82.1,82.1,82.1,82.1,82.1,82.1,82.1,82.1,82.1,82.1,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.6,118.6,118.6,118.6,118.6,118.6,118.6,118.6,118.6,118.6,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,83.9,83.9,83.9,83.9,83.9,83.9,83.9,83.9,83.9,83.9,68.4,68.4,68.4,68.4,68.4,68.4,68.4,68.4,68.4,68.4,111.2,111.2,111.2,111.2,111.2,111.2,111.2,111.2,111.2,111.2,103.0,103.0,103.0,103.0,103.0,103.0,103.0,103.0,103.0,103.0,128.6,128.6,128.6,128.6,128.6,128.6,128.6,128.6,128.6,128.6,106.7,106.7,106.7,106.7,106.7,106.7,106.7,106.7,106.7,106.7,100.9,100.9,100.9,100.9,100.9,100.9,100.9,100.9,100.9,100.9,76.7,76.7,76.7,76.7,76.7,76.7,76.7,76.7,76.7,76.7,100.2,100.2,100.2,100.2,100.2,100.2,100.2,100.2,100.2,100.2 TCAGAGCCTAGTTACGATCG
+
+    # read is 3' -> 5'
+    # 96.8,96.8,96.8,96.8,96.8,96.8,96.8,96.8,96.8,96.8,84.4,84.4,84.4,84.4,84.4,84.4,84.4,84.4,84.4,84.4,95.1,95.1,95.1,95.1,95.1,95.1,95.1,95.1,95.1,95.1,117.7,117.7,117.7,117.7,117.7,117.7,117.7,117.7,117.7,117.7,87.5,87.5,87.5,87.5,87.5,87.5,87.5,87.5,87.5,87.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,79.5,80.2,80.2,80.2,80.2,80.2,80.2,80.2,80.2,80.2,80.2,82.1,82.1,82.1,82.1,82.1,82.1,82.1,82.1,82.1,82.1,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.7,118.6,118.6,118.6,118.6,118.6,118.6,118.6,118.6,118.6,118.6,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,83.9,83.9,83.9,83.9,83.9,83.9,83.9,83.9,83.9,83.9,68.4,68.4,68.4,68.4,68.4,68.4,68.4,68.4,68.4,68.4,111.2,111.2,111.2,111.2,111.2,111.2,111.2,111.2,111.2,111.2,103.0,103.0,103.0,103.0,103.0,103.0,103.0,103.0,103.0,103.0,128.6,128.6,128.6,128.6,128.6,128.6,128.6,128.6,128.6,128.6,106.7,106.7,106.7,106.7,106.7,106.7,106.7,106.7,106.7,106.7,100.9,100.9,100.9,100.9,100.9,100.9,100.9,100.9,100.9,100.9,76.7,76.7,76.7,76.7,76.7,76.7,76.7,76.7,76.7,76.7,100.2,100.2,100.2,100.2,100.2,100.2,100.2,100.2,100.2,100.2 GCTAGCATTGATCCGAGACT
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.1f}".format(x)})
+    print(np.array_repr(signal).replace('\n', '').replace(' ', ''), read)
     segmentprobs = feedSegmentation(signal, read, pipe)[1:-1]
-
-    fig, ax1 = plt.subplots()
-    ax2 = ax1.twinx()
-    ax1.plot(np.arange(0, len(segmentprobs)), segmentprobs, 'o', label='probabilities', color='grey', )
-    ax1.fill_between(np.arange(0, len(segmentprobs)), min(segmentprobs), segmentprobs, color='grey', alpha=0.6)
-    ax1.set_ylim((min(segmentprobs), 150))
-    ax1.set_xlim((0, len(signal)))
-    ax1.set_xlabel('Interspace Between Signal Points')
-    ax1.set_ylabel('Transition Probability')
-    ax1.set_xticks(np.arange(0, len(segmentprobs), l))
-    ax1.grid(True, 'both', 'x')
-    ax2.plot(signal, color='red', label='signal')
-    ax2.set_ylim((0, max(signal)+10))
-    ax2.set_ylabel('Signal pico Ampere')
-    fig.legend()
-    plt.tight_layout()
-    plt.show()
-
     stopFeeding(pipe)
+
+    fig, ax1 = plt.subplots(figsize=(12,8), dpi=150)
+    ax1.plot(signal, color='red', label='signal')
+    ax1.set_ylim((0, max(signal)+10))
+    ax1.set_ylabel('Signal pico Ampere')
+    ax1.grid(True, 'both', 'x')
+    ax2 = ax1.twinx()
+    ax2.plot(np.arange(0, len(segmentprobs)), segmentprobs, '.', label='probabilities', color='grey')
+    ax2.fill_between(np.arange(0, len(segmentprobs)), min(segmentprobs), segmentprobs, color='grey', alpha=0.6)
+    ax2.set_ylim((-20, 40))
+    ax2.set_xlim((0, len(signal)))
+    ax2.set_xlabel('Interspace Between Signal Points')
+    ax2.set_ylabel('Transition Probability')
+    ax2.set_xticks(np.arange(0, len(segmentprobs), l))
+    h1, l1 = ax1.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    plt.legend([*h1, *h2], [*l1, *l2])
+    plt.tight_layout()
+    plt.savefig('output.pdf')
+
+    with open('output.txt', 'w') as w:
+        w.write(f"Segmentpobabilies (log):\n{segmentprobs}\nRead:\n{read}")
 
 if __name__ == '__main__':
     main()
