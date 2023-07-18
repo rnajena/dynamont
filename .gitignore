@@ -37,3 +37,4 @@ src/dp.cpp
 src/dp.h
 .vscode/
 backup/
+src/segment
