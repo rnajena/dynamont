@@ -38,3 +38,5 @@ src/dp.h
 .vscode/
 backup/
 src/segment
+output.pdf
+.gitignore

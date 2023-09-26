@@ -22,6 +22,7 @@ using namespace std;
 
 map<char, int> BASE2ID;
 int ALPHABET_SIZE;
+double EPSILON = pow(10, -8);
 
 // TODO move to config file?
 // const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA.model";
@@ -29,9 +30,9 @@ const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_
 const string TERM_STRING = "$";
 const int K = 5; // our model works with this kmer size
 
-// Asserts floating point compatibility at compile time
+// Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
-static_assert(numeric_limits<float>::is_iec559, "IEEE 754 required");
+static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");
 
 /**
  * Fill the BASE2ID map with the base and ID pairs.
@@ -51,7 +52,7 @@ void fillBASE2ID() {
 }
 
 /**
- * Converts a number of a given base (ALPHABET_SIZE) to a decimal number.
+ * Converts a number of base ALPHABET_SIZE to a decimal number.
  * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
  * 
  * @param i input number in the given base
@@ -69,7 +70,7 @@ int toDeci(int i) {
 }
 
 /**
- * Converts a number of a given base (ALPHABET_SIZE) to a decimal number.
+ * Converts a number of base ALPHABET_SIZE to a decimal number.
  * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
  * 
  * @param i input number in the given base as an array
@@ -105,13 +106,13 @@ int kmer2int(const string &s) {
  * Convert the read sequence to a kmer sequence which is represented by integers.
  * 
  * @param seq read sequence
- * @param seq_size length of the read sequence
+ * @param N length of the read sequence, number of nucleotides
  * @return kmer sequence in integer representation
 */
 int* seq2kmer(int* seq, const int &N) {
-    int* kmer_seq = new int[N-1];
+    int* kmer_seq = new int[N];
     int* tempKmer = new int[K];
-    for (int i=0; i<N-1; i++){
+    for (int i=0; i<N; i++){ // extend loop to ad 2 Ns at start and end of read        
         copy(seq + i, seq + i+K, tempKmer);
         kmer_seq[i] = toDeci(tempKmer);
     }
@@ -127,9 +128,9 @@ int* seq2kmer(int* seq, const int &N) {
  * @param s standard deviation 
  * @return probabily density at position x for N~(m, s²)
  */
-float normal_pdf(const float &x, const float &m, const float &s) {
-    static const float INV_SQRT_2PI = 0.3989422804014327;
-    const float a = (x - m) / s;
+double normal_pdf(const double &x, const double &m, const double &s) {
+    static const double INV_SQRT_2PI = 0.3989422804014327;
+    const double a = (x - m) / s;
     return INV_SQRT_2PI / s * exp(-0.5f * a * a);
 }
 
@@ -141,8 +142,8 @@ float normal_pdf(const float &x, const float &m, const float &s) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return probability density value for x in the given normal distribution
  */
-float scoreKmer(const float &x, const int &kmer, vector<tuple<float, float>>* model) {
-    tuple<float, float> kmerModel = (*model)[kmer];
+double scoreKmer(const double &x, const int &kmer, vector<tuple<double, double>>* model) {
+    tuple<double, double> kmerModel = (*model)[kmer];
     return normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel));
 }
 
@@ -153,7 +154,7 @@ float scoreKmer(const float &x, const int &kmer, vector<tuple<float, float>>* mo
  * @param b second value
  * @return log(exp(a) + exp(b))
  */
-float logPlus(const float &a, const float &b) {
+double logPlus(const double &a, const double &b) {
     // safety check
     if(a==b && isinf(a) && isinf(b)) {
         return a;
@@ -175,21 +176,21 @@ float logPlus(const float &a, const float &b) {
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logF(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model){
-    float mm, mc;
+void logF(double* sig, int* kmer_seq, double* MM, double* MC, const int &T, const int &N, vector<tuple<double, double>>* model){
+    double mm, mc;
     for(int i=0; i<T; i++){
         for(int j=0; j<N; j++){
             mm=-INFINITY;
             mc=-INFINITY;
             if (i>0 && j>0){
                 mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
+                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
+                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
                 // mm = logPlus(mm, MM[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
             }
             MM[i*N+j] = mm;
-            if(i>0){
-                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
-                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
-            }
+            // if(i>0){
+            // }
             if(i==0 && j==0){
                 mc = 0; // initialize with log(1)
             }
@@ -209,16 +210,16 @@ void logF(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const i
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logB(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const int &N, vector<tuple<float, float>>* model) {
-    float mm, mc;
+void logB(double* sig, int* kmer_seq, double* MM, double* MC, const int &T, const int &N, vector<tuple<double, double>>* model) {
+    double mm, mc;
     for(int i=T-1; i>=0; i--){
         for(int j=N-1; j>=0; j--){
             mm=-INFINITY;
             mc=-INFINITY;
             if(i==T-1 && j==N-1){
-                mc = 0; // initialize with log(1) 
+                mc = 0; // initialize with log(1)
             }
-            if(i<T-1){
+            if(i<T-1 && j>0){
                 mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));
                 mm = logPlus(mm, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));
             }
@@ -235,24 +236,20 @@ void logB(float* sig, int* kmer_seq, float* MM, float* MC, const int &T, const i
 /**
  * Calculate the logarithmic probability matrix
  *
- * @param forMM matrix containing forward-values for segment borders
- * @param forMC matrix containing forward-values for extending segment
- * @param backMM matrix containing backward-values for extending segment
- * @param backMC matrix containing backward-values for extending segment
+ * @param FOR matrix containing forward-values for segment borders
+ * @param BACK matrix containing backward-values for extending segment
  * @param T length of the ONT raw signal + 1
  * @param N length of nucleotide sequence + 1
  * @return matrix containing logarithmic probabilities for segment borders
  */
-float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int &T, const int &N) {
-    float forZ = forMC[T*N-1];
-    // TODO? check if forZ ~= backZ
-    float* LP = new float[T*N];
+double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int &N) {
+    // cerr<<"Z: "<<Z;
+    double* LP = new double[T*N];
     fill_n(LP, T*N, -INFINITY);
-    // LP = {-1.0f};
     for(int i=0; i<T; i++){
         for(int j=0; j<N; j++){
             int x = i*N+j;
-            LP[x] = forMM[x] + backMM[x] - forZ;
+            LP[x] = FOR[x] + BACK[x] - Z;
         }
     }
     // cout<<"Z: "<<forZ<<endl;
@@ -261,15 +258,58 @@ float* logP(float* forMM, float* forMC, float* backMM, float* backMC, const int 
 }
 
 /**
+ * Calculate the maximum a posteriori path through LP
+ *
+ */
+double* getBorders(double* LPM, double* LPC, const int &T, const int &N){
+    
+    double* MM = new double[T*N];
+    fill_n(MM, T*N, -INFINITY);
+
+    double mm;
+    for(int i=0; i<T; i++){
+        for(int j=0; j<N; j++){
+            mm=-INFINITY;
+            if(i>0 && j>0){
+                mm = MM[(i-1)*N+(j-1)] + LPM[i*N+j];
+            }
+            if(i>0){
+                mm = max(mm, MM[(i-1)*N+j] + LPC[i*N+j]);
+            }
+            if(i==0 && j==0){
+                mm = 0; // initialize with log(1)
+            }
+            MM[i*N+j] = mm;
+        }
+    }
+
+    double* borderMap = new double[N];
+    int i = T-1;
+    int j = N-1;
+    while(j>0 && i>0){
+        if(i>0 && j>0 && (MM[(i-1)*N+(j-1)] + LPM[i*N+j] == MM[i*N+j])){
+            borderMap[j]=i;
+            i--;
+            j--;
+        } else {
+            i--;
+        }
+    }
+
+    delete[] MM;
+    return borderMap;
+}
+
+/**
  * Read the normal distribution parameters from a given TSV file
  *
  * @param file path to the TSV file containing the parameters
  * @param model kmer model to fill
  */
-void readKmerModel(const string &file, vector<tuple<float, float>>* model) {
+void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
     ifstream inputFile(file);
     string line, kmer, tmp;
-    float mean, stdev;
+    double mean, stdev;
     getline(inputFile, line);
     while(getline(inputFile, line)) { // read line
         stringstream buffer(line); // parse line to stringstream for getline
@@ -295,7 +335,7 @@ int main(int argc, char* argv[]) {
     string read;
     fillBASE2ID();
     int truish = 1;
-    vector<tuple<float, float>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
+    vector<tuple<double, double>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
     readKmerModel(MODELPATH, &model);
 
     while(truish) {
@@ -320,10 +360,10 @@ int main(int argc, char* argv[]) {
             break;
         }
         
-        // process signal: convert string to float array
+        // process signal: convert string to double array
         int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
-        cerr<<"T: "<<T<<endl;
-        float* sig = new float[T - 1];
+        // cerr<<"T: "<<T<<endl;
+        double* sig = new double[T - 1];
         fill_n(sig, T-1, -INFINITY);
         string value;
         stringstream ss(signal);
@@ -331,51 +371,72 @@ int main(int argc, char* argv[]) {
         while(getline(ss, value, ',')) {
             sig[i++] = stof(value);
         }
-
         // process read: convert string to int array
-        int N = read.size() + 1;
-        int seq_size = read.size() + (K-1);
+        int N = read.size() + 1; // operate on base transitions
+        int seq_size = read.size() + (K+2); // add AAAAA in front and NN to end
         int* seq = new int[seq_size];
         fill_n(seq, seq_size, 0); // default: fill with A
-        i = K/2; // add floor(K/2) 0s to front and end
+        i = K; // start at position K because of As at front
         for (const char &c: read) {
             try {
                 seq[i] = BASE2ID.at(c);
                 i++;
             } catch (const std::out_of_range) {
                 // TODO handle unknown nucleotide in read
-                cout<<"Unknown nucleotide: "<<c<<endl;
-                break;
+                cerr<<"Unknown nucleotide: "<<c<<endl;
+                exit(10);
             }
         }
-        int* kmer_seq = seq2kmer(seq, N);
+        // add NN to end of sequence
+        seq[i] = 4;
+        seq[i+1] = 4;
+
+        int* kmer_seq = seq2kmer(seq, N-1);
 
         // initialize matrices
-        float* forMM = new float[T*N];
+        double* forMM = new double[T*N];
         fill_n(forMM, T*N, -INFINITY);
-        float* forMC = new float[T*N];
+        double* forMC = new double[T*N];
         fill_n(forMC, T*N, -INFINITY);
-        float* backMM = new float[T*N];
+        double* backMM = new double[T*N];
         fill_n(backMM, T*N, -INFINITY);
-        float* backMC = new float[T*N];
+        double* backMC = new double[T*N];
         fill_n(backMC, T*N, -INFINITY);
 
         // calculate segmentation probabilities, fill matrices
         logF(sig, kmer_seq, forMM, forMC, T, N, &model);
         logB(sig, kmer_seq, backMM, backMC, T, N, &model);
-        float* LP = logP(forMM, forMC, backMM, backMC, T, N); // log probs
+        
+        // Check if Z value matches, must match between matrices
+        if (fabs(forMC[N*T-1] != backMC[0])<EPSILON) {
+            cerr.precision(20);
+            cerr<<"Z values between matrices do not match!\n";
+            cerr<<"forMC: "<<forMC[N*T-1]<<", backMC: "<<backMC[0]<<"\n";
+            cerr<<backMC[0]-forMC[N*T-1]<<"\n";
+            cerr.flush();
+            exit(11);
+        }
 
-        // calculate where to put segment the signal
-        // calculate max or sum of rows, sum better if uncertain
-        float* LSP = new float[T]; // log segment probs
+        double* LPM = logP(forMM, backMM, backMC[0], T, N); // log probs
+        double* LPC = logP(forMC, backMC, backMC[0], T, N); // log probs
+        double* borderMap = getBorders(LPM, LPC, T, N);
+
+        for(int j = 0; j<N; j++){
+            cout<<borderMap[j]<<",";
+        }
+        cout<<endl;
+        // cout.flush();
+
+        // calculate sum of segment probabilities
+        double* LSP = new double[T]; // log segment probs
         fill_n(LSP, T, -INFINITY);
         int idx;
-        float sum;
+        double sum;
         for(int i=0;i<T;i++) {
             sum = -INFINITY;
             for(int j=0; j<N; j++) {
                 idx = i*N+j;
-                sum = logPlus(sum, LP[idx]);
+                sum = logPlus(sum, LPM[idx]);
             }
             LSP[i] = sum;
             cout<<sum<<",";
@@ -383,14 +444,16 @@ int main(int argc, char* argv[]) {
         cout<<endl;
         cout.flush();
 
-        cerr.precision(4);
-        cerr<<"LP\n";
-        for(int i=0; i<T; i++){
-           for(int j=0; j<N; j++){
-               cerr<<LP[i*N+j]<<", ";
-           }
-           cerr<<endl;
-        }
+// ============================================
+
+        // cerr.precision(4);
+        // cerr<<"LP\n";
+        // for(int i=0; i<T; i++){
+        //    for(int j=0; j<N; j++){
+        //        cerr<<LP[i*N+j]<<", ";
+        //    }
+        //    cerr<<endl;
+        // }
         // cerr.precision(4);
         // cerr<<"forMM\n";
         // for(int i=0; i<T; i++){
@@ -421,24 +484,8 @@ int main(int argc, char* argv[]) {
         //    cerr<<endl;
         // }
 
-        delete[] LP;
-        LP = 0;
-        delete[] LSP;
-        LSP = 0;
-        delete[] sig;
-        sig = 0;
-        delete[] seq;
-        seq = 0;
-        delete[] kmer_seq;
-        kmer_seq = 0;
-        delete[] forMM;
-        forMM = 0;
-        delete[] forMC;
-        forMC = 0;
-        delete[] backMM;
-        backMM = 0;
-        delete[] backMC;
-        backMC = 0;
+        // Clean up
+        delete[] LPM, LPC,borderMap, sig, seq, kmer_seq, forMM, forMC, backMM, backMC;
     }
     return 0;
 }
