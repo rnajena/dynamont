@@ -373,10 +373,17 @@ int main(int argc, char* argv[]) {
         }
         // process read: convert string to int array
         int N = read.size() + 1; // operate on base transitions
-        int seq_size = read.size() + (K+2); // add AAAAA in front and NN to end
+        // int seq_size = read.size() + (2*K+2); // add NNNNNAAAAA in front and NN to end
+        int seq_size = read.size() + (K-1); // add 2 nucleotides to front and back of read
         int* seq = new int[seq_size];
+        // fill_n(seq, seq_size, 0); // default: fill with A
         fill_n(seq, seq_size, 0); // default: fill with A
-        i = K; // start at position K because of As at front
+        // add NNNNN to front
+        // for (int i = 0; i<K; i++) {
+        //     seq[i] = 4;
+        // }
+        // i = 2*K; // start at position K because of As at front
+        i = floor(K/2);
         for (const char &c: read) {
             try {
                 seq[i] = BASE2ID.at(c);

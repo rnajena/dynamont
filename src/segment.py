@@ -79,7 +79,7 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
     # prepare segmentation and return
     borders = pipe.stdout.readline().strip()[:-1].decode('UTF-8')
     probs = pipe.stdout.readline().strip()[:-1].decode('UTF-8')
-    borders = np.array(borders.split(','), dtype=float)
+    borders = np.array(borders.split(','), dtype=int)[:-1]
     probs = np.array(probs.split(','), dtype=float)[:-1] # TODO border means this position is included in the segment? then exclude last element
     return borders, probs
 
@@ -136,10 +136,9 @@ def segmentRead(signal : np.ndarray, read : str, segmentation : list, outfile : 
     '''
 
     # TODO cut polyA
-    signal = signal[4663:]
+    signal = signal[5942:]
     segmentation = [(s[0] - 4663, s[1]) for s in segmentation]
 
-    print('Readlength', len(read))
     # TODO for later mutliprocessing move the pipe out of this function
     # Create pipe between python script and cp segmentation script
     CPP_SCRIPT = join(dirname(__file__), 'segment')
@@ -157,6 +156,9 @@ def segmentRead(signal : np.ndarray, read : str, segmentation : list, outfile : 
     # print(len(signal), len(hampel_probs), len(original_probs))
     stopFeeding(pipe)
 
+    print('Readlength', len(read), 'Number of segment borders:', len(hampel_borders))
+    print(hampel_borders[:5], hampel_borders[-5:])
+    print('signal', len(hampel_signal))
     with open(outfile, 'a+') as w:
         w.write(f"Segmentpobabilies (log):\n{np.array_str(original_borders)}\nRead:\n{read}\n")
 
@@ -174,6 +176,8 @@ def plotSegmentationProbs(hampel_signal : np.ndarray, signal : np.ndarray, hampe
     for e in f5c_segs:
         ax1.annotate(e[0], (e[0] + 1, max(signal) + 3), rotation=90, fontsize=7)
         ax1.annotate(e[1], (e[0] + 1, max(signal)), fontsize=7)
+    for i, e in enumerate(hampel_borders):
+        ax1.annotate(read[i], (e, -10), fontsize=7, annotation_clip=False)
     ax1.set_ylabel('Signal pico Ampere')
     ax1.set_xticks(np.arange(0, len(signal), 2000))
     # ax1.grid(True, 'both', 'x')
