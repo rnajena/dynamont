@@ -22,7 +22,7 @@ using namespace std;
 
 map<char, int> BASE2ID;
 int ALPHABET_SIZE;
-double EPSILON = pow(10, -5);
+double EPSILON = pow(10, -8);
 
 // TODO move to config file?
 // const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA.model";
@@ -142,7 +142,7 @@ double normal_pdf(const double &x, const double &m, const double &s) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return probability density value for x in the given normal distribution
  */
-double scoreKmer(const double &x, const int &kmer, vector<tuple<double, double>>* model) {
+inline double scoreKmer(const double &x, const int &kmer, vector<tuple<double, double>>* model) {
     tuple<double, double> kmerModel = (*model)[kmer];
     return normal_pdf(x, get<0>(kmerModel), get<1>(kmerModel));
 }
@@ -176,25 +176,44 @@ double logPlus(const double &a, const double &b) {
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logF(double* sig, int* kmer_seq, double* MM, double* MC, const int &T, const int &N, vector<tuple<double, double>>* model){
-    double mm, mc;
+void logF(double* sig, int* kmer_seq, double* M, double* I, double* D, double* E, const int &T, const int &N, vector<tuple<double, double>>* model){
+    double mat, ins, del, ext;
     for(int i=0; i<T; i++){
         for(int j=0; j<N; j++){
-            mm=-INFINITY;
-            mc=-INFINITY;
+            mat=-INFINITY;
+            ins=-INFINITY;
+            del=-INFINITY;
+            ext=-INFINITY;
             if (i>0 && j>0){
-                mm = logPlus(mm, MC[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
-                mc = logPlus(mc, MC[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
-                mc = logPlus(mc, MM[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
-                // mm = logPlus(mm, MM[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
+                mat=logPlus(mat, M[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(0);
+                mat=logPlus(mat, I[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(0.025);
+                mat=logPlus(mat, D[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(0.05);
+                mat=logPlus(mat, E[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(1-0.05-0.025);
+                ext=logPlus(ext, M[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E1
+                ext=logPlus(ext, E[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E2
+                ext=logPlus(ext, D[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E3
             }
-            MM[i*N+j] = mm;
-            // if(i>0){
-            // }
+            if (i>0) {
+                // TODO how to score this?
+                del=logPlus(del, M[(i-1)*N+j] + log(0));//D1
+                del=logPlus(del, I[(i-1)*N+j] + log(0));//D2
+                del=logPlus(del, D[(i-1)*N+j] + log(0));//D3
+                del=logPlus(del, E[(i-1)*N+j] + log(0));//D4
+            }
+            if (j>0){
+                // TODO how to score this?
+                ins=logPlus(ins, M[i*N+(j-1)] + log(0));//I1
+                ins=logPlus(ins, I[i*N+(j-1)] + log(0));//I2
+                ins=logPlus(ins, D[i*N+(j-1)] + log(0));//I3
+                ins=logPlus(ins, E[i*N+(j-1)] + log(0));//I4
+            }
             if(i==0 && j==0){
-                mc = 0; // initialize with log(1)
+                del = 0; // initialize with log(1)
             }
-            MC[i*N+j]=mc;
+            M[i*N+j] = mat;
+            I[i*N+j] = ins;
+            D[i*N+j] = del;
+            E[i*N+j] = ext;
         }
     }
 }
@@ -210,25 +229,45 @@ void logF(double* sig, int* kmer_seq, double* MM, double* MC, const int &T, cons
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logB(double* sig, int* kmer_seq, double* MM, double* MC, const int &T, const int &N, vector<tuple<double, double>>* model) {
-    double mm, mc;
+void logB(double* sig, int* kmer_seq, double* M, double* I, double* D, double* E, const int &T, const int &N, vector<tuple<double, double>>* model) {
+    double mat, ins, del, ext;
     for(int i=T-1; i>=0; i--){
         for(int j=N-1; j>=0; j--){
-            mm=-INFINITY;
-            mc=-INFINITY;
+            mat=-INFINITY;
+            ins=-INFINITY;
+            del=-INFINITY;
+            ext=-INFINITY;
             if(i==T-1 && j==N-1){
-                mc = 0; // initialize with log(1)
-            }
-            if(i<T-1 && j>0){
-                mc = logPlus(mc, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));
-                mm = logPlus(mm, MC[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));
+                mat = 0; // initialize with log(1)
+                ins = 0;
+                del = 0;
+                ext = 0;
             }
             if(i<T-1 && j<N-1){
-                mc = logPlus(mc, MM[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
-                // mm = logPlus(mm, MM[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                mat=logPlus(mat, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                ins=logPlus(ins, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                del=logPlus(del, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                ext=logPlus(ext, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
             }
-            MC[i*N+j] = mc;
-            MM[i*N+j] = mm;
+            if (i<T-1 && j>0) {
+                mat=logPlus(mat, D[(i+1)*N+j] + log(0));//D1
+                ins=logPlus(ins, D[(i+1)*N+j] + log(0));//D2
+                del=logPlus(del, D[(i+1)*N+j] + log(0));//D3
+                ext=logPlus(ext, D[(i+1)*N+j] + log(0));//D4
+                mat=logPlus(mat, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E1
+                ext=logPlus(ext, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E2
+                del=logPlus(del, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E3
+            }
+            if(j<N-1){ // i > 0?
+                mat=logPlus(mat, I[i*N+(j+1)] + log(0));//I1
+                ins=logPlus(ins, I[i*N+(j+1)] + log(0));//I2
+                del=logPlus(del, I[i*N+(j+1)] + log(0));//I3
+                ext=logPlus(ext, I[i*N+(j+1)] + log(0));//I4
+            }
+            M[i*N+j] = mat;
+            I[i*N+j] = ins;
+            D[i*N+j] = del;
+            E[i*N+j] = ext;
         }
     }
 }
@@ -261,7 +300,7 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
  * Calculate the maximum a posteriori path through LP
  *
  */
-int* getBorders(double* LPM, double* LPC, const int &T, const int &N){
+double* getBorders(double* LPM, double* LPC, const int &T, const int &N){
     
     double* MM = new double[T*N];
     fill_n(MM, T*N, -INFINITY);
@@ -283,8 +322,7 @@ int* getBorders(double* LPM, double* LPC, const int &T, const int &N){
         }
     }
 
-    int* borderMap = new int[N];
-    fill_n(borderMap, N, 0);
+    double* borderMap = new double[N];
     int i = T-1;
     int j = N-1;
     while(j>0 && i>0){
@@ -401,56 +439,76 @@ int main(int argc, char* argv[]) {
 
         int* kmer_seq = seq2kmer(seq, N-1);
 
-        // initialize matrices
-        double* forMM = new double[T*N];
-        fill_n(forMM, T*N, -INFINITY);
-        double* forMC = new double[T*N];
-        fill_n(forMC, T*N, -INFINITY);
-        double* backMM = new double[T*N];
-        fill_n(backMM, T*N, -INFINITY);
-        double* backMC = new double[T*N];
-        fill_n(backMC, T*N, -INFINITY);
+        // initialize for matrices
+        double* forM = new double[T*N];
+        fill_n(forM, T*N, -INFINITY);
+        double* forI = new double[T*N];
+        fill_n(forI, T*N, -INFINITY);
+        double* forD = new double[T*N];
+        fill_n(forD, T*N, -INFINITY);
+        double* forE = new double[T*N];
+        fill_n(forE, T*N, -INFINITY);
+        // initialize back matrices
+        double* backM = new double[T*N];
+        fill_n(backM, T*N, -INFINITY);
+        double* backI = new double[T*N];
+        fill_n(backI, T*N, -INFINITY);
+        double* backD = new double[T*N];
+        fill_n(backD, T*N, -INFINITY);
+        double* backE = new double[T*N];
+        fill_n(backE, T*N, -INFINITY);
+
+        // remove later
+        // double* backMM = new double[T*N];
+        // fill_n(backMM, T*N, -INFINITY);
+        // double* backMC = new double[T*N];
+        // fill_n(backMC, T*N, -INFINITY);
+
 
         // calculate segmentation probabilities, fill matrices
-        logF(sig, kmer_seq, forMM, forMC, T, N, &model);
-        logB(sig, kmer_seq, backMM, backMC, T, N, &model);
+        logF(sig, kmer_seq, forM, forI, forD, forE, T, N, &model);
+        logB(sig, kmer_seq, backM, backI, backD, backE, T, N, &model);
         
+        cerr<<logPlus(logPlus(logPlus(forM[T*N-1], forI[T*N-1]), forD[T*N-1]), forE[T*N-1])<<endl;
+        cerr<<backM[0]<<endl;
+        exit(1);
+
         // Check if Z value matches, must match between matrices
-        if (fabs(forMC[N*T-1] - backMC[0])>EPSILON) {
-            cerr.precision(20);
-            cerr<<"Z values between matrices do not match!\n";
-            cerr<<"forMC: "<<forMC[N*T-1]<<", backMC: "<<backMC[0]<<"\n";
-            cerr<<backMC[0]-forMC[N*T-1]<<"\n";
-            cerr.flush();
-            exit(11);
-        }
+        // if (fabs(forMC[N*T-1] != backMC[0])<EPSILON) {
+        //     cerr.precision(20);
+        //     cerr<<"Z values between matrices do not match!\n";
+        //     cerr<<"forMC: "<<forMC[N*T-1]<<", backMC: "<<backMC[0]<<"\n";
+        //     cerr<<backMC[0]-forMC[N*T-1]<<"\n";
+        //     cerr.flush();
+        //     exit(11);
+        // }
 
-        double* LPM = logP(forMM, backMM, backMC[0], T, N); // log probs
-        double* LPC = logP(forMC, backMC, backMC[0], T, N); // log probs
-        int* borderMap = getBorders(LPM, LPC, T, N);
+        // double* LPM = logP(forMM, backMM, backMC[0], T, N); // log probs
+        // double* LPC = logP(forMC, backMC, backMC[0], T, N); // log probs
+        // double* borderMap = getBorders(LPM, LPC, T, N);
 
-        for(int j = 0; j<N; j++){
-            cout<<borderMap[j]<<",";
-        }
-        cout<<endl;
+        // for(int j = 0; j<N; j++){
+        //     cout<<borderMap[j]<<",";
+        // }
+        // cout<<endl;
+        // // cout.flush();
+
+        // // calculate sum of segment probabilities
+        // double* LSP = new double[T]; // log segment probs
+        // fill_n(LSP, T, -INFINITY);
+        // int idx;
+        // double sum;
+        // for(int i=0;i<T;i++) {
+        //     sum = -INFINITY;
+        //     for(int j=0; j<N; j++) {
+        //         idx = i*N+j;
+        //         sum = logPlus(sum, LPM[idx]);
+        //     }
+        //     LSP[i] = sum;
+        //     cout<<sum<<",";
+        // }
+        // cout<<endl;
         // cout.flush();
-
-        // calculate sum of segment probabilities
-        double* LSP = new double[T]; // log segment probs
-        fill_n(LSP, T, -INFINITY);
-        int idx;
-        double sum;
-        for(int i=0;i<T;i++) {
-            sum = -INFINITY;
-            for(int j=0; j<N; j++) {
-                idx = i*N+j;
-                sum = logPlus(sum, LPM[idx]);
-            }
-            LSP[i] = sum;
-            cout<<sum<<",";
-        }
-        cout<<endl;
-        cout.flush();
 
 // ============================================
 
@@ -493,7 +551,7 @@ int main(int argc, char* argv[]) {
         // }
 
         // Clean up
-        delete[] LPM, LPC,borderMap, sig, seq, kmer_seq, forMM, forMC, backMM, backMC;
+        delete[] forM, forD, forE, forI, backM, backD, backE, backI, sig, seq, kmer_seq; //LPM, LPC,borderMap, sig, seq, kmer_seq, forMM, forMC, backMM, backMC;
     }
     return 0;
 }

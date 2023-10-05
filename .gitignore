@@ -40,3 +40,4 @@ backup/
 src/segment
 output.pdf
 .gitignore
+src/segment_affine
