@@ -31,7 +31,7 @@ def parse() -> Namespace:
     parser.add_argument('ONTpath', type=str, help='Path to one file or folder containing ONT raw data, either {fast5, slow5, blow5 or pod5}')
     parser.add_argument('FastQ', type=str, help='Multi fastq files containing basecalls for provided ONT data')
     parser.add_argument('nanopolish_polyA', type=str, help='nanopolish polya output table')
-    parser.add_argument('outfile', type=str, help='Output directory')
+    parser.add_argument('outfile_basename', type=str, help='Output directory')
     parser.add_argument('-r', '--recursive', action='store_true', help='Look for ONT data recursively in folder')
     parser.add_argument('-p', '--processes', type=int, default=1, help='Number of processes for multiprocessing')
     parser.add_argument('--rna', action='store_true', help='Input signal is RNA data')
@@ -296,7 +296,7 @@ def loadSegmentation(file : str) -> list:
 def main() -> None:
     args = parse()
     inp = args.ONTpath
-    out = args.outfile
+    out = args.outfile_basename
     fastq = args.FastQ
     isRna = args.rna
     nanoPolyA = readNanoPolyA(args.nanopolish_polyA).set_index('readname')
@@ -305,8 +305,8 @@ def main() -> None:
     assert exists(inp), f'Input path {inp} does not exist!'
     assert exists(fastq), f'Fastq path {fastq} does not exist!'
 
-    if not exists(out):
-        makedirs(out)
+    if not exists(dirname(out)):
+        makedirs(dirname(out))
     # TODO change
     outfile = out + '_result.csv'
     outsum = out + '_summary.csv'
