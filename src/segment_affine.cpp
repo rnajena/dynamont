@@ -165,6 +165,49 @@ double logPlus(const double &a, const double &b) {
     return b + log1p(exp(a-b));
 }
 
+inline double m1() {
+    return log(0.025);
+}
+
+inline double m3() {
+    return log(1-0.025);
+}
+
+inline double i1() {
+    return 0; // TODO
+}
+
+inline double i2() {
+    return 0; // TODO
+}
+
+/**
+ * Calculte prefix score, RNA read should start with polyA
+*/
+inline double p1(double signal_dp) {
+    // AAAAA mean ~= 108.9, stdev ~= 2.7
+    // check 3 stdevs
+    if (100.8 < signal_dp && signal_dp < 117.0){
+        return 0;
+    }
+    return -INFINITY;
+}
+
+inline double s1() {
+    return 0; // TODO! this has to be changed for sure
+}
+
+inline double e3() {
+    return 0; // TODO
+}
+
+inline double e4(double signal_dp) {
+    if (signal_dp <= 50.0 && signal_dp >= 150.0){
+        return 0
+    }
+    return -INFINITY;
+}
+
 /**
  * Calculate forward matrices using logarithmic values
  *
@@ -176,44 +219,42 @@ double logPlus(const double &a, const double &b) {
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logF(double* sig, int* kmer_seq, double* M, double* I, double* D, double* E, const int &T, const int &N, vector<tuple<double, double>>* model){
-    double mat, ins, del, ext;
+void logF(double* sig, int* kmer_seq, double* M, double* I, double* P, double* S, double* E, const int &T, const int &N, vector<tuple<double, double>>* model){
+    double mat, ins, ext, pre, suf;
     for(int i=0; i<T; i++){
         for(int j=0; j<N; j++){
+            pre=-INFINITY;
             mat=-INFINITY;
-            ins=-INFINITY;
-            del=-INFINITY;
             ext=-INFINITY;
+            ins=-INFINITY;
+            suf=-INFINITY;
             if (i>0 && j>0){
-                mat=logPlus(mat, M[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(0);
-                mat=logPlus(mat, I[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(0.025);
-                mat=logPlus(mat, D[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(0.05);
-                mat=logPlus(mat, E[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + log(1-0.05-0.025);
-                ext=logPlus(ext, M[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E1
-                ext=logPlus(ext, E[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E2
-                ext=logPlus(ext, D[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E3
+                mat=logPlus(mat, I[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + m1();
+                mat=logPlus(mat, P[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));
+                mat=logPlus(mat, E[(i-1)*N+(j-1)] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + m3();
+
+                ext=logPlus(ext, M[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E1 first extend
+                ext=logPlus(ext, E[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model)));//E2 extend further
+                ext=logPlus(ext, E[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + e3();//E3 delete/kill
+                ext=logPlus(ext, E[(i-1)*N+j] + log(scoreKmer(sig[i-1], kmer_seq[j-1], model))) + e4(sig[i-1]);//E4 error
             }
             if (i>0) {
-                // TODO how to score this?
-                del=logPlus(del, M[(i-1)*N+j] + log(0));//D1
-                del=logPlus(del, I[(i-1)*N+j] + log(0));//D2
-                del=logPlus(del, D[(i-1)*N+j] + log(0));//D3
-                del=logPlus(del, E[(i-1)*N+j] + log(0));//D4
+                pre=logPlus(pre, P[(i-1)*N+j] + p1(sig[i-1]));
+                suf=logPlus(suf, S[(i-1)*N+j] + s1());//S1
+                suf=logPlus(suf, E[(i-1)*N+j] + s1());//S2
             }
             if (j>0){
-                // TODO how to score this?
-                ins=logPlus(ins, M[i*N+(j-1)] + log(0));//I1
-                ins=logPlus(ins, I[i*N+(j-1)] + log(0));//I2
-                ins=logPlus(ins, D[i*N+(j-1)] + log(0));//I3
-                ins=logPlus(ins, E[i*N+(j-1)] + log(0));//I4
+                ins=logPlus(ins, I[i*N+(j-1)] + i1());//I1
+                ins=logPlus(ins, E[i*N+(j-1)] + i2());//I2
             }
             if(i==0 && j==0){
-                del = 0; // initialize with log(1)
+                pre = 0; // initialize with log(1)
             }
             M[i*N+j] = mat;
             I[i*N+j] = ins;
-            D[i*N+j] = del;
+            P[i*N+j] = pre;
             E[i*N+j] = ext;
+            S[i*N+j] = suf;
         }
     }
 }
@@ -229,45 +270,47 @@ void logF(double* sig, int* kmer_seq, double* M, double* I, double* D, double* E
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-void logB(double* sig, int* kmer_seq, double* M, double* I, double* D, double* E, const int &T, const int &N, vector<tuple<double, double>>* model) {
-    double mat, ins, del, ext;
+void logB(double* sig, int* kmer_seq, double* M, double* I, double* P, double* S, double* E, const int &T, const int &N, vector<tuple<double, double>>* model) {
+    double mat, ins, ext, pre, suf;
     for(int i=T-1; i>=0; i--){
         for(int j=N-1; j>=0; j--){
             mat=-INFINITY;
             ins=-INFINITY;
-            del=-INFINITY;
             ext=-INFINITY;
+            pre=-INFINITY;
+            suf=-INFINITY;
             if(i==T-1 && j==N-1){
                 mat = 0; // initialize with log(1)
                 ins = 0;
-                del = 0;
+                pre = 0;
                 ext = 0;
+                suf = 0;
             }
             if(i<T-1 && j<N-1){
-                mat=logPlus(mat, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
-                ins=logPlus(ins, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
-                del=logPlus(del, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
-                ext=logPlus(ext, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                mat=logPlus(mat, P[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model)));
+                ins=logPlus(ins, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model))) + m1();
+                ext=logPlus(ext, M[(i+1)*N+(j+1)] + log(scoreKmer(sig[i], kmer_seq[j], model))) + m3();
             }
             if (i<T-1 && j>0) {
-                mat=logPlus(mat, D[(i+1)*N+j] + log(0));//D1
-                ins=logPlus(ins, D[(i+1)*N+j] + log(0));//D2
-                del=logPlus(del, D[(i+1)*N+j] + log(0));//D3
-                ext=logPlus(ext, D[(i+1)*N+j] + log(0));//D4
-                mat=logPlus(mat, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E1
-                ext=logPlus(ext, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E2
-                del=logPlus(del, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E3
+                mat=logPlus(mat, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E1 first extend
+                ext=logPlus(ext, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model)));//E2 extend further
+                ext=logPlus(ext, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model))) + e3();//E3 delete/kill
+                ext=logPlus(ext, E[(i+1)*N+j] + log(scoreKmer(sig[i], kmer_seq[j-1], model))) + e4(sig[i]);//E4 error
             }
             if(j<N-1){ // i > 0?
-                mat=logPlus(mat, I[i*N+(j+1)] + log(0));//I1
-                ins=logPlus(ins, I[i*N+(j+1)] + log(0));//I2
-                del=logPlus(del, I[i*N+(j+1)] + log(0));//I3
-                ext=logPlus(ext, I[i*N+(j+1)] + log(0));//I4
+                ins=logPlus(ins, I[i*N+(j+1)] + i1());//I1
+                ext=logPlus(ext, I[i*N+(j+1)] + i2());//I2
+            }
+            if(i<T-1) {
+                suf=logPlus(suf, S[(i+1)*N+j] + s1());//S1
+                ext=logPlus(ext, S[(i+1)*N+j] + s1());//S2
+                pre=logPlus(pre, P[(i+1)*N+j] + p1(sig[i]));
             }
             M[i*N+j] = mat;
             I[i*N+j] = ins;
-            D[i*N+j] = del;
+            P[i*N+j] = pre;
             E[i*N+j] = ext;
+            S[i*N+j] = suf;
         }
     }
 }
@@ -412,17 +455,10 @@ int main(int argc, char* argv[]) {
         }
         // process read: convert string to int array
         int N = read.size() + 1; // operate on base transitions
-        // int seq_size = read.size() + (2*K+2); // add NNNNNAAAAA in front and NN to end
-        int seq_size = read.size() + (K-1); // add 2 nucleotides to front and back of read
+        int seq_size = read.size() + 2; // add 2 Ns to back of read
         int* seq = new int[seq_size];
-        // fill_n(seq, seq_size, 0); // default: fill with A
-        fill_n(seq, seq_size, 0); // default: fill with A
-        // add NNNNN to front
-        // for (int i = 0; i<K; i++) {
-        //     seq[i] = 4;
-        // }
-        // i = 2*K; // start at position K because of As at front
-        i = floor(K/2);
+        fill_n(seq, seq_size, 4); // default: fill with N
+        i = 0;
         for (const char &c: read) {
             try {
                 seq[i] = BASE2ID.at(c);
@@ -433,9 +469,6 @@ int main(int argc, char* argv[]) {
                 exit(10);
             }
         }
-        // add NN to end of sequence
-        seq[i] = 4;
-        seq[i+1] = 4;
 
         int* kmer_seq = seq2kmer(seq, N-1);
 

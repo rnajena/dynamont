@@ -157,10 +157,10 @@ def segmentRead(signal : np.ndarray, read : str, readid : str, transcript_start 
     # cut polyA
     # print(type(transcript_start), transcript_start)
     if transcript_start != -1:
-        transcript_signal = signal[transcript_start:]
+        signal = signal[transcript_start:]
     #     print(True)
-    else:
-        transcript_signal = signal
+    # else:
+    #     signal = signal
 
     # TODO for later mutliprocessing move the pipe out of this function
     # Create pipe between python script and cp segmentation script
@@ -171,9 +171,10 @@ def segmentRead(signal : np.ndarray, read : str, readid : str, transcript_start 
     pipe = openCPPScript(CPP_SCRIPT)
 
     np.set_printoptions(formatter={'float': lambda x: "{0:0.1f}".format(x)}, threshold=maxsize)
-    hampel_signal = hampel(transcript_signal, window_size=30).filtered_data
+    # filter signal with hampel filter
+    # signal = hampel(signal, window_size=30).filtered_data
     # try:
-    borders, probs = feedSegmentation(hampel_signal, read, pipe)
+    borders, probs = feedSegmentation(signal, read, pipe)
     borders += transcript_start
     # except Exception as e:
     #     print(e)
@@ -328,7 +329,7 @@ def main() -> None:
     for file in files:
         r5 = read(file)
         for readid in r5:
-            if readid not in polyAIndex:
+            if (readid not in polyAIndex) or (readid not in basecalls):
                 continue
             transcript_start = int(nanoPolyA.loc[[readid]]['transcript_start'][0].item())
             # if transcript_start == -1:
