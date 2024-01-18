@@ -4,43 +4,153 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
+import gzip
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os import makedirs, name
 from os.path import dirname, exists, join
+from pathlib import Path
+from subprocess import PIPE, Popen
 from sys import maxsize
 from itertools import repeat
 import multiprocessing as mp
+# from scipy.signal import argrelextrema
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from Bio import SeqIO
+# from hampel import hampel
 from read5 import read
-from fileio import feedSegmentation, stopFeeding, openCPPScript, getFiles, loadFastqs
 
-def parse() -> Namespace:
-    parser = ArgumentParser(
-        formatter_class=ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument('ONTpath', type=str, help='Path to one file or folder containing ONT raw data, either {fast5, slow5, blow5 or pod5}')
-    parser.add_argument('FastQ', type=str, help='Multi fastq files containing basecalls for provided ONT data')
-    # parser.add_argument('nanopolish_polyA', type=str, help='nanopolish polya output table')
-    parser.add_argument('outfile_basename', type=str, help='Output directory')
-    parser.add_argument('-r', '--recursive', action='store_true', help='Look for ONT data recursively in folder')
-    parser.add_argument('-p', '--processes', type=int, default=1, help='Number of processes for multiprocessing')
-    parser.add_argument('--rna', action='store_true', help='Input signal is RNA data')
-    
-    # TODO parameters for testing, might remove later
-    # parser.add_argument('-ri', '--readid', default=None, help='Plot only the segmentation for a single read with the provided readid.')
-    # parser.add_argument('segmentation', default=None, help='Segmentation from nanopolish/f5c with readnames as readids')
-    return parser.parse_args()
+TERM_STRING = "$"
+
+def openCPPScript(cpp_script : str) -> Popen:
+    '''
+    Open cpp script with Popen.
+
+    Parameters
+    ----------
+    cpp_script : str
+        Path of script
+
+    Returns
+    -------
+    subprocess : Popen
+    '''
+    return Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
+
+# https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
+def feedSegmentation(signal : list, read : str, pipe : Popen) -> np.ndarray:
+    '''
+    Parse & feed signal & read to the C++ segmentation script.
+
+    Parameters
+    ----------
+    signal : list
+    read : str
+    stream
+        Open stdin stream of the C++ segmentation algorithm
+
+    Returns
+    -------
+    segmentation : np.ndarray
+    '''
+    # prepare cookie for segmentation
+    cookie = f"{str(signal).replace(' ', '').replace('[', '').replace(']', '')} {read}\n"
+    # transfer data to bytes - needed in Python 3
+    cookie = bytes(cookie, 'UTF-8')
+    print(cookie.decode('UTF-8'))
+    # feed cookie to segmentation
+    pipe.stdin.write(cookie)
+    # print(cookie)
+    pipe.stdin.flush()
+    output = pipe.stdout.readline().strip().decode('UTF-8')
+    output = re.findall('\D[\d,]+', output)
+    # print(output)
+    probs = pipe.stdout.readline().strip()[:-1].decode('UTF-8')
+    # print(output, probs)
+    try:
+        probs = np.array(probs.split(','), dtype=float)[:-1] # TODO border means this position is included in the segment? then exclude last element
+    except Exception as e:
+        print(e)
+        print(probs)
+        print(cookie)
+        print(pipe.stderr.readlines())
+        stopFeeding(pipe)
+        exit(1)
+    segments = []
+    for i in range(len(output)):
+        state = output[i][0]
+        basepos, start = map(int, output[i][1:].split(','))
+        try:
+            _, end = map(int, output[i+1][1:].split(','))
+        except IndexError:
+            end = len(signal)
+        segments.append([start, end, len(read) - basepos, state])
+    segments = np.array(segments, dtype=object)
+    # print("Segments: ", segments[:10], len(segments))
+    return segments, probs
+
+def stopFeeding(pipe : Popen) -> None:
+    pipe.stdin.write(bytes(f'{TERM_STRING} {TERM_STRING}\n', 'UTF-8'))
+    pipe.stdin.close()
+    pipe.stdout.close()
+
+def getFiles(filepath : str, rec : bool) -> list:
+    '''
+    Returns
+    -------
+    files : list
+        a list of input files
+    '''
+
+    if filepath.endswith(".fast5") or filepath.endswith(".slow5") or filepath.endswith(".blow5") or filepath.endswith(".pod5"):
+        return [filepath]
+
+    func = {True : Path(filepath).rglob, False : Path(filepath).glob}[rec]
+    files = []
+
+    for path in func('*.fast5'):
+        files.append(str(path))
+
+    for path in func('*.slow5'):
+        files.append(str(path))
+
+    for path in func('*.blow5'):
+        files.append(str(path))
+
+    for path in func('*.pod5'):
+        files.append(str(path))
+
+    return files
+
+def loadFastqs(path : str) -> dict:
+    '''
+    Returns
+    -------
+    readDict : dict
+        {readid : read}
+    '''
+    readDict = {}
+    if path.endswith(".gz"):
+        path = gzip.open(path, "rt")
+    for record in SeqIO.parse(path, 'fastq'):
+        readDict[record.id] = str(record.seq)
+    return readDict
+
+def readNanoPolyA(file : str) -> pd.DataFrame:
+    return pd.read_csv(file, sep='\t')
 
 def segmentRead(signal : np.ndarray, read : str, readid : str, out : str):
     '''
     Takes read in 3' -> 5' direction
     '''
 
-    # TODO for later mutliprocessing move the pipe out of this function
     # Create pipe between python script and cp segmentation script
-    CPP_SCRIPT = join(dirname(__file__), 'segment_affine_deletion')
+    # CPP_SCRIPT = join(dirname(__file__), 'segment')
+    # CPP_SCRIPT = join(dirname(__file__), '..', 'src', 'segment_affine')
+    CPP_SCRIPT = join(dirname(__file__), '..', 'src', 'segment_affine_deletion')
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
     pipe = openCPPScript(CPP_SCRIPT)
@@ -50,6 +160,8 @@ def segmentRead(signal : np.ndarray, read : str, readid : str, out : str):
     # signal = hampel(signal, window_size=30).filtered_data
     segments, probs = feedSegmentation(signal, read, pipe)
     # borders += transcript_start
+    print(segments)
+    print(probs)
 
     stopFeeding(pipe)
 
@@ -194,61 +306,21 @@ def loadSegmentation(file : str) -> list:
     return res
 
 def main() -> None:
-    args = parse()
-    inp = args.ONTpath
-    out = args.outfile_basename
-    fastq = args.FastQ
-    isRna = args.rna
-    # nanoPolyA = readNanoPolyA(args.nanopolish_polyA).set_index('readname')
-    # seg = loadSegmentation(args.segmentation)
-
-    assert exists(inp), f'Input path {inp} does not exist!'
-    assert exists(fastq), f'Fastq path {fastq} does not exist!'
-
-    if not exists(dirname(out)):
-        makedirs(dirname(out))
-    # TODO change
-    outfile = out + '_result.csv'
-    outsum = out + '_summary.csv'
+    out = dirname(__file__)
+    outfile = join(out, 'result.csv')
+    outsum = join(out, 'summary.csv')
     o = open(outsum, 'w')
     o.write('readindex,readid\n')
+    signal=[108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,97.80747,97.80747,97.80747,97.80747,82.520256,82.520256,82.520256,82.520256,82.520256,82.520256]
+    read="ACGTTGCCAA"
     with open(outfile, 'w') as w:
         w.write('readindex,position,base,segmentstart,segmentend\n')
 
-    files = getFiles(inp, args.recursive)
-    print(f'ONT Files: {len(files)}')
-    basecalls = loadFastqs(fastq)
-    print(f'Segmenting {len(basecalls)} reads')
-
-    # TODO
-    # pool = mp.Pool(args.processes)
-    # polyAIndex = nanoPolyA.index.to_list()
-    i = -1
-    for file in files:
-        r5 = read(file)
-        for readid in r5:
-            if (readid not in basecalls): # or (readid not in polyAIndex)
-                continue
-            # transcript_start = int(nanoPolyA.loc[[readid]]['transcript_start'][0].item())
-            # if transcript_start == -1:
-            #     continue
-            i+=1
-            o.write(f'{i},{readid}\n')
-            print(readid)
-            # invert read from 5'->3' to 3'->5' to match the signal orientation
-            # pool.apply_async(segmentRead, (r5.getpASignal(readid), basecalls[readid][::-1], i, transcript_start, outfile))
-
-            segmentRead(r5.getpASignal(readid), basecalls[readid][::-1], i, out)
-            exit(1)
-
-            # pool.apply_async(segmentRead, (r5.getpASignal(readid), basecalls[readid][::-1], i, out))
-
-            # change basecall orientation to 3' -> 5' because models are in 3' -> 5' direction
-            # segmentRead(r5.getpASignal(readid), basecalls[readid][::-1], i, transcript_start, outfile)
+        segmentRead(signal, read[::-1], 0, out)
     
     o.close()
-    # pool.close()
-    # pool.join()
 
 if __name__ == '__main__':
     main()
+
+#echo "108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,108.90141,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,105.72444,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,87.18801,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,73.256,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,101.34711,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,89.54811,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,81.946815,97.80747,97.80747,97.80747,97.80747,82.520256,82.520256,82.520256,82.520256,82.520256,82.520256 AACCGTTGCA" | ./segment_affine_deletion
