@@ -13,6 +13,7 @@ from pathlib import Path
 import gzip
 # import pandas as pd
 from Bio import SeqIO
+from os.path import splitext
 
 def getFiles(filepath : str, rec : bool) -> list:
     '''
@@ -42,7 +43,7 @@ def getFiles(filepath : str, rec : bool) -> list:
 
     return files
 
-def loadFastqs(path : str) -> dict:
+def loadFastx(path : str) -> dict:
     '''
     Returns
     -------
@@ -52,7 +53,7 @@ def loadFastqs(path : str) -> dict:
     readDict = {}
     if path.endswith(".gz"):
         path = gzip.open(path, "rt")
-    for record in SeqIO.parse(path, 'fastq'):
+    for record in SeqIO.parse(path, splitext(path)[1]):
         readDict[record.id] = str(record.seq)
     return readDict
 
@@ -96,6 +97,28 @@ def openCPPScriptParamsTrain(cpp_script : str, params : dict) -> Popen:
     for param in params:
         script.extend([f"-{param}", str(params[param])])
     script.append("--atrain")
+    script=" ".join(script)
+    # print("Popen call:", script)
+    return Popen(script, shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
+
+def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
+    '''
+    Open cpp script with Popen.
+
+    Parameters
+    ----------
+    cpp_script : str
+        Path of script
+    params : dict
+        {str : float}
+
+    Returns
+    -------
+    subprocess : Popen
+    '''
+    script = [cpp_script]
+    for param in params:
+        script.extend([f"-{param}", str(params[param])])
     script=" ".join(script)
     print("Popen call:", script)
     return Popen(script, shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)

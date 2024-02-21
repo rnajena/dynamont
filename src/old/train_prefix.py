@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from os.path import exists, join, dirname
 from os import makedirs, name
-from fileio import getFiles, loadFastqs, openCPPScriptParamsTrain, stopFeeding
+from fileio import getFiles, loadFastx, openCPPScriptParamsTrain, stopFeeding
 from read5 import read
 from subprocess import Popen
 
@@ -63,7 +63,7 @@ def trainSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarr
     # print("output:", output)
     params = {param.split(":")[0] : float(param.split(":")[1]) for param in output.split(";")}
     # print("params:", params)
-    Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
+    Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
     # print("Z:", Z)
     
     # print("P matrix")
@@ -76,18 +76,21 @@ def trainSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarr
 def train(rawdatapath : str, fastqpath : str, outdir : str, batch_size : int, epochs :int, param_file : str) -> None:
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
-    basecalls = loadFastqs(fastqpath)
+    basecalls = loadFastx(fastqpath)
     print(f'Training segmentation parameters with {len(basecalls)} reads')
     
     param_writer = open(param_file, 'w')
 
-    CPP_SCRIPT = join(dirname(__file__), 'segment_affine_deletion')
+    CPP_SCRIPT = join(dirname(__file__), 'segmentation')
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
+    print(f"training with {CPP_SCRIPT} script")
     
     # init
     params = {
-        "p":0.5,
+        "p1":0.5,
+        "p1a":0.5,
+        "pa":0.5,
         "m1":0.5,
         "e1":1.0,
         "s1":0.16,
@@ -110,6 +113,8 @@ def train(rawdatapath : str, fastqpath : str, outdir : str, batch_size : int, ep
     param_writer.write("Z\n")
     pipe = openCPPScriptParamsTrain(CPP_SCRIPT, params)
     i = -1
+    # TODO correct for Z == -inf, should this happen? maybe a bug?
+    failedInBatch = 0
 
     for e in range(epochs):
         for file in files:
@@ -118,32 +123,39 @@ def train(rawdatapath : str, fastqpath : str, outdir : str, batch_size : int, ep
                 if not readid in basecalls: # or (readid not in polyAIndex)
                     continue
                 i+=1
-                print('i:', i)
+                signal = r5.getpASignal(readid)
+                print('i:', i, 'signal length', len(signal), 'read length', len(basecalls[readid][::-1]))
                 if i % batch_size == 0 and i > 0:
+
                     print(f"Training epoch: {e}, batch: {i // batch_size}")
                     
-                    print(paramCollector)
-                    # log old parameters
+                    # update parameters
+                    for param in params:
+                        params[param] = paramCollector[param] / (batch_size - failedInBatch)
+                    print(params)
+
+                    # log new parameters
                     param_writer.write(f'{e},{i // batch_size},')
                     for param in params:
                         param_writer.write(f'{params[param]},')
-                    param_writer.write(f'{paramCollector["Z"]/batch_size}\n')
+                    param_writer.write(f'{paramCollector["Z"]/(batch_size - failedInBatch)}\n')
                     param_writer.flush()
 
-                    # update parameters
-                    for param in params:
-                        params[param] = paramCollector[param] / batch_size
-                    
                     # initialize new batch
                     paramCollector = {param : 0 for param in paramCollector}
                     stopFeeding(pipe)
                     pipe = openCPPScriptParamsTrain(CPP_SCRIPT, params)
 
-                trainedParams, Z = trainSegmentation(r5.getpASignal(readid), basecalls[readid][::-1], pipe)
+                    failedInBatch = 0
+
+                trainedParams, Z = trainSegmentation(signal, basecalls[readid][::-1], pipe)
                 print("Z:", Z)
-                for param in trainedParams:
-                    paramCollector[param] += trainedParams[param]
-                paramCollector["Z"]+=Z
+                if not np.isinf(Z):
+                    for param in trainedParams:
+                        paramCollector[param] += trainedParams[param]
+                    paramCollector["Z"]+=Z
+                else:
+                    failedInBatch += 1
     
     # stopFeeding(pipe)
     param_writer.close()

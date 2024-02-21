@@ -14,7 +14,7 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 import numpy as np
 from read5 import read
-from fileio import feedSegmentation, stopFeeding, openCPPScript, getFiles, loadFastqs
+from fileio import feedSegmentation, stopFeeding, openCPPScript, getFiles, loadFastx
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -185,6 +185,9 @@ def plotBorders(hampel_signal : np.ndarray, signal : np.ndarray, hampel_borders 
     plt.savefig(join(outpath, 'segmentation_probs.svg'))
 
 def loadSegmentation(file : str) -> list:
+    '''
+    Read segmentation from nanopolish/f5c eventalign csv
+    '''
     res = []
     with open(file, 'r') as seg:
         seg.readline() # header
@@ -217,7 +220,7 @@ def main() -> None:
 
     files = getFiles(inp, args.recursive)
     print(f'ONT Files: {len(files)}')
-    basecalls = loadFastqs(fastq)
+    basecalls = loadFastx(fastq)
     print(f'Segmenting {len(basecalls)} reads')
 
     # TODO
