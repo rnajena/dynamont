@@ -12,9 +12,12 @@ def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("f5c_eventalign")
-    parser.add_argument("f5c_summary")
+    parser.add_argument("f5c_result")
     parser.add_argument("outfile")
+    switch = parser.add_mutually_exclusive_group(required=True)
+    switch.add_argument("eventalign", action="store_true")
+    switch.add_argument("resquiggle", action="store_true")
+    parser.add_argument("--f5c_summary", default=None)
     #TODO insert arguments
     return parser.parse_args()
 
@@ -39,10 +42,33 @@ def parseEventalign(eventalign : str, readMap : dict, outfile : str) -> None:
     with open(outfile, 'wb') as handle:
         pickle.dump(segmentation, handle, pickle.HIGHEST_PROTOCOL)
 
+def parseResquiggle(resquiggle : str, outfile : str) -> None:
+    segmentation = {} # {readid : [segmentborders]}
+    with open(resquiggle, 'r') as r:
+        r.readline() # skip header
+        for lidx, line in enumerate(r):
+            if (lidx+1)%100000==0:
+                print(f'Line {lidx+1}', end='\r')
+            readid, _, start, end = line.strip().split('\t')
+            if readid not in segmentation:
+                segmentation[readid] = []
+            segmentation[readid].extend([int(start), int(end)])
+        print(f'Line {lidx}')
+
+    for read in segmentation:
+        segmentation[read] = sorted(list(set(segmentation[read])))
+
+    with open(outfile, 'wb') as handle:
+        pickle.dump(segmentation, handle, pickle.HIGHEST_PROTOCOL)
+
 def main() -> None:
     args = parse()
     print(args)
-    parseEventalign(args.f5c_eventalign, parseSummary(args.f5c_summary), args.outfile)
+    if args.eventalign:
+        assert args.f5c_summary is not None, f"--f5c_summary needed"
+        parseEventalign(args.f5c_eventalign, parseSummary(args.f5c_summary), args.outfile)
+    elif args.resquiggle:
+        parseResquiggle(args.f5c_eventalign, args.outfile)
 
 if __name__ == '__main__':
     main()
