@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from os.path import exists, join, dirname
 from os import makedirs, name
-from fileio import getFiles, loadFastx, openCPPScriptParamsTrain, stopFeeding
+from fileio import getFiles, loadFastx, trainSegmentation, calcZ
 from read5 import read
 import multiprocessing as mp
 
@@ -28,52 +28,9 @@ def parse() -> Namespace:
     parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--batch_size', type=int, default=1, help='Number of reads to train before updating')
-    parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=16, help='Number of reads to train before updating')
+    parser.add_argument('--epochs', type=int, default=8, help='Number of training epochs')
     return parser.parse_args()
-
-# https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def trainSegmentation(signal : np.ndarray, read : str, params : dict) -> np.ndarray:
-    '''
-    Parse & feed signal & read to the C++ segmentation script.
-
-    Parameters
-    ----------
-    signal : np.ndarray
-    read : str
-    stream
-        Open stdin stream of the C++ segmentation algorithm
-
-    Returns
-    -------
-    params : dict
-        {str : float}
-    Z : float
-    '''
-    pipe = openCPPScriptParamsTrain(CPP_SCRIPT, params)
-    # prepare cookie for segmentation
-    cookie = f"{str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')} {read}\n"
-    c = open(join(dirname(__file__), 'last_cookie.txt'), 'w')
-    c.write(cookie)
-    c.close()
-    # transfer data to bytes - needed in Python 3
-    cookie = bytes(cookie, 'UTF-8')
-    # feed cookie to segmentation
-    pipe.stdin.write(cookie)
-    pipe.stdin.flush()
-    output = pipe.stdout.readline().strip().decode('UTF-8')
-    try:
-        params = {param.split(":")[0] : float(param.split(":")[1]) for param in output.split(";")}
-    except Exception as e:
-        print(output)
-        print(pipe.stdout.readlines())
-        print(e)
-        exit(1)
-
-    Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
-    stopFeeding(pipe)
-
-    return params, Z
 
 def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str) -> None:
     files = getFiles(rawdatapath, True)
@@ -99,12 +56,10 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         # "s2":1.0
     }
     paramCollector = {param : 0 for param in params}
-    paramCollector["Z"]=0
-    paramCollector["ZpB"]=0
     param_writer.write("epoch,batch,read,")
     for param in params:
         param_writer.write(param+',')
-    param_writer.write("Z,ZpB\n")
+    param_writer.write("Zchange\n")
     # pipe = openCPPScriptParamsTrain(CPP_SCRIPT, params)
     i = 0
     batch_num = 0
@@ -130,30 +85,41 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     if polya[readid] == -1:
                         polya[readid] = 0
 
-                    mp_items.append((r5.getpASignal(readid)[polya[readid]:], basecalls[readid][::-1], params))
+                    mp_items.append([r5.getpASignal(readid)[polya[readid]:], basecalls[readid][::-1], params, CPP_SCRIPT])
 
                     if len(mp_items) == batch_size:
                         batch_num += 1
+                        Zs = []
 
                         for result in p.starmap(trainSegmentation, mp_items):
                             trainedParams, Z = result
                             i += 1
+                            Zs.append(Z)
+
                             if not np.isinf(Z):
                                 param_writer.write(f'{e},{batch_num},{i},') # log
                                 for j, param in enumerate(trainedParams):
                                     param_writer.write(f'{params[param]},') # log
                                     paramCollector[param] += trainedParams[param]
-                                paramCollector["Z"]+=Z
-                                paramCollector["ZpB"]+=Z/len(mp_items[j][0])
-                                param_writer.write(f'{Z},{Z/len(mp_items[j][0])}\n') # log
-                                param_writer.flush() # log
                             else:
                                 failedInBatch += 1
 
                         # update parameters
                         for param in params:
                             params[param] = paramCollector[param] / (batch_size - failedInBatch)
-                        print(f"Training epoch: {e}, reads: {i}, batch: {batch_num}, failed: {failedInBatch}\n{params}\nbatch avg Z: {paramCollector['Z'] / (batch_size - failedInBatch)}, batch avg ZpB: {paramCollector['ZpB'] / (batch_size - failedInBatch)}")
+
+                        # TODO rerun with new parameters to compare Zs
+                        for j in range(len(mp_items)):
+                            mp_items[j][2] = params
+                        Zdiffs = []
+                        for j, result in enumerate(p.starmap(calcZ, mp_items)):
+                            trainedParams, Z = result
+                            if not np.isinf(Zs[j]):
+                                Zdiffs[j] = Z - Zs[j]
+
+                        param_writer.write(f'{sum(Zdiffs)/len(Zdiffs)}\n') # log
+                        param_writer.flush() # log
+                        print(f"Training epoch: {e}, reads: {i}, batch: {batch_num}, failed: {failedInBatch}\n{params}\nZ change: {sum(Zdiffs)/len(Zdiffs)}")
 
                         # initialize new batch
                         paramCollector = {param : 0 for param in paramCollector}

@@ -12,9 +12,10 @@ from matplotlib.patches import Rectangle
 import re
 from os.path import exists, join, dirname
 from os import makedirs, name
-from fileio import getFiles, loadFastx, openCPPScriptParams, stopFeeding
+from fileio import getFiles, loadFastx, openCPPScriptParams, stopFeeding, calcZ
 from read5 import read
 from subprocess import Popen
+import h5py as h5
 
 KMERMODELS = pd.read_csv('/home/yi98suv/projects/ont_segmentation/data/template_median69pA_extended.model', sep='\t', index_col = "kmer")
 
@@ -31,17 +32,22 @@ KMERMODELS = pd.read_csv('/home/yi98suv/projects/ont_segmentation/data/template_
 #         "d2":.0,
 # }
 
-PARAMS = {'e1': 1.0, 'm2': 0.021607125625, 'd1': 0.0016224994375000003, 'e2': 0.9749634375, 'e3': 6.717562501742081e-05, 'i1': 0.0017398890624999996, 'm3': 0.36529887499999997, 'i2': 0.6347011249999999, 'm4': 0.090247451875, 'd2': 0.9097525624999999}
+# E. coli
+PARAMS = {'e1': 1.0, 'm2': 0.062403286666666655, 'd1': 0.0, 'e2': 0.9373050666666667, 'e3': 0.0002915558866666667, 'i1': 0.0, 'm3': 0, 'i2': 0, 'm4': 0, 'd2': 0}
+
+# simulated
+# PARAMS = {'e1': 1.0, 'm2': 0.025623768750000008, 'd1': 1.950319e-29, 'e2': 0.9743754999999998, 'e3': 1.0193476874999999e-69, 'i1': 8.142517119374999e-07, 'm3': 1.0, 'i2': 6.209504555e-15, 'm4': 1.0, 'd2': 6.981955249999999e-25}
 
 def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('--raw', type=str, required=True, help='Path to raw ONT training data')
-    parser.add_argument('--fastq', type=str, required=True, help='Basecalls of ONT training data')
+    parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
+    parser.add_argument('--seg_pickle', type=str, default=None, help='f5c segmentation pickle file')
     return parser.parse_args()
 
 def readPolyA(file : str) -> pd.DataFrame:
@@ -50,7 +56,7 @@ def readPolyA(file : str) -> pd.DataFrame:
     # df.set_index('readname', inplace=True)
     return pd.Series(df.transcript_start.values, index=df.readname).to_dict()
 
-def plotBorders(signal : np.ndarray, read : str, segments : np.ndarray, readid : str, outpath : str):
+def plotBorders(signal : np.ndarray, read : str, segments : np.ndarray, readid : str, outpath : str, borders : np.ndarray = None):
     '''
     Input
     -----
@@ -61,10 +67,14 @@ def plotBorders(signal : np.ndarray, read : str, segments : np.ndarray, readid :
     '''
     fig, ax = plt.subplots(figsize=(120,8), dpi=500)
     fig.suptitle(f'{readid} segmentation in 3\' -> 5\' orientation')
-    ax.plot(signal, color='blue', label='original signal', linewidth=2)
+    ax.plot(signal, color='blue', label='original signal', linewidth=1)
     ax.set_ylim((0, max(signal)+10))
     ax.set_ylabel('Signal pico Ampere')
     ax.set_xticks(np.arange(0, len(signal), 2000))
+    if borders is not None:
+        ax.vlines(borders, ymin=0, ymax=max(signal)+10, colors='green', linestyles='-', label='true segmentation', linewidth=1, alpha=0.6)
+        # for j in range(len(borders) - 1):
+        #     plt.text(borders[j] + (borders[j+1]-borders[j])/2 - 3, 45, read[j], fontdict={'size' : 6, 'color':'green'})
     ax.vlines(segments[:, 0], ymin=0, ymax=max(signal)+10, colors='red', linestyles='--', label='segmentation', linewidth=1, alpha=0.6)
     # plot kmer model range
     for segment in segments:
@@ -90,14 +100,15 @@ def plotBorders(signal : np.ndarray, read : str, segments : np.ndarray, readid :
             height = 6*stdev
             ax.add_patch(Rectangle((x, mean-3*stdev), width, height, alpha=0.3, facecolor="yellow", edgecolor='red'))
             # write motif
-            plt.text(x + width/2 - 4, 40, motif, rotation=90, fontdict={'size' : 8})
+            plt.text(x + width/2 - 3, 40, read[pos], fontdict={'size' : 6, 'color':'red'})
         elif segment[3] == 'D':
             height = max(signal) - min(signal)
             ax.add_patch(Rectangle((x, min(signal)), width, height, alpha=0.3, facecolor="grey", edgecolor='black'))
-            plt.text(x + width/2 - 4, 40, 'Deletion', rotation=90, fontdict={'size' : 8})
+            plt.text(x + width/2 - 3, 35, 'Del', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
         elif segment[3] == 'I':
-            plt.text(x, 20, motif, rotation=90, fontdict={'size' : 8, 'color' : 'purple'})
+            plt.text(x - 3, 35, 'Ins', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
 
+    plt.legend()
     plt.grid(True, 'both', 'both')
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
@@ -147,9 +158,10 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
             end = len(signal)
         segments.append([start, end, basepos, state])
     segments = np.array(segments, dtype=object)
+    assert segments.size, f"{signal}\n==\n{read}"
     return segments, probs
 
-def segmentRead(signal : np.ndarray, read : str, readid : str, outdir : str):
+def segmentRead(signal : np.ndarray, read : str, readid : str, outdir : str, borders : np.ndarray = None):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -169,14 +181,27 @@ def segmentRead(signal : np.ndarray, read : str, readid : str, outdir : str):
     # print(len(segments), segments)
     # print(len(read), read)
 
-    plotBorders(signal, read, segments, readid, outdir)
+    plotBorders(signal, read, segments, readid, outdir, borders)
+    print(calcZ(signal, read, PARAMS, CPP_SCRIPT))
 
-def start(files, basecalls, targetID, polyA, out) -> tuple:
+def start(files, basecalls, targetID, polyA, out, seg_pickle) -> tuple:
     for file in files:
         r5 = read(file)
         if targetID in r5.getReads():
-            # change read from 5'-3' to 3'-5'
-            segmentRead(r5.getpASignal(targetID)[polyA[targetID]:], basecalls[targetID][::-1], targetID, out)
+            if seg_pickle:
+                import pickle
+                with open(seg_pickle, 'rb') as handle:
+                    borderMap = pickle.load(handle)
+                    borders = np.array(borderMap[targetID]) - polyA[targetID]
+            else:
+                try:
+                    # borders from simulated data
+                    borders = h5.File(file)[f'read_{targetID}/Raw/Borders']
+                except:
+                    # no borders
+                    borders = None
+                # change read from 5'-3' to 3'-5'
+            segmentRead(r5.getpASignal(targetID)[polyA[targetID]:], basecalls[targetID][::-1], targetID, out, borders)
 
 def main() -> None:
     args = parse()
@@ -185,10 +210,10 @@ def main() -> None:
     polya = readPolyA(args.polya)
     files = getFiles(args.raw, True)
     print(f'ONT Files: {len(files)}')
-    basecalls = loadFastx(args.fastq)
+    basecalls = loadFastx(args.fastx)
     # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
     print(f'Segmenting {len(basecalls)} reads')
-    start(files, basecalls, args.readid, polya, args.out)
+    start(files, basecalls, args.readid, polya, args.out, args.seg_pickle)
 
 if __name__ == '__main__':
     main()

@@ -8,12 +8,30 @@ python src/train.py --raw /data/fass5/reads/rna_modifications/raw/A-RNA_20201014
 
 - first training
 ```bash
-python train.py --raw /data/fass5/reads/rna_modifications/raw/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/20231019_1641_MN21435_FAX28269_36c48ee6/pod5/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.pod5 --fastq /data/fass5/reads/rna_modifications/basecalls/RNAmod_20231019_EcoliWT_R1_FAX28269_WG_dorado_server/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.fastq --out /data/fass5/jannes/ont_segmentation/training_ecoli_wt/ --batch_size 5 --polya /data/fass5/jannes/rna_modifications/kai_ecoli/segmentation/k12_wt/polya.csv
+python train.py --raw /data/fass5/reads/rna_modifications/raw/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/20231019_1641_MN21435_FAX28269_36c48ee6/pod5/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.pod5 --fastx /data/fass5/reads/rna_modifications/basecalls/RNAmod_20231019_EcoliWT_R1_FAX28269_WG_dorado_server/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.fastq --out /data/fass5/jannes/ont_segmentation/training_ecoli_wt/ --batch_size 5 --polya /data/fass5/jannes/rna_modifications/kai_ecoli/segmentation/k12_wt/polya.csv
 ```
 
 - second training
 - removed prefix and suffix
 - switched to multiprocessing in training (#threads = batch_size)
 ```bash
-python train_mp.py --raw /data/fass5/reads/rna_modifications/raw/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/20231019_1641_MN21435_FAX28269_36c48ee6/pod5/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.pod5 --fastq /data/fass5/reads/rna_modifications/basecalls/RNAmod_20231019_EcoliWT_R1_FAX28269_WG_dorado_server/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.fastq --out /data/fass5/jannes/ont_segmentation/training_ecoli_wt_basic/ --batch_size 16 --polya /data/fass5/jannes/rna_modifications/kai_ecoli/segmentation/k12_wt/polya.csv
+python train_mp.py --raw /data/fass5/reads/rna_modifications/raw/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/20231019_1641_MN21435_FAX28269_36c48ee6/pod5/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.pod5 --fastx /data/fass5/reads/rna_modifications/basecalls/RNAmod_20231019_EcoliWT_R1_FAX28269_WG_dorado_server/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.fastq --out /data/fass5/jannes/ont_segmentation/training_ecoli_wt_basic/ --batch_size 16 --polya /data/fass5/jannes/rna_modifications/kai_ecoli/segmentation/k12_wt/polya.csv
+```
+
+- simulated data
+
+```bash
+/data/fass5/jannes/ont_segmentation/training_simulated_data/README_simulated_data.sh
+```
+
+## plotting
+
+```bash
+python src/plotSegmentation.py --raw /data/fass5/reads/rna_modifications/raw/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/20231019_1641_MN21435_FAX28269_36c48ee6/pod5/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.pod5 --fastx /data/fass5/reads/rna_modifications/basecalls/RNAmod_20231019_EcoliWT_R1_FAX28269_WG_dorado_server/RNAmod_20231019_EcoliWT_R1_FAX28269_WG.fastq --out /data/fass5/jannes/ont_segmentation/training_ecoli_wt/ --polya /data/fass5/jannes/rna_modifications/kai_ecoli/segmentation/k12_wt/polya.csv --readid 024953bd-048b-4023-8d52-9fc7ca13c048
+```
+
+### simulated data
+
+```bash
+python src/plotSegmentation.py --raw /data/fass5/jannes/ont_segmentation/training_simulated_data/data/RNA_simulation_20240221_144215/simulation/ --fastx /data/fass5/jannes/ont_segmentation/training_simulated_data/data/RNA_simulation_20240221_144215/simulation/RNA_simulation_20240221_144215.fasta --out /data/fass5/jannes/ont_segmentation/training_simulated_data/ --polya /data/fass5/jannes/ont_segmentation/training_simulated_data/polyA_dummy.csv --readid sim-1
 ```

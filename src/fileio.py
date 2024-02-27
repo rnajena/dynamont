@@ -14,6 +14,7 @@ import gzip
 # import pandas as pd
 from Bio import SeqIO
 from os.path import splitext
+from os.path import join, dirname
 
 def getFiles(filepath : str, rec : bool) -> list:
     '''
@@ -53,7 +54,7 @@ def loadFastx(path : str) -> dict:
     readDict = {}
     if path.endswith(".gz"):
         path = gzip.open(path, "rt")
-    for record in SeqIO.parse(path, splitext(path)[1]):
+    for record in SeqIO.parse(path, splitext(path)[1][1:]):
         readDict[record.id] = str(record.seq)
     return readDict
 
@@ -100,6 +101,88 @@ def openCPPScriptParamsTrain(cpp_script : str, params : dict) -> Popen:
     script=" ".join(script)
     # print("Popen call:", script)
     return Popen(script, shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
+
+# https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
+def trainSegmentation(signal : np.ndarray, read : str, params : dict, script : str) -> tuple:
+    '''
+    Parse & feed signal & read to the C++ segmentation script.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+    read : str
+    stream
+        Open stdin stream of the C++ segmentation algorithm
+
+    Returns
+    -------
+    params : dict
+        {str : float}
+    Z : float
+    '''
+    pipe = openCPPScriptParamsTrain(script, params)
+    # prepare cookie for segmentation
+    cookie = f"{str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')} {read}\n"
+    c = open(join(dirname(__file__), 'last_cookie.txt'), 'w')
+    c.write(cookie)
+    c.close()
+    # transfer data to bytes - needed in Python 3
+    cookie = bytes(cookie, 'UTF-8')
+    # feed cookie to segmentation
+    pipe.stdin.write(cookie)
+    pipe.stdin.flush()
+    output = pipe.stdout.readline().strip().decode('UTF-8')
+    try:
+        params = {param.split(":")[0] : float(param.split(":")[1]) for param in output.split(";")}
+    except Exception as e:
+        print(output)
+        print(pipe.stdout.readlines())
+        print(e)
+        exit(1)
+
+    Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
+    stopFeeding(pipe)
+
+    return params, Z
+
+def openCPPScriptParamsCalcZ(cpp_script : str, params : dict) -> Popen:
+    '''
+    Open cpp script with Popen.
+
+    Parameters
+    ----------
+    cpp_script : str
+        Path of script
+    params : dict
+        {str : float}
+
+    Returns
+    -------
+    subprocess : Popen
+    '''
+    script = [cpp_script]
+    for param in params:
+        script.extend([f"-{param}", str(params[param])])
+    script.append("--calcZ")
+    script=" ".join(script)
+    # print("Popen call:", script)
+    return Popen(script, shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
+
+def calcZ(signal : np.ndarray, read : str, params : dict, script : str) -> float:
+    pipe = openCPPScriptParamsCalcZ(script, params)
+    # prepare cookie for segmentation
+    cookie = f"{str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')} {read}\n"
+    c = open(join(dirname(__file__), 'last_cookie.txt'), 'w')
+    c.write(cookie)
+    c.close()
+    # transfer data to bytes - needed in Python 3
+    cookie = bytes(cookie, 'UTF-8')
+    # feed cookie to segmentation
+    pipe.stdin.write(cookie)
+    pipe.stdin.flush()
+    Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
+    stopFeeding(pipe)
+    return Z
 
 def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
     '''
