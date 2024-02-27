@@ -1,4 +1,6 @@
-# ont_segmentation
+# Dynamont
+
+A **dynam**ic programming algorithm to resquiggle and segment the raw **ONT** signal.
 
 ## training
 
