@@ -464,7 +464,8 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
         getline(buffer, tmp, '\t'); // skip level_stdv
         getline(buffer, tmp, '\t'); // sd_mean
         stdev = atof(tmp.c_str());
-        (*model)[kmer2int(kmer)]=make_tuple(mean, stdev);
+        // (*model)[kmer2int(kmer)]=make_tuple(mean, stdev);
+        (*model)[kmer2int(kmer)]=make_tuple(mean, 1.0);
     }
     inputFile.close();
 }
