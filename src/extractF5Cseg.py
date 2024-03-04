@@ -7,6 +7,7 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pandas as pd
 import pickle
+import numpy as np
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -18,7 +19,6 @@ def parse() -> Namespace:
     switch.add_argument("--eventalign", action="store_true")
     switch.add_argument("--resquiggle", action="store_true")
     parser.add_argument("--f5c_summary", default=None)
-    #TODO insert arguments
     return parser.parse_args()
 
 def parseSummary(file : str) -> dict:
@@ -49,16 +49,16 @@ def parseResquiggle(resquiggle : str, outfile : str) -> None:
         for lidx, line in enumerate(r):
             if (lidx+1)%100000==0:
                 print(f'Line {lidx+1}', end='\r')
-            readid, _, start, end = line.strip().split('\t')
+            readid, kmeridx, start, end = line.strip().split('\t')
             if start == "." or end == ".":
                 continue
             if readid not in segmentation:
                 segmentation[readid] = []
-            segmentation[readid].extend([int(start), int(end)])
+            segmentation[readid].append([int(start), int(kmeridx)]) #, [int(end), int(kmeridx)]])
         print(f'Line {lidx}')
 
     for read in segmentation:
-        segmentation[read] = sorted(list(set(segmentation[read])))
+        segmentation[read] = np.array(list(set(segmentation[read])))
 
     with open(outfile, 'wb') as handle:
         pickle.dump(segmentation, handle, pickle.HIGHEST_PROTOCOL)

@@ -34,7 +34,7 @@ double m2, m3, m4, e1, e2, e3, i1, i2, d1, d2; // transition parameters
 
 // TODO move to config file?
 // const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA.model";
-const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA_extended.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 const string TERM_STRING = "$";
 const int K = 5; // our model works with this kmer size
 
@@ -154,7 +154,7 @@ double normal_pdf(const double &x, const double &m, const double &s) {
  */
 inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<double, double>>* model) {
     tuple<double, double> kmerModel = (*model)[kmer];
-    return log(normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel))) + 3;
+    return 4*(log(normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel))) + 7);
 }
 
 /**
@@ -193,7 +193,7 @@ inline double indel(const double &sig, const int &kmer, const int &suckmer, vect
     // current kmer && successing kmer
     // if ((sig<mean-5*stdev || sig>mean+5*stdev) && (sig<smean-5*sstdev || sig>smean+5*sstdev)) {
         // return log(normal_pdf(mean, mean, stdev)); // TODO? parameterize
-    return -1000;
+    return -100;
     // }
     // return log(0);
 }
@@ -464,8 +464,7 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
         getline(buffer, tmp, '\t'); // skip level_stdv
         getline(buffer, tmp, '\t'); // sd_mean
         stdev = atof(tmp.c_str());
-        // (*model)[kmer2int(kmer)]=make_tuple(mean, stdev);
-        (*model)[kmer2int(kmer)]=make_tuple(mean, 1.0);
+        (*model)[kmer2int(kmer)]=make_tuple(mean, stdev);
     }
     inputFile.close();
 }

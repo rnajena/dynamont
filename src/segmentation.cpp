@@ -35,7 +35,7 @@ double m2, m3, m4, e1, e2, e3, i1, i2, d1, d2, s1, s2; // transition parameters
 
 // TODO move to config file?
 // const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA.model";
-const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA_extended.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 const string TERM_STRING = "$";
 const int K = 5; // our model works with this kmer size
 

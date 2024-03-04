@@ -56,6 +56,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         # "s1":0.16,
         # "s2":1.0
     }
+    print('Init\n', params)
     paramCollector = {param : 0 for param in params}
     param_writer.write("epoch,batch,read,")
     for param in params:
