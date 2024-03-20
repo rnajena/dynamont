@@ -15,6 +15,9 @@ import gzip
 from Bio import SeqIO
 from os.path import splitext
 from os.path import join, dirname
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def getFiles(filepath : str, rec : bool) -> list:
     '''
@@ -207,7 +210,7 @@ def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
     return Popen(script, shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarray:
+def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
 
@@ -221,6 +224,12 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
     Returns
     -------
     segmentation : np.ndarray
+        in 3'-5' orientation
+        numpy array of marking the borders
+        format: [[start : int, end : int, readpos : int, state : str] ...]
+    probabilities : np.ndarray
+        in 3' -> 5' orientation
+        numpy array of floats showing the border probability
     '''
     # prepare cookie for segmentation
     cookie = f"{str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')} {read}\n"
@@ -228,7 +237,6 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
     cookie = bytes(cookie, 'UTF-8')
     # feed cookie to segmentation
     pipe.stdin.write(cookie)
-    # print(cookie)
     pipe.stdin.flush()
     output = pipe.stdout.readline().strip().decode('UTF-8')
     output = re.findall('\D[\d,]+', output)
@@ -239,7 +247,7 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
         probs = np.array(probs.split(','), dtype=float)[:-1] # TODO border means this position is included in the segment? then exclude last element
     except:
         print(pipe.stderr.readlines())
-        print(cookie)
+        # print(cookie)
         exit(1)
     segments = []
     for i in range(len(output)):
@@ -249,12 +257,35 @@ def feedSegmentation(signal : np.ndarray, read : str, pipe : Popen) -> np.ndarra
             _, end = map(int, output[i+1][1:].split(','))
         except IndexError:
             end = len(signal)
-        segments.append([start, end, len(read) - basepos, state])
+        segments.append([start, end, basepos, state])
     segments = np.array(segments, dtype=object)
-    # print("Segments: ", segments[:10], len(segments))
+    assert segments.size, f"segments: {segments}\n==\nsignal: {signal}\n==\nread: {read}\n"
     return segments, probs
 
 def stopFeeding(pipe : Popen) -> None:
     pipe.stdin.write(bytes(f'{TERM_STRING} {TERM_STRING}\n', 'UTF-8'))
     pipe.stdin.close()
     pipe.stdout.close()
+
+def readPolyAEnd(file : str) -> dict:
+    df = pd.read_csv(file, usecols=['readname', 'transcript_start'], sep='\t')
+    df = df.astype({'readname' : str, 'transcript_start' : int})
+    # df.set_index('readname', inplace=True)
+    return pd.Series(df.transcript_start.values, index=df.readname).to_dict()
+
+def readPolyAStartEnd(file : str) -> dict:
+    df = pd.read_csv(file, usecols=['readname', 'polya_start', 'transcript_start'], sep='\t')
+    df = df.astype({'readname' : str, 'polya_start' : int, 'transcript_start' : int})
+    return pd.Series([[a,b] for a,b in zip(df.polya_start.values, df.transcript_start.values)], index=df.readname).to_dict()
+
+def plotParameters(param_file : str, outdir : str) -> None:
+    df = pd.read_csv(param_file, sep=',')
+    for column in df:
+        if column in ['epoch', 'batch']:
+            continue
+        sns.set_theme()
+        sns.lineplot(data=df, x="batch", y=column, hue='epoch')
+        plt.title(f"{column} parameter change during training")
+        plt.savefig(join(outdir, f"{column}.pdf"))
+        plt.cla()
+        plt.close()

@@ -5,15 +5,13 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from os.path import exists, join, dirname
 from os import makedirs, name
-from fileio import getFiles, loadFastx, trainSegmentation, calcZ
+from fileio import getFiles, loadFastx, trainSegmentation, calcZ, readPolyAEnd, plotParameters
 from read5 import read
 import multiprocessing as mp
+from hampel import hampel
 
 CPP_SCRIPT = join(dirname(__file__), 'segmentation')
 if name == 'nt': # check for windows
@@ -85,7 +83,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     if polya[readid] == -1:
                         polya[readid] = 0
 
-                    mp_items.append([r5.getpASignal(readid)[polya[readid]:], basecalls[readid][::-1], params, CPP_SCRIPT])
+                    signal = hampel(r5.getpASignal(readid)[polya[readid]:], 20, 2.).filtered_data
+                    mp_items.append([signal, basecalls[readid][::-1], params, CPP_SCRIPT])
 
                     if len(mp_items) == batch_size:
                         batch_num += 1
@@ -113,9 +112,9 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             mp_items[j][2] = params
                         Zdiffs = []
                         for j, result in enumerate(p.starmap(calcZ, mp_items)):
-                            trainedParams, Z = result
+                            Z = result
                             if not np.isinf(Zs[j]):
-                                Zdiffs[j] = Z - Zs[j]
+                                Zdiffs.append(Z - Zs[j])
 
                         param_writer.write(f'{sum(Zdiffs)/len(Zdiffs)}\n') # log
                         param_writer.flush() # log
@@ -128,33 +127,15 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         
         param_writer.close()
 
-def plot(param_file : str, outdir : str) -> None:
-    df = pd.read_csv(param_file, sep=',')
-    for column in df:
-        if column in ['epoch', 'batch']:
-            continue
-        sns.set_theme()
-        sns.lineplot(data=df, x="batch", y=column, hue='epoch')
-        plt.title(f"{column} parameter change during training")
-        plt.savefig(join(outdir, f"{column}.pdf"))
-        plt.cla()
-        plt.close()
-
-def readPolyA(file : str) -> dict:
-    df = pd.read_csv(file, usecols=['readname', 'transcript_start'], sep='\t')
-    df = df.astype({'readname' : str, 'transcript_start' : int})
-    # df.set_index('readname', inplace=True)
-    return pd.Series(df.transcript_start.values, index=df.readname).to_dict()
-
 def main() -> None:
     args = parse()
     outdir = args.out
     if not exists(outdir):
         makedirs(outdir)
     param_file = join(outdir, 'params.txt')
-    polya=readPolyA(args.polya)
+    polya=readPolyAEnd(args.polya)
     train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file)
-    plot(param_file, outdir)
+    plotParameters(param_file, outdir)
 
 if __name__ == '__main__':
     main()

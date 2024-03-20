@@ -32,12 +32,13 @@ def parseEventalign(eventalign : str, readMap : dict, outfile : str) -> None:
         for lidx, line in enumerate(r):
             if (lidx+1)%100000==0:
                 print(f'Line {lidx+1}', end='\r')
-            _, _, _, readidx, _, _, _, _, _, _, _, _, _, start, end = line.strip().split('\t')
-            segmentation[readMap[int(readidx)]].extend([int(start), int(end)])
+            _, _, ref_kmer, readidx, _, _, _, _, _, model_kmer, _, _, _, start, end = line.strip().split('\t')
+            segmentation[readMap[int(readidx)]].append([int(start), int(end), model_kmer[len(model_kmer)//2].replace('T', 'U')])
+            # print(segmentation[readMap[int(readidx)]])
         print(f'Line {lidx}')
 
     for read in segmentation:
-        segmentation[read] = sorted(list(set(segmentation[read])))
+        segmentation[read] = np.array(sorted(segmentation[read], key = lambda x : x[0]))
 
     with open(outfile, 'wb') as handle:
         pickle.dump(segmentation, handle, pickle.HIGHEST_PROTOCOL)
@@ -54,11 +55,11 @@ def parseResquiggle(resquiggle : str, outfile : str) -> None:
                 continue
             if readid not in segmentation:
                 segmentation[readid] = []
-            segmentation[readid].append([int(start), int(kmeridx)]) #, [int(end), int(kmeridx)]])
+            segmentation[readid].append((int(start), int(end), int(kmeridx)+2)) #, [int(end), int(kmeridx)]])
         print(f'Line {lidx}')
 
     for read in segmentation:
-        segmentation[read] = np.array(list(set(segmentation[read])))
+        segmentation[read] = np.array(segmentation[read])
 
     with open(outfile, 'wb') as handle:
         pickle.dump(segmentation, handle, pickle.HIGHEST_PROTOCOL)

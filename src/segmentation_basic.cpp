@@ -28,13 +28,14 @@ void funcD(int i, int j, double* M, double* E, double* I, double* D, double* LPM
 
 map<char, int> BASE2ID;
 int ALPHABET_SIZE;
-double EPSILON = pow(10, -6);
+double EPSILON = pow(10, -5);
 bool atrain, calcZ;
 double m2, m3, m4, e1, e2, e3, i1, i2, d1, d2; // transition parameters
 
 // TODO move to config file?
 // const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA.model";
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
+// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_reduced.model";
 const string TERM_STRING = "$";
 const int K = 5; // our model works with this kmer size
 
@@ -154,7 +155,11 @@ double normal_pdf(const double &x, const double &m, const double &s) {
  */
 inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<double, double>>* model) {
     tuple<double, double> kmerModel = (*model)[kmer];
-    return 4*(log(normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel))) + 7);
+    return 10*(log(normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel))) + 2);
+
+    // norm signal with kmer model
+    // double sig = (signal - get<0>(kmerModel)) / get<1>(kmerModel);
+    // return 2*(log(normal_pdf(sig, 0.0, 1.0)) + 6);
 }
 
 /**
@@ -193,7 +198,7 @@ inline double indel(const double &sig, const int &kmer, const int &suckmer, vect
     // current kmer && successing kmer
     // if ((sig<mean-5*stdev || sig>mean+5*stdev) && (sig<smean-5*sstdev || sig>smean+5*sstdev)) {
         // return log(normal_pdf(mean, mean, stdev)); // TODO? parameterize
-    return -100;
+    return -1000;
     // }
     // return log(0);
 }
@@ -461,8 +466,7 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
         // reverse(kmer.begin(), kmer.end()); // 3-5 -> 5-3 orientation
         getline(buffer, tmp, '\t'); // level_mean
         mean = atof(tmp.c_str());
-        getline(buffer, tmp, '\t'); // skip level_stdv
-        getline(buffer, tmp, '\t'); // sd_mean
+        getline(buffer, tmp, '\t'); // level_stdv
         stdev = atof(tmp.c_str());
         (*model)[kmer2int(kmer)]=make_tuple(mean, stdev);
     }
