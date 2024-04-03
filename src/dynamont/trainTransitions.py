@@ -8,15 +8,11 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import numpy as np
 from os.path import exists, join, dirname
 from os import makedirs, name
-from fileio import getFiles, loadFastx, trainSegmentation, calcZ, readPolyAEnd, plotParameters
+from FileIO import getFiles, loadFastx, trainTransitions, calcZ, readPolyAEnd, plotParameters
 from read5 import read
 import multiprocessing as mp
 from hampel import hampel
-
-CPP_SCRIPT = join(dirname(__file__), 'segmentation')
-if name == 'nt': # check for windows
-    CPP_SCRIPT+='.exe'
-print(f"training with {CPP_SCRIPT} script")
+import random
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -28,9 +24,12 @@ def parse() -> Namespace:
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--batch_size', type=int, default=16, help='Number of reads to train before updating')
     parser.add_argument('--epochs', type=int, default=8, help='Number of training epochs')
+    parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
+    parser.add_argument('--same_batch', type=bool, action='store_true', help='Always train on first batch of signals in the file')
+    parser.add_argument('--random_batch', type=int, metavar='seed', default=None, help='Randomizes the batches of each file with a given seed')
     return parser.parse_args()
 
-def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str) -> None:
+def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool) -> None:
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
     basecalls = loadFastx(fastxpath)
@@ -38,21 +37,36 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     
     param_writer = open(param_file, 'w')
     
-    # init
-    params = {
-        "e1":1.,
-        "m2":.03333,
-        "d1":.00001,
-        "e2":.96664,
-        "e3":.00001,
-        "i1":.00001,
-        "m3":.99,
-        "i2":.01,
-        "m4":.99,
-        "d2":.01,
-        # "s1":0.16,
-        # "s2":1.0
-    }
+    if mode == 'indel':
+        CPP_SCRIPT = join(dirname(__file__), 'segmentation_indel')
+        if name == 'nt': # check for windows
+            CPP_SCRIPT+='.exe'
+        # init
+        params = {
+            "e1":1.,
+            "m2":.03333,
+            "d1":.00001,
+            "e2":.96664,
+            "e3":.00001,
+            "i1":.00001,
+            "m3":.99,
+            "i2":.01,
+            "m4":.99,
+            "d2":.01,
+            # "s1":0.16,
+            # "s2":1.0
+        }
+    elif mode == 'basic':
+        CPP_SCRIPT = join(dirname(__file__), 'segmentation_basic')
+        if name == 'nt': # check for windows
+            CPP_SCRIPT+='.exe'
+        params = {
+            "e1":1.,
+            "m2":.33,
+            "e2":.33,
+            "e3":.33,
+        }
+
     paramCollector = {param : 0 for param in params}
     param_writer.write("epoch,batch,read,")
     for param in params:
@@ -71,8 +85,12 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                 r5 = read(file)
                 mp_items = []
+                readids = r5.getReads()
+                if random_batch is not None:
+                    random.Random(random_batch).shuffle(readids)
+                    random_batch+=1 # to avoid that every file is shuffled in the same way
 
-                for readid in r5:
+                for readid in readids:
                     if not readid in basecalls: # or (readid not in polyAIndex)
                         continue
                     # skip reads with undetermined transcript start
@@ -83,14 +101,11 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     if polya[readid] == -1:
                         polya[readid] = 0
 
-                    signal = hampel(r5.getpASignal(readid)[polya[readid]:], 20, 2.).filtered_data
-                    mp_items.append([signal, basecalls[readid][::-1], params, CPP_SCRIPT])
-
                     if len(mp_items) == batch_size:
                         batch_num += 1
                         Zs = []
 
-                        for result in p.starmap(trainSegmentation, mp_items):
+                        for result in p.starmap(trainTransitions, mp_items):
                             trainedParams, Z = result
                             i += 1
                             Zs.append(Z)
@@ -123,7 +138,13 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         # initialize new batch
                         paramCollector = {param : 0 for param in paramCollector}
                         failedInBatch = 0
-                        mp_items = []
+                        if not same_batch:
+                            mp_items = []
+
+                    # fill batch
+                    else:
+                        signal = hampel(r5.getpASignal(readid)[polya[readid]:], 20, 2.).filtered_data
+                        mp_items.append([signal, basecalls[readid][::-1], params, CPP_SCRIPT])
         
         param_writer.close()
 
@@ -134,7 +155,7 @@ def main() -> None:
         makedirs(outdir)
     param_file = join(outdir, 'params.txt')
     polya=readPolyAEnd(args.polya)
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':

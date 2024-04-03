@@ -5,12 +5,13 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from fileio import getFiles, loadFastx, readPolyAStartEnd
+from dynamont.FileIO import getFiles, loadFastx, readPolyAStartEnd
 from itertools import product
 from read5 import read
 import pickle
-from OnlineMeanVar import LocShift
-from os.path import join
+from dynamont.OnlineMeanVar import LocShift
+from os.path import join, exists
+from os import makedirs
 
 PAMODELS = {''.join(motif) : LocShift(30) for motif in product('ACGU', repeat= 5)}
 NORMPAMODELS = {''.join(motif) : LocShift(30) for motif in product('ACGU', repeat= 5)}
@@ -25,6 +26,7 @@ def parse() -> Namespace:
     parser.add_argument('--segmentationPickle', type=str, default=None, help='f5c resquiggle segmentation pickle file')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
+    parser.add_argument('-q', '--quality', type=int, default=None, help='Only use reads with given min quality value')
     return parser.parse_args()
 
 def main() -> None:
@@ -32,9 +34,12 @@ def main() -> None:
 
     rawFiles = getFiles(args.raw, True)
     print(f'ONT Files: {len(rawFiles)}')
-    basecalls = loadFastx(args.fastx)
+    basecalls = loadFastx(args.fastx, args.quality)
     print(f'Segmenting {len(basecalls)} reads')
     polya = readPolyAStartEnd(args.polya)
+
+    if not exists(args.out):
+        makedirs(args.out)
 
     start(rawFiles, basecalls, args.segmentationPickle, polya, args.out)
     print('Done')

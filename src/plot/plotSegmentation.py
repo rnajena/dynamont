@@ -4,6 +4,9 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
+import sys
+sys.path.append('/home/yi98suv/projects/dynamont/src')
+
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pandas as pd
 import numpy as np
@@ -11,12 +14,13 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
-from fileio import getFiles, loadFastx, openCPPScriptParams, stopFeeding, calcZ, readPolyAStartEnd, feedSegmentation
+from dynamont.FileIO import getFiles, loadFastx, openCPPScriptParams, stopFeeding, calcZ, readPolyAStartEnd, feedSegmentation
 from read5 import read
 from hampel import hampel
 
 KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model', sep='\t', index_col = "kmer")
 # KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/template_median69pA_reduced.model', sep='\t', index_col = "kmer")
+# KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/ecoliWTModels/pAmodels.model.extended', sep='\t', index_col = "kmer")
 
 # PARAMS = {
 #         "e1":1.,
@@ -34,7 +38,6 @@ KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/template_median69
 # E. coli
 # PARAMS = {'e1': 1.0, 'm2': 0.062403286666666655, 'd1': 0.0, 'e2': 0.9373050666666667, 'e3': 0.0002915558866666667, 'i1': 0.0, 'm3': 0, 'i2': 0, 'm4': 0, 'd2': 0}
 # PARAMS = {'e1': 1.0, 'm2': 0.024169237500000006, 'd1': 4.263524041666667e-06, 'e2': 0.9746092083333332, 'e3': 0.0005571478833333333, 'i1': 0.0006601715291666667, 'm3': 0.8175128750000001, 'i2': 0.182487125, 'm4': 1.0, 'd2': 1.648725e-100}
-PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
 
 # simulated
 # PARAMS = {'e1': 1.0, 'm2': 0.025623768750000008, 'd1': 1.950319e-29, 'e2': 0.9743754999999998, 'e3': 1.0193476874999999e-69, 'i1': 8.142517119374999e-07, 'm3': 1.0, 'i2': 6.209504555e-15, 'm4': 1.0, 'd2': 6.981955249999999e-25}
@@ -50,6 +53,7 @@ def parse() -> Namespace:
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
     parser.add_argument('--resquigglePickle', type=str, default=None, help='f5c resquiggle segmentation pickle file')
     parser.add_argument('--eventalignPickle', type=str, default=None, help='f5c eventalign segmentation pickle file')
+    parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
     return parser.parse_args()
 
 def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray):
@@ -61,6 +65,10 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
     read : str
         in 3' -> 5' orientation
     '''
+
+    # change orientation to 5' -> 3'
+    read = read[::-1]
+
     nPlots = 1
     if resquiggleBorders is not None:
         nPlots += 1
@@ -68,6 +76,8 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         nPlots += 1
 
     fig, ax = plt.subplots(nrows = nPlots, sharex=True, sharey=True, figsize=(110,12), dpi=300)
+    if nPlots == 1:
+        ax = [ax]
     fig.suptitle(f'{readid} segmentation in 3\' -> 5\' orientation')
     x=np.arange(-polyAend, len(signal) - polyAend, 1)
     for axis in range(nPlots):
@@ -77,6 +87,7 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         ax[axis].set_ylabel('Signal pico Ampere')
         ax[axis].set_xticks(np.arange(0, len(signal), 2000))
         ax[axis].grid(True, 'both', 'both')
+
 
     plotNumber = 0
     # F5C EVENTALIGN
@@ -110,7 +121,7 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         ax[plotNumber].vlines(resquiggleBorders[:, 0].astype(int), ymin=min(signal)-5, ymax=max(signal), colors='darkgreen', linestyles='--', label=f'f5c resquiggle segmentation', linewidth=0.7)
         for border in resquiggleBorders:
             # border indices are for read 5' 3' direction
-            base = read[::-1][border[2]]
+            base = read[border[2]]
             ax[plotNumber].text(int(border[0]) + np.abs(int(border[1]) - int(border[0]))/2 - 3, min(signal)-5, base, fontdict={'size' : 7, 'color':'darkgreen'})
         for i, segment in enumerate(resquiggleBorders):
             motif = ''
@@ -121,7 +132,7 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
                     motif += 'N'
                 else:
                     base = resquiggleBorders[j][2]
-                    motif += read[::-1][base]
+                    motif += read[base]
             motif = motif.replace('U', 'T')
             x = segment[0]
             width = segment[1] - segment[0]
@@ -147,7 +158,7 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         else:
             motif = read[pos-2 : pos+3]
         # plot motif in 3' - 5' direction
-        motif = motif.replace('U', 'T')
+        motif = motif.replace('U', 'T')[::-1]
         x = segment[0]
         width = segment[1] - segment[0]
 
@@ -170,21 +181,30 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
 
-def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray):
+def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str):
     '''
     Takes read in 3' -> 5' direction
     '''
 
-    # Create pipe between python script and cp segmentation script
-    CPP_SCRIPT = join(dirname(__file__), 'segmentation')
-    if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
+    if mode == 'indel':
+        CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', 'segmentation_indel')
+        if name == 'nt': # check for windows
+            CPP_SCRIPT+='.exe'
+        # init
+        PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
+
+    elif mode == 'basic':
+        CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', 'segmentation_basic')
+        if name == 'nt': # check for windows
+            CPP_SCRIPT+='.exe'
+        PARAMS = {"e1":1., "m2":.33, "e2":.33, "e3":.33}
+
     pipe = openCPPScriptParams(CPP_SCRIPT, PARAMS)
 
     hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
     # hampel_raw_signal = hampel(rawSignal, 20, 2.).filtered_data
-    # segments, probs = feedSegmentation(hampel_std_signal[polyAstart:], read, pipe)
-    segments, probs = feedSegmentation(hampel_std_signal, read, pipe)
+    # segments = feedSegmentation(hampel_std_signal[polyAstart:], read, pipe)
+    segments = feedSegmentation(hampel_std_signal, read, CPP_SCRIPT)
     # print(segments)
     segments[:, 0] = segments[:, 0] - polyAend
     segments[:, 1] = segments[:, 1] - polyAend
@@ -199,7 +219,7 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     plotBorders(standardizedSignal, hampel_std_signal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders)
     print(calcZ(standardizedSignal, read, PARAMS, CPP_SCRIPT))
 
-def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle) -> tuple:
+def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode) -> tuple:
     for file in files:
         r5 = read(file)
         if targetID in r5.getReads():
@@ -213,8 +233,9 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                         try:
                             resquiggleBorders[:, 0] = resquiggleBorders[:, 0].astype(int) - polyA[targetID][1]
                             resquiggleBorders[:, 1] = resquiggleBorders[:, 1].astype(int) - polyA[targetID][1]
-                        except:
-                            print(resquiggleBorders)
+                        except KeyError:
+                            print(targetID, "not in polyA")
+                            # print("ERROR resquiggle", resquiggleBorders)
                             exit(1)
                         # print(borders)
                     else:
@@ -229,8 +250,9 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                         try:
                             eventalignBorders[:, 0] = eventalignBorders[:, 0].astype(int) - polyA[targetID][1]
                             eventalignBorders[:, 1] = eventalignBorders[:, 1].astype(int) - polyA[targetID][1]
-                        except:
-                            print(eventalignBorders)
+                        except KeyError:
+                            print(targetID, "not in polyA")
+                            # print("ERROR eventalign", eventalignBorders)
                             exit(1)
                         # print(borders)
                     else:
@@ -239,12 +261,16 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
 
             # change read from 5'-3' to 3'-5'
             # signal = r5.getpASignal(targetID)[polyA[targetID]:]
-            print('polyA:', polyA[targetID])
-            if polyA[targetID][1] - polyA[targetID][0] > 30:
+            # print('polyA:', polyA[targetID])
+            if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
                 signal = r5.getPolyAStandardizedSignal(targetID, polyAstart=polyA[targetID][0], polyAend=polyA[targetID][1])
             else:
+                if targetID in polyA:
+                    polyAend = polyA[targetID][1]
+                else:
+                    polyAend = 0
                 signal = r5.getpASignal(targetID)
-            segmentRead(signal, polyA[targetID][1], basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders)
+            segmentRead(signal, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode)
 
 def main() -> None:
     args = parse()
@@ -256,7 +282,7 @@ def main() -> None:
     basecalls = loadFastx(args.fastx)
     # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
     print(f'Segmenting {len(basecalls)} reads')
-    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle)
+    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode)
 
 if __name__ == '__main__':
     main()

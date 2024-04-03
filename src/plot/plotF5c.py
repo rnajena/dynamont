@@ -4,16 +4,18 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
+import sys
+sys.path.append('/home/yi98suv/projects/dynamont/src')
+
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from os.path import exists, join, dirname
-from os import makedirs, name
-from fileio import getFiles, loadFastx, openCPPScriptParams, stopFeeding, calcZ, readPolyAStartEnd, feedSegmentation
+from os.path import exists, join
+from os import makedirs
+from dynamont.FileIO import getFiles, loadFastx, readPolyAStartEnd
 from read5 import read
-import h5py as h5
 import pickle
 from hampel import hampel
 

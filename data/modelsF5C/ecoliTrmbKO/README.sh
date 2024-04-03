@@ -1,0 +1,4 @@
+source ~/.bashrc
+conda activate science
+
+python ~/projects/dynamont/src/f5c/estimateModelsFromF5C.py --raw /data/fass5/reads/rna_modifications/raw/RNAmod_20231020_trmB_R1_FAX28269_WG/RNAmod_20231020_trmB_R1_FAX28269_WG/20231020_1114_MN21435_FAX28269_d6d578e5/pod5/RNAmod_20231020_trmB_R1_FAX28269_WG.pod5 --fastx /data/fass5/reads/rna_modifications/basecalls/RNAmod_20231020_trmB_R1_FAX28269_WG_dorado_server/RNAmod_20231020_trmB_R1_FAX28269_WG.fastq --out /home/yi98suv/projects/dynamont/data/ecoliTrmbKO/ --polya /data/fass5/jannes/rna_modifications/kai_ecoli/segmentation/k12_ko_trmB/polya.csv --segmentationPickle /data/fass5/reads/rna_modifications/segmentation/RNAmod_20231019_EcoliWT_R1_FAX28269_WG/resquiggle/segmentation.pickle
