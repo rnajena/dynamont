@@ -50,3 +50,4 @@ src/last_cookie.txt
 src/segmentation
 src/_old/
 src/*/__pycache__/
+tests/playground/

@@ -27,10 +27,13 @@ void funcI(int i, int j, double* M, double* E, double* I, double* D, double* LPM
 void funcD(int i, int j, double* M, double* E, double* I, double* D, double* LPM, double* LPE, double* LPI, double* LPD, list<string>* segString, const int &N);
 
 map<char, int> BASE2ID;
+string modelpath;
 int ALPHABET_SIZE;
+int pore;
 double EPSILON = pow(10, -5);
-bool atrain, calcZ;
+bool atrain, calcZ, train;
 double m2, m3, m4, e1, e2, e3, i1, i2, d1, d2; // transition parameters
+int K; // our model works with this kmer size
 
 // TODO move to config file?
 // const string MODELPATH = "/home/yi98suv/projects/ont_segmentation/data/template_median69pA.model";
@@ -38,7 +41,6 @@ double m2, m3, m4, e1, e2, e3, i1, i2, d1, d2; // transition parameters
 // const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_reduced.model";
 const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_reduced_halfed.model";
 const string TERM_STRING = "$";
-const int K = 5; // our model works with this kmer size
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
@@ -546,6 +548,20 @@ tuple<double, double, double, double, double, double, double, double, double, do
     return {newM2, newM3, newM4, newE1, newE2, newE3, newD1, newD2, newI1, newI2};
 }
 
+void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, double* forE, double* forI, double* forD, double* backM, double* backE, double* backI, double* backD, const int &T, const int &N, vector<tuple<double, double>>* model) {
+    auto [newM2, newM3, newM4, newE1, newE2, newE3, newD1, newD2, newI1, newI2] = trainBaumWelch(sig, kmer_seq, forM, forE, forI, forD, backM, backE, backI, backD, backM[1], T, N, model);
+
+            double newParams[16] = {newM2, newM3, newM4, newE1, newE2, newE3, newD1, newD2, newI1, newI2};
+            double sumLogs = -INFINITY;
+            for (int i = 0; i < 16; i++) {
+                sumLogs = logPlus(sumLogs, newParams[i]);
+            }
+
+            cout<<"m2:"<<exp(newM2)<<";m3:"<<exp(newM3)<<";m4:"<<exp(newM4)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<";d1:"<<exp(newD1)<<";d2:"<<exp(newD2)<<";i1:"<<exp(newI1)<<";i2:"<<exp(newI2)<<endl;
+            cout<<"Z:"<<backM[1]<<endl;
+            cout.flush();
+}
+
 /**
  * Read signal and read from stdin until the TERM_STRING is seen
 */
@@ -556,7 +572,7 @@ int main(int argc, char* argv[]) {
     // double m2, m3, m4, e1, e2, e3, i1, i2, d, s1, s2; // parameters for DP
     program.add_argument("-e1", "--extendscore1").help("Transition probability for extend rule 1").default_value(    1.00).scan<'g', double>(); // e1
     program.add_argument("-m2", "--matchscore2").help("Transition probability for match rule 2").default_value(      0.16).scan<'g', double>(); // m2
-    program.add_argument("-d1",  "--deletescore1").help("Transition probability for deletion rule 1").default_value( 0.16).scan<'g', double>(); // d1
+    program.add_argument("-d1", "--deletescore1").help("Transition probability for deletion rule 1").default_value( 0.16).scan<'g', double>(); // d1
     program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(    0.16).scan<'g', double>(); // e2
     program.add_argument("-e3", "--extendscore3").help("Transition probability for extend rule 3").default_value(    0.16).scan<'g', double>(); // e3
     program.add_argument("-i1", "--insertscore1").help("Transition probability for insertion rule 1").default_value( 0.16).scan<'g', double>(); // i1
@@ -565,7 +581,10 @@ int main(int argc, char* argv[]) {
     program.add_argument("-m4", "--matchscore4").help("Transition probability for match rule 4").default_value(      0.50).scan<'g', double>(); // m4
     program.add_argument("-d2", "--deletescore2").help("Transition probability for deletion rule 2").default_value(  0.50).scan<'g', double>(); // d2
     program.add_argument("-at", "--atrain").help("Switch algorithm to transition parameter training mode").default_value(false).implicit_value(true);
+    program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true);
+    program.add_argument("-m", "--model").help("Path to kmer model table").default_value(MODELPATH);
+    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10);
     
     try {
         program.parse_args(argc, argv);
@@ -576,7 +595,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
+    pore = program.get<int>("pore");
+    modelpath = program.get<string>("model");
     atrain = program.get<bool>("atrain");
+    train = program.get<bool>("train");
     calcZ = program.get<bool>("calcZ");
     m2 = log(program.get<double>("matchscore2"));
     m3 = log(program.get<double>("matchscore3"));
@@ -589,18 +611,24 @@ int main(int argc, char* argv[]) {
     d1 = log(program.get<double>("deletescore1"));
     d2 = log(program.get<double>("deletescore2"));
 
+    if (pore == 9) {
+        K = 5;
+    } else if (pore == 10) {
+        K = 9;
+    }
     // cerr<<p<<", "<<e1<<endl;
     // cerr.flush();
     
     // cout<<"START\n";
     // read data from stdin
+
+    fillBASE2ID();
+    vector<tuple<double, double>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
+    readKmerModel(modelpath, &model);
     string input;
     string signal;
     string read;
-    fillBASE2ID();
     int truish = 1;
-    vector<tuple<double, double>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
-    readKmerModel(MODELPATH, &model);
 
     while(truish) {
         // truish = 0;
@@ -608,12 +636,6 @@ int main(int argc, char* argv[]) {
         // read input, signal and read whitespace separated in single line
         getline(cin, signal, ' ');
         getline(cin, read);
-
-        // cerr<<signal<<endl;
-        // cerr<<read<<endl;
-
-        // std::cout << "SSS " << signal << std::endl;
-        // std::cout << "RRR " << read << std::endl;
 
         // break loop if termination character ...
         if (signal.find(TERM_STRING) != string::npos) {
@@ -692,37 +714,19 @@ int main(int argc, char* argv[]) {
         }
         if (calcZ){
             cout<<backM[1]<<"\n";
+
+        // train only transitions
         } else if (atrain) {
-            auto [newM2, newM3, newM4, newE1, newE2, newE3, newD1, newD2, newI1, newI2] = trainBaumWelch(sig, kmer_seq, forM, forE, forI, forD, backM, backE, backI, backD, backM[1], T, N, &model);
+            printTrainedTransitionParams(sig, kmer_seq, forM, forE, forI, forD, backM, backE, backI, backD, T, N, &model);
 
-            double newParams[16] = {newM2, newM3, newM4, newE1, newE2, newE3, newD1, newD2, newI1, newI2};
-            double sumLogs = -INFINITY;
-            for (int i = 0; i < 16; i++) {
-                sumLogs = logPlus(sumLogs, newParams[i]);
-            }
-
-            cout<<"m2:"<<exp(newM2)<<";m3:"<<exp(newM3)<<";m4:"<<exp(newM4)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<";d1:"<<exp(newD1)<<";d2:"<<exp(newD2)<<";i1:"<<exp(newI1)<<";i2:"<<exp(newI2)<<endl;
-            cout<<"Z:"<<backM[1]<<endl;
-            cout.flush();
-
-            // cout<<"forP\n";
-            // for(int t=0; t<T; t++){
-            //     // for(int n=0; n<N; n++){
-            //     cout<<forP[t*N+0]<<", ";
-            //     // }
-            //     // cout<<endl;
-            // }
-            // cout<<"backP\n";
-            // for(int t=0; t<T; t++){
-            //     // for(int n=0; n<N; n++){
-            //     cout<<backP[t*N+N-1]<<", ";
-            //     // }
-            //     // cout<<endl;
-            // }
-            // cout.flush();
-
-            // delete[] newParams;
         } else {
+
+            // train both Transitions and Emissions
+            if (train) {
+                printTrainedTransitionParams(sig, kmer_seq, forM, forE, forI, forD, backM, backE, backI, backD, T, N, &model);
+            }
+            
+            // return segmentations for Emission training
             double* LPM = logP(forM, backM, backM[1], T, N); // log probs
             double* LPE = logP(forE, backE, backM[1], T, N); // log probs
             double* LPI = logP(forI, backI, backM[1], T, N); // log probs

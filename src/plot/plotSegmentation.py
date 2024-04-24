@@ -14,33 +14,12 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
-from dynamont.FileIO import getFiles, loadFastx, openCPPScriptParams, stopFeeding, calcZ, readPolyAStartEnd, feedSegmentation
+from dynamont.FileIO import getFiles, loadFastx, calcZ, readPolyAStartEnd, feedSegmentation, SegmentationError
 from read5 import read
 from hampel import hampel
+import pickle
 
-KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model', sep='\t', index_col = "kmer")
-# KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/template_median69pA_reduced.model', sep='\t', index_col = "kmer")
-# KMERMODELS = pd.read_csv('/home/yi98suv/projects/dynamont/data/ecoliWTModels/pAmodels.model.extended', sep='\t', index_col = "kmer")
-
-# PARAMS = {
-#         "e1":1.,
-#         "m2":.04,
-#         "d1":.0,
-#         "e2":.96,
-#         "e3":.0,
-#         "i1":.0,
-#         "m3":.1,
-#         "i2":.0,
-#         "m4":.1,
-#         "d2":.0,
-# }
-
-# E. coli
-# PARAMS = {'e1': 1.0, 'm2': 0.062403286666666655, 'd1': 0.0, 'e2': 0.9373050666666667, 'e3': 0.0002915558866666667, 'i1': 0.0, 'm3': 0, 'i2': 0, 'm4': 0, 'd2': 0}
-# PARAMS = {'e1': 1.0, 'm2': 0.024169237500000006, 'd1': 4.263524041666667e-06, 'e2': 0.9746092083333332, 'e3': 0.0005571478833333333, 'i1': 0.0006601715291666667, 'm3': 0.8175128750000001, 'i2': 0.182487125, 'm4': 1.0, 'd2': 1.648725e-100}
-
-# simulated
-# PARAMS = {'e1': 1.0, 'm2': 0.025623768750000008, 'd1': 1.950319e-29, 'e2': 0.9743754999999998, 'e3': 1.0193476874999999e-69, 'i1': 8.142517119374999e-07, 'm3': 1.0, 'i2': 6.209504555e-15, 'm4': 1.0, 'd2': 6.981955249999999e-25}
+STANDARDONTMODEL = pd.read_csv("/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model", sep='\t', index_col = "kmer")
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -54,14 +33,17 @@ def parse() -> Namespace:
     parser.add_argument('--resquigglePickle', type=str, default=None, help='f5c resquiggle segmentation pickle file')
     parser.add_argument('--eventalignPickle', type=str, default=None, help='f5c eventalign segmentation pickle file')
     parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
+    parser.add_argument('--model', type=str, default='/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model', help='Kmer model file')
+    parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     return parser.parse_args()
 
-def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray):
+def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame):
     '''
     Input
     -----
     segments : np.ndarray
-        in 3' -> 5' orientation
+        in 3' -> 5' orientation, but readpos is on 5' -> 3' orientation
+        [[start : int, end : int, readpos : int, state : str] ...]
     read : str
         in 3' -> 5' orientation
     '''
@@ -110,9 +92,13 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             motif = motif.replace('U', 'T')
             x = int(segment[0])
             width = int(segment[1]) - int(segment[0])
-            mean, stdev = KMERMODELS.loc[motif][['level_mean', 'level_stdv']]
-            height = 2*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-stdev), width, height, alpha=0.4, facecolor="yellow"))
+            mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -136,9 +122,13 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             motif = motif.replace('U', 'T')
             x = segment[0]
             width = segment[1] - segment[0]
-            mean, stdev = KMERMODELS.loc[motif][['level_mean', 'level_stdv']]
-            height = 2*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-stdev), width, height, alpha=0.4, facecolor="yellow"))
+            mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -164,9 +154,13 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
 
         if segment[3] == 'M':
             # draw kmer range as rectangle
-            mean, stdev = KMERMODELS.loc[motif][['level_mean', 'level_stdv']]
-            height = 2*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-stdev), width, height, alpha=0.4, facecolor="yellow"))
+            mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             # write motif
             ax[plotNumber].text(x + width/2 - 3, min(signal)-10, read[pos], fontdict={'size' : 7, 'color':'red'})
         elif segment[3] == 'D':
@@ -181,51 +175,50 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
 
-def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str):
+def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, kmermodels : pd.DataFrame, modelpath : str, minSegLen : int):
     '''
     Takes read in 3' -> 5' direction
     '''
+    print(f"Segmenting {readid}")
 
+    # init
+    CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', f'segmentation_{mode}')
+    if name == 'nt': # check for windows
+        CPP_SCRIPT+='.exe'
     if mode == 'indel':
-        CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', 'segmentation_indel')
-        if name == 'nt': # check for windows
-            CPP_SCRIPT+='.exe'
-        # init
         PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
-
     elif mode == 'basic':
-        CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', 'segmentation_basic')
-        if name == 'nt': # check for windows
-            CPP_SCRIPT+='.exe'
-        PARAMS = {"e1":1., "m2":.33, "e2":.33, "e3":.33}
+        PARAMS = {'e1': 1.0, 'm1': 0.0243729875, 'e2': 0.9753095416666665, 'e3': 0.00031753019166666665}
+    PARAMS['m'] = modelpath
+    PARAMS['c'] = minSegLen
 
-    pipe = openCPPScriptParams(CPP_SCRIPT, PARAMS)
-
+    # filter outliers
     hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
     # hampel_raw_signal = hampel(rawSignal, 20, 2.).filtered_data
-    # segments = feedSegmentation(hampel_std_signal[polyAstart:], read, pipe)
-    segments = feedSegmentation(hampel_std_signal, read, CPP_SCRIPT)
-    # print(segments)
+    # segments = feedSegmentation(hampel_std_signal[polyAstart:], read, CPP_SCRIPT, PARAMS)
+    segments = feedSegmentation(hampel_std_signal, read, CPP_SCRIPT, PARAMS)
+
+    if not len(segments):
+        print(segments)
+        raise SegmentationError(readid)
+
     segments[:, 0] = segments[:, 0] - polyAend
     segments[:, 1] = segments[:, 1] - polyAend
-    stopFeeding(pipe)
 
     with open(join(outdir, readid + '.txt'), 'w') as w:
         w.write('\n'.join(list(map(str, segments))))
 
-    # print(len(segments), segments)
-    # print(len(read), read)
-
-    plotBorders(standardizedSignal, hampel_std_signal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders)
+    plotBorders(standardizedSignal, hampel_std_signal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels)
     print(calcZ(standardizedSignal, read, PARAMS, CPP_SCRIPT))
 
-def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode) -> tuple:
+def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, kmermodels, modelpath, minSegLen) -> tuple:
     for file in files:
         r5 = read(file)
         if targetID in r5.getReads():
             
-            import pickle
+            resquiggleBorders = None
             if resquigglePickle:
+                print("Prepare f5c resquiggle")
                 with open(resquigglePickle, 'rb') as handle:
                     borderMap = pickle.load(handle)
                     if targetID in borderMap:
@@ -242,7 +235,9 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                         resquiggleBorders = None
                         print(f'WARNING: no border found in {handle}')
 
+            eventalignBorders = None
             if eventalignPickle:
+                print("Prepare f5c eventalign")
                 with open(eventalignPickle, 'rb') as handle:
                     borderMap = pickle.load(handle)
                     if targetID in borderMap:
@@ -258,31 +253,33 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                     else:
                         eventalignBorders = None
                         print(f'WARNING: no border found in {handle}')
+            
 
-            # change read from 5'-3' to 3'-5'
-            # signal = r5.getpASignal(targetID)[polyA[targetID]:]
-            # print('polyA:', polyA[targetID])
             if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
                 signal = r5.getPolyAStandardizedSignal(targetID, polyAstart=polyA[targetID][0], polyAend=polyA[targetID][1])
+                polyAend = polyA[targetID][1]
             else:
+                print("WARNING: NO POLYA SEGMENT FOUND!")
                 if targetID in polyA:
                     polyAend = polyA[targetID][1]
                 else:
                     polyAend = 0
                 signal = r5.getpASignal(targetID)
-            segmentRead(signal, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode)
+            # change read from 5'-3' to 3'-5'
+            segmentRead(signal, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, kmermodels, modelpath, minSegLen)
 
 def main() -> None:
     args = parse()
     if not exists(args.out):
         makedirs(args.out)
+    kmermodels = pd.read_csv(args.model, sep='\t', index_col = "kmer")
     polya = readPolyAStartEnd(args.polya)
     rawFiles = getFiles(args.raw, True)
     print(f'ONT Files: {len(rawFiles)}')
     basecalls = loadFastx(args.fastx)
     # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
     print(f'Segmenting {len(basecalls)} reads')
-    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode)
+    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, kmermodels, args.model, args.minSegLen - 1)
 
 if __name__ == '__main__':
     main()
