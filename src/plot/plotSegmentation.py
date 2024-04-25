@@ -278,7 +278,7 @@ def main() -> None:
     print(f'ONT Files: {len(rawFiles)}')
     basecalls = loadFastx(args.fastx)
     # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
-    print(f'Segmenting {len(basecalls)} reads')
+    # print(f'Segmenting {len(basecalls)} reads')
     start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, kmermodels, args.model, args.minSegLen - 1)
 
 if __name__ == '__main__':

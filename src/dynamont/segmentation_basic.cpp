@@ -199,7 +199,8 @@ double log_normal_pdf(const double &x, const double &m, const double &s) {
  */
 inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<double, double>>* model) {
     tuple<double, double> kmerModel = (*model)[kmer];
-    return 2*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 6);
+    // return 2*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 6);
+    return log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel));
 
     // norm signal with kmer model
     // double sig = (signal - get<0>(kmerModel)) / get<1>(kmerModel);
@@ -504,10 +505,47 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
     // Emission (means of kmers)
     // calibrated new means
     // log space
+    // double* kmers = new double[N];
+    // fill_n(kmers, N, -INFINITY);
+    // double* d = new double[N];
+    // fill_n(d, N, -INFINITY);
+    // // normal space
+    // double* means = new double[(int) pow(ALPHABET_SIZE, K)];
+    // fill_n(means, pow(ALPHABET_SIZE, K), 0.0);
+    // int* c = new int[(int) pow(ALPHABET_SIZE, K)];
+    // fill_n(c, pow(ALPHABET_SIZE, K), 0);
+
+    // for (int n=1; n<N; n++) {
+    //     c[kmer_seq[n-1]]++;
+    //     for (int t=1; t<T; t++) {
+    //         kmers[n] = logPlus(kmers[n], logPlus(g_M[t*N+n], g_E[t*N+n]) + log(sig[t-1]));
+    //         d[n] = logPlus(d[n], logPlus(g_M[t*N+n], g_E[t*N+n]));
+    //     }
+    //     kmers[n] = kmers[n] - d[n];
+    // }
+    // for (int n=1; n<N; n++) {
+    //     means[kmer_seq[n-1]] += exp(kmers[n]) / c[kmer_seq[n-1]];
+    // }
+
+    // // Emission (stdev of kmers)
+    // fill_n(kmers, N, -INFINITY);
+    // double* stdevs = new double[(int) pow(ALPHABET_SIZE, K)];
+    // fill_n(stdevs, pow(ALPHABET_SIZE, K), 0.0);
+    // for (int n=1; n<N; n++) {
+    //     for (int t=1; t<T; t++) {
+    //         kmers[n] = logPlus(kmers[n], logPlus(g_M[t*N+n], g_E[t*N+n]) + log(abs(sig[t-1] - means[kmer_seq[n-1]])));
+    //     }
+    //     kmers[n] = kmers[n] - d[n];
+    // }
+    // for (int n=1; n<N; n++) {
+    //     stdevs[kmer_seq[n-1]] += exp(kmers[n]) / c[kmer_seq[n-1]];
+    // }
+
+    // decimal space
     double* kmers = new double[N];
-    fill_n(kmers, N, -INFINITY);
+    fill_n(kmers, N, 0);
     double* d = new double[N];
-    fill_n(d, N, -INFINITY);
+    fill_n(d, N, 0);
     // normal space
     double* means = new double[(int) pow(ALPHABET_SIZE, K)];
     fill_n(means, pow(ALPHABET_SIZE, K), 0.0);
@@ -517,27 +555,27 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
     for (int n=1; n<N; n++) {
         c[kmer_seq[n-1]]++;
         for (int t=1; t<T; t++) {
-            kmers[n] = logPlus(kmers[n], logPlus(g_M[t*N+n], g_E[t*N+n]) + log(sig[t-1]));
-            d[n] = logPlus(d[n], logPlus(g_M[t*N+n], g_E[t*N+n]));
+            kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * sig[t-1];
+            d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
         }
-        kmers[n] = kmers[n] - d[n];
+        kmers[n] = kmers[n] / d[n];
     }
     for (int n=1; n<N; n++) {
-        means[kmer_seq[n-1]] += exp(kmers[n]) / c[kmer_seq[n-1]];
+        means[kmer_seq[n-1]] += kmers[n] / c[kmer_seq[n-1]];
     }
 
     // Emission (stdev of kmers)
-    fill_n(kmers, N, -INFINITY);
+    fill_n(kmers, N, 0);
     double* stdevs = new double[(int) pow(ALPHABET_SIZE, K)];
     fill_n(stdevs, pow(ALPHABET_SIZE, K), 0.0);
     for (int n=1; n<N; n++) {
         for (int t=1; t<T; t++) {
-            kmers[n] = logPlus(kmers[n], logPlus(g_M[t*N+n], g_E[t*N+n]) + log(abs(sig[t-1] - means[kmer_seq[n-1]])));
+            kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * abs(sig[t-1] - means[kmer_seq[n-1]]);
         }
-        kmers[n] = kmers[n] - d[n];
+        kmers[n] = kmers[n] / d[n];
     }
     for (int n=1; n<N; n++) {
-        stdevs[kmer_seq[n-1]] += exp(kmers[n]) / c[kmer_seq[n-1]];
+        stdevs[kmer_seq[n-1]] += kmers[n] / c[kmer_seq[n-1]];
     }
 
     return tuple<double, double, double, double, double*, double*>({newM, newE1, newE2, newE3, means, stdevs});
