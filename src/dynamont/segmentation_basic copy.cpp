@@ -36,7 +36,7 @@ double m1, e1, e2, e3; // transition parameters
 int K; // our model works with this kmer size
 int C;
 
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_reduced_halfed.model";
 const string TERM_STRING = "$";
 
 // Asserts doubleing point compatibility at compile time
@@ -173,7 +173,6 @@ int* seq2kmer(int* seq, const int &N) {
         copy(seq + n, seq + n+K, tempKmer);
         kmer_seq[n] = toDeci(tempKmer);
     }
-    delete[] tempKmer;
     return kmer_seq;
 }
 
@@ -468,9 +467,9 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
             if (!isinf(s_M)) {
                 g_M[t*N+n] = g_M[t*N+n] - s_M;
             } 
-            // else {
-            //     cerr<<"M n: "<<n<<", t:"<<t<<"; ";
-            // }
+            else {
+                cerr<<"M n: "<<n<<", t:"<<t<<"; ";
+            }
             if (!isinf(s_E)) {
             // if (n>0) {
                 g_E[t*N+n] = g_E[t*N+n] - s_E;
@@ -481,8 +480,8 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
         }
     }
 
-    // cerr<<endl;
-    // cerr.flush();
+    cerr<<endl;
+    cerr.flush();
 
     // divide by Z
     newM = newM - Z;
@@ -551,8 +550,10 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
         if (n>0){
             counts[kmer_seq[n-1]]++;
         }
-        for (int t=1; t<T; t++) {
-            kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * sig[t-1];
+        for (int t=0; t<T; t++) {
+            if (t>0){
+                kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * sig[t-1];
+            }
             d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
         }
         kmers[n] = kmers[n] / d[n];
@@ -566,12 +567,10 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
     fill_n(kmers, N, 0);
     double* stdevs = new double[(int) pow(ALPHABET_SIZE, K)];
     fill_n(stdevs, pow(ALPHABET_SIZE, K), 0.0);
-    fill_n(d, N, 0);
     for (int n=0; n<N; n++) {
         for (int t=0; t<T; t++) {
             if (t>0 && n>0) {
                 kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * abs(sig[t-1] - means[kmer_seq[n-1]]);
-                d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
             }
         }
         kmers[n] = kmers[n] / d[n];

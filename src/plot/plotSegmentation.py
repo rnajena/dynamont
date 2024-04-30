@@ -97,9 +97,9 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             x = int(segment[0])
             width = int(segment[1]) - int(segment[0])
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
-            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
-            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
-            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
             mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
             height = 3.92*stdev
             ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
@@ -127,9 +127,9 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             x = segment[0]
             width = segment[1] - segment[0]
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
-            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
-            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
-            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
             mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
             height = 3.92*stdev
             ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
@@ -137,18 +137,18 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         plotNumber += 1
 
     # OUR SEGMENTATION
-    ax[plotNumber].vlines(segments[:, 0], ymin=min(signal)-10, ymax=max(signal), colors='red', linestyles='--', label='our segmentation', linewidth=0.7, alpha=0.6)
+    ax[plotNumber].vlines(segments[:, 0], ymin=min(signal)-10, ymax=max(signal), colors='red', linestyles='--', label='our segmentation', linewidth=0.6)
     # plot kmer model range
     for segment in segments:
         
         # extract motif from read
         pos = segment[2]
-        # add As to 3' end
-        if pos-2 < 0:
-            motif = ('A' * abs(pos-2)) + read[max(0, pos-2) : pos+3]
         # add Ns to 5' end
+        if pos-2 < 0:
+            motif = ('N' * abs(pos-2)) + read[0 : pos+3]
+        # add As to 3' end
         elif pos+3 > len(read):
-            motif = read[pos-2 : pos+3] + 'N'*(pos+3-len(read))
+            motif = read[pos-2 : pos+3] + ('A'*(pos+3-len(read)))
         else:
             motif = read[pos-2 : pos+3]
         # plot motif in 3' - 5' direction
@@ -159,35 +159,37 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         if segment[3] == 'M':
             # draw kmer range as rectangle
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
-            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
-            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
-            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
-            mean, stdev = hampel_signal[segment[0]+polyAend:segment[1]+polyAend].mean(), hampel_signal[segment[0]+polyAend:segment[1]+polyAend].std()
-            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='black', alpha=0.8)
-            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
-            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
+            # mean, stdev = hampel_signal[segment[0]+polyAend:segment[1]+polyAend].mean(), hampel_signal[segment[0]+polyAend:segment[1]+polyAend].std()
+            # ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='black', alpha=0.8)
+            # ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
+            # ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
             mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
             height = 3.92*stdev
             ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             # write motif
             ax[plotNumber].text(x + width/2 - 3, min(signal)-10, read[pos], fontdict={'size' : 7, 'color':'red'})
-        elif segment[3] == 'D':
-            height = max(signal) - min(signal)
-            ax[plotNumber].add_patch(Rectangle((x, min(signal)), width, height, alpha=0.3, facecolor="grey"))
-            ax[plotNumber].text(x + width/2 - 3, min(signal)-14, 'Del', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
-        elif segment[3] == 'I':
-            ax[plotNumber].text(x - 3, min(signal)-14, 'Ins', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
+        # elif segment[3] == 'D':
+        #     height = max(signal) - min(signal)
+        #     ax[plotNumber].add_patch(Rectangle((x, min(signal)), width, height, alpha=0.3, facecolor="grey"))
+        #     ax[plotNumber].text(x + width/2 - 3, min(signal)-14, 'Del', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
+        # elif segment[3] == 'I':
+        #     ax[plotNumber].text(x - 3, min(signal)-14, 'Ins', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
         ax[plotNumber].legend()
 
     # plt.legend()
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
 
-def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, kmermodels : pd.DataFrame, modelpath : str, minSegLen : int):
+def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int):
     '''
     Takes read in 3' -> 5' direction
     '''
     print(f"Segmenting {readid}")
+
+    kmermodels = pd.read_csv(modelpath, sep='\t', index_col = "kmer")
 
     # init
     CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', f'segmentation_{mode}')
@@ -221,7 +223,7 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     plotBorders(standardizedSignal, hampel_std_signal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels)
     print(calcZ(standardizedSignal, read, PARAMS, CPP_SCRIPT))
 
-def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, kmermodels, modelpath, minSegLen) -> tuple:
+def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, modelpath, minSegLen) -> tuple:
     for file in files:
         r5 = read(file)
         if targetID in r5.getReads():
@@ -276,20 +278,19 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                     polyAend = 0
                 signal = r5.getpASignal(targetID)
             # change read from 5'-3' to 3'-5'
-            segmentRead(signal, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, kmermodels, modelpath, minSegLen)
+            segmentRead(signal, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen)
 
 def main() -> None:
     args = parse()
     if not exists(args.out):
         makedirs(args.out)
-    kmermodels = pd.read_csv(args.model, sep='\t', index_col = "kmer")
     polya = readPolyAStartEnd(args.polya)
     rawFiles = getFiles(args.raw, True)
     print(f'ONT Files: {len(rawFiles)}')
     basecalls = loadFastx(args.fastx)
     # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
     # print(f'Segmenting {len(basecalls)} reads')
-    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, kmermodels, args.model, args.minSegLen - 1)
+    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, args.model, args.minSegLen - 1)
 
 if __name__ == '__main__':
     main()

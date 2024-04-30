@@ -184,8 +184,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             Z = result
                             Zsum+=Z
                             # print('Z:', Z, end='\t')
-                            if not np.isinf(Zs[j]):
-                                Zdiffs.append(Z - Zs[j])
+                            # if not np.isinf(Zs[j]):
+                            Zdiffs.append(Z - Zs[j])
 
                         print(f"Updated Z sum: {Zsum:.3f}")
                         deltaZ = sum(Zdiffs)/len(Zdiffs)
