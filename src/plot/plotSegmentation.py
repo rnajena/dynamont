@@ -44,6 +44,11 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
     segments : np.ndarray
         in 3' -> 5' orientation, but readpos is on 5' -> 3' orientation
         [[start : int, end : int, readpos : int, state : str] ...]
+        already shifted by polyAend
+    resquiggleBorders : np.ndarray
+        already shifted by polyAend
+    eventalignBorders : np.ndarray
+        already shifted by polyAend
     read : str
         in 3' -> 5' orientation
     '''
@@ -69,7 +74,6 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         ax[axis].set_ylabel('Signal pico Ampere')
         ax[axis].set_xticks(np.arange(0, len(signal), 2000))
         ax[axis].grid(True, 'both', 'both')
-
 
     plotNumber = 0
     # F5C EVENTALIGN
@@ -158,6 +162,10 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', alpha=0.8)
             ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
             ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='orange', linewidth=1, linestyle='--', alpha=0.8)
+            mean, stdev = hampel_signal[segment[0]+polyAend:segment[1]+polyAend].mean(), hampel_signal[segment[0]+polyAend:segment[1]+polyAend].std()
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='black', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
             mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
             height = 3.92*stdev
             ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
@@ -199,7 +207,9 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     segments = feedSegmentation(hampel_std_signal, read, CPP_SCRIPT, PARAMS)
 
     if not len(segments):
-        print(segments)
+        # print(segments)
+        print(str(list(hampel_std_signal[-300:])).replace(" ", "")[1:-1], end=' ')
+        print(read[-30:])
         raise SegmentationError(readid)
 
     segments[:, 0] = segments[:, 0] - polyAend

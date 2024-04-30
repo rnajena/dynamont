@@ -94,7 +94,6 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     for param in params:
         param_writer.write(param+',')
     param_writer.write("Zchange\n")
-    # pipe = openCPPScriptParamsTrain(CPP_SCRIPT, params)
     i = 0
     batch_num = 0
 
@@ -102,6 +101,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
         for e in range(epochs):
             mp_items = []
+            training_readids = []
 
             for file in files:
                 r5 = read(file)
@@ -128,10 +128,12 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 3.).filtered_data
                         # signal = hampel(r5.getpASignal(readid), 20, 2.).filtered_data
                         mp_items.append([signal, basecalls[readid][::-1], params, CPP_SCRIPT, trainedModels, minSegLen])
+                        training_readids.append(readid)
 
                     if len(mp_items) == batch_size:
                         print("============================")
                         print(f"Training epoch: {e}, reads: {i}, batch: {batch_num}\n{params}")
+                        print("Training with read:", training_readids)
                         batch_num += 1
                         Zs = []
                         segmentations = []
@@ -143,7 +145,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             Zs.append(Z)
                             segmentations.append(segments)
 
-                            assert not np.isinf(Z), 'Z is infinit!'
+                            assert not np.isinf(Z), f'Z is infinit!: {Z}'
                             # if not np.isinf(Z):
                             for j, param in enumerate(trainedParams):
                                 paramCollector[param] += trainedParams[param]
@@ -166,10 +168,14 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             if not len(meanCollector[kmer]):
                                 continue
                             kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.mean(stdevCollector[kmer])]
+                        
+                        trainedModels = baseName + f"_{e}_{batch_num}.model"
+                        writeKmerModels(trainedModels, kmerModels)
 
                         # rerun with new parameters to compare Zs
                         for j in range(len(mp_items)):
                             mp_items[j][2] = params
+                            mp_items[j][-2] = trainedModels
                         Zdiffs = []
                         Zsum = 0
                         for j, result in enumerate(p.starmap(calcZ, mp_items)):
@@ -191,14 +197,10 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                         # initialize new batch
                         paramCollector = {param : 0 for param in paramCollector}
-                        # failedInBatch = 0
                         if not same_batch:
                             mp_items = []
-                        trainedModels = baseName + f"_{e}_{batch_num}.model"
-                        if stdev is None:
-                            writeKmerModels(trainedModels, kmerModels)
-                        else:
-                            writeKmerModels(trainedModels, kmerModels)
+                            training_readids = []
+                        
         
         param_writer.close()
 
@@ -216,8 +218,7 @@ def main() -> None:
     kmerModels = readKmerModels(args.model_path)
     assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    minSegLen = args.minSegLen - 1
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, kmerModels, trainedModels, stdev, minSegLen)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, kmerModels, trainedModels, stdev, args.minSegLen - 1)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':

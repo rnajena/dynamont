@@ -288,6 +288,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     Z : float
     '''
     pipe = openCPPScriptTrain(script, params, model_file, minSegLen)
+    # print(read)
     feedPipe(signal, read, pipe)
     trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
 
@@ -302,6 +303,9 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     # then Z
     Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
     
+    # print(pipe.stderr.readline())
+    # print(pipe.stderr.readline())
+
     # then segmentation
     segmentation = pipe.stdout.readline().strip().decode('UTF-8')
     segments = formatSegmentationOutput(segmentation, len(signal), len(read))
