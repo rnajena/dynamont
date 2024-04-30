@@ -76,12 +76,13 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
             # "s2":1.0
         }
     elif mode == 'basic':
-        params = {
-            "e1":1.,
-            "m1":.025,
-            "e2":.955,
-            "e3":.02,
-        }
+        params = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9650, 'e3': 0.0}
+        # {
+        #     "e1":1.,
+        #     "m1":.025,
+        #     "e2":.955,
+        #     "e3":.02,
+        # }
     elif mode == 'extended':
         # TODO
         print('Extended mode not implemented')
@@ -125,7 +126,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     # fill batch
                     if len(mp_items) < batch_size:
-                        signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 3.).filtered_data
+                        signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 2.).filtered_data
                         # signal = hampel(r5.getpASignal(readid), 20, 2.).filtered_data
                         mp_items.append([signal, basecalls[readid][::-1], params, CPP_SCRIPT, trainedModels, minSegLen])
                         training_readids.append(readid)
@@ -167,7 +168,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             # skip unseen models
                             if not len(meanCollector[kmer]):
                                 continue
-                            kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.mean(stdevCollector[kmer])]
+                            # print(kmer)
+                            kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.mean(stdevCollector[kmer])] #min(np.mean(stdevCollector[kmer]), 10)]
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels)
@@ -197,6 +199,9 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                         # initialize new batch
                         paramCollector = {param : 0 for param in paramCollector}
+                        meanCollector = {kmer : [] for kmer in kmerModels}
+                        stdevCollector = {kmer : [] for kmer in kmerModels}
+
                         if not same_batch:
                             mp_items = []
                             training_readids = []
