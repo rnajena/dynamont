@@ -4,6 +4,7 @@
 // website: https://jannessp.github.io
 
 #include <iostream>
+#include <iomanip>
 #include <fstream> // file io
 #include <sstream> // file io
 #include <string>
@@ -29,7 +30,6 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE;
-int pore;
 double EPSILON = pow(10, -5);
 bool atrain, train, calcZ;
 double m1, e1, e2, e3; // transition parameters
@@ -100,7 +100,7 @@ string itoa(int value) {
     // Append the negative sign
     if ( value < 0) buf += '-';
 
-    while (buf.length() < K) {
+    while ((int) buf.length() < base) {
         buf += ID2BASE.at('0');
     }
 
@@ -360,7 +360,8 @@ list<string> getBorders(double* LPM, double* LPE, const int &T, const int &N){
     
     list<string> segString;
     funcE(T-1, N-1, M, E, LPM, LPE, &segString, N);
-    delete[] M, E;
+    delete[] M;
+    delete[] E;
     return segString;
 }
 
@@ -581,21 +582,28 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
         stdevs[kmer_seq[n-1]] += kmers[n] / counts[kmer_seq[n-1]];
     }
 
+    delete[] g_M;
+    delete[] g_E;
+    delete[] kmers;
+    delete[] counts;
+    delete[] d;
     return tuple<double, double, double, double, double*, double*>({newM, newE1, newE2, newE3, means, stdevs});
 }
 
 void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
     auto [newM, newE1, newE2, newE3, newMeans, newStdevs] = trainBaumWelch(sig, kmer_seq, forM, forE, backM, backE, backM[1], T, N, model);
 
-    double newParams[16] = {newM, newE1, newE2, newE3};
-    double sumLogs = -INFINITY;
-    for (int i = 0; i < 16; i++) {
-        sumLogs = logPlus(sumLogs, newParams[i]);
-    }
-
+    // double newParams[4] = {newM, newE1, newE2, newE3};
+    // double sumLogs = -INFINITY;
+    // for (int i = 0; i < 4; i++) {
+    //     sumLogs = logPlus(sumLogs, newParams[i]);
+    // }
+    
+    cout << fixed << showpoint;
+    cout << setprecision(10);
     cout<<"m1:"<<exp(newM)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<endl;
     for (int i=0; i<pow(ALPHABET_SIZE, K); i++){
-        if (newMeans[i]!=0.0 || newStdevs[i]!=0.0){
+        if (newMeans[i]!=0.0){
             cout<<itoa(i)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
         }
     }
@@ -633,7 +641,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    pore = program.get<int>("pore");
+    int pore = program.get<int>("pore");
     modelpath = program.get<string>("model");
     atrain = program.get<bool>("atrain");
     train = program.get<bool>("train");
@@ -686,7 +694,7 @@ int main(int argc, char* argv[]) {
         stringstream ss(signal);
         int i = 0;
         while(getline(ss, value, ',')) {
-            sig[i++] = stof(value);
+            sig[i++] = stod(value);
         }
         // process read: convert string to int array
         int N = read.size() + 1; // operate on base transitions
@@ -695,14 +703,14 @@ int main(int argc, char* argv[]) {
         fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
         i = floor(K/2);
         for (const char &c: read) {
-            try {
-                seq[i] = BASE2ID.at(c);
-                i++;
-            } catch (const std::out_of_range) {
-                // TODO handle unknown nucleotide in read
-                // cerr<<"Unknown nucleotide: "<<c<<endl;
-                exit(10);
-            }
+            // try {
+            seq[i] = BASE2ID.at(c);
+            i++;
+            // } catch (const std::out_of_range) {
+            //     // TODO handle unknown nucleotide in read
+            //     // cerr<<"Unknown nucleotide: "<<c<<endl;
+            //     exit(10);
+            // }
         }
         // add NN to end of sequence
         seq[i] = 4;
@@ -726,8 +734,18 @@ int main(int argc, char* argv[]) {
         logB(sig, kmer_seq, backM, backE, T, N, &model);
 
         // Check if Z value matches, must match between matrices
-        // cerr.precision(20);
-        if (fabs(forE[N*T-1] - backM[1])>EPSILON) {
+        // cerr<<setprecision(10);
+
+        // cerr<<forE[(N-1)*T+T-1]<<endl;
+        // cerr<<forE[(N-2)*T+T-1]<<endl;
+        // cerr<<forE[(N-1)*T+T-2]<<endl;
+
+        // cerr<<backM[0*T+0]<<endl;
+        // cerr<<backM[0*T+1]<<endl;
+        // cerr<<backM[1*T+0]<<endl;
+
+        // This checks out
+        if (abs(forE[N*T-1] - backM[1])>EPSILON) {
             // cerr<<"Z values between matrices do not match! forE: "<<forE[N*T-1]<<", backP: "<<backM[1]<<"\n";
             // cerr.flush();
             exit(11);
@@ -776,9 +794,16 @@ int main(int argc, char* argv[]) {
             // cout.flush();
 
             // Clean up
-            delete[] LPM, LPE; //, LSP;
+            delete[] LPM;
+            delete[] LPE; //, LSP;
         }
-        delete[] forM, forE, backM, backE, sig, seq, kmer_seq;
+        delete[] forM;
+        delete[] forE;
+        delete[] backM;
+        delete[] backE;
+        delete[] sig;
+        delete[] seq;
+        delete[] kmer_seq;
     }
     return 0;
 }

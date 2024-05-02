@@ -61,7 +61,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
     if mode == 'indel':
         # init
-        params = {
+        transitionParams = {
             "e1":1.,
             "m2":.03333,
             "d1":.00001,
@@ -76,7 +76,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
             # "s2":1.0
         }
     elif mode == 'basic':
-        params = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9650, 'e3': 0.0}
+        transitionParams = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9650, 'e3': 0.0}
         # {
         #     "e1":1.,
         #     "m1":.025,
@@ -88,11 +88,11 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         print('Extended mode not implemented')
         exit(1)
 
-    paramCollector = {param : 0 for param in params}
+    paramCollector = {param : 0 for param in transitionParams}
     meanCollector = {kmer : [] for kmer in kmerModels}
     stdevCollector = {kmer : [] for kmer in kmerModels}
     param_writer.write("epoch,batch,read,")
-    for param in params:
+    for param in transitionParams:
         param_writer.write(param+',')
     param_writer.write("Zchange\n")
     i = 0
@@ -128,12 +128,12 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     if len(mp_items) < batch_size:
                         signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 2.).filtered_data
                         # signal = hampel(r5.getpASignal(readid), 20, 2.).filtered_data
-                        mp_items.append([signal, basecalls[readid][::-1], params, CPP_SCRIPT, trainedModels, minSegLen])
+                        mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen])
                         training_readids.append(readid)
 
                     if len(mp_items) == batch_size:
                         print("============================")
-                        print(f"Training epoch: {e}, reads: {i}, batch: {batch_num}\n{params}")
+                        print(f"Training epoch: {e}, reads: {i}, batch: {batch_num}\n{transitionParams}")
                         print("Training with read:", training_readids)
                         batch_num += 1
                         Zs = []
@@ -160,9 +160,9 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                         # update parameters
                         param_writer.write(f'{e},{batch_num},{i},') # log
-                        for param in params:
-                            params[param] = paramCollector[param] / batch_size #(batch_size - failedInBatch)
-                            param_writer.write(f'{params[param]:.3f},') # log
+                        for param in transitionParams:
+                            transitionParams[param] = paramCollector[param] / batch_size #(batch_size - failedInBatch)
+                            param_writer.write(f'{transitionParams[param]:.3f},') # log
 
                         for kmer in meanCollector:
                             # skip unseen models
@@ -176,8 +176,9 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                         # rerun with new parameters to compare Zs
                         for j in range(len(mp_items)):
-                            mp_items[j][2] = params
-                            mp_items[j][-2] = trainedModels
+                            mp_items[j][2] = transitionParams
+                            mp_items[j][4] = trainedModels
+                        # print(mp_items)
                         Zdiffs = []
                         Zsum = 0
                         for j, result in enumerate(p.starmap(calcZ, mp_items)):

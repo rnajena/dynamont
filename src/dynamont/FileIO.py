@@ -44,7 +44,7 @@ def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
     with open(filepath, 'w') as w:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
-            w.write(f'{kmer}\t{kmerModels[kmer][0]:.3f}\t{kmerModels[kmer][1]:.3f}\n')
+            w.write(f'{kmer}\t{kmerModels[kmer][0]}\t{kmerModels[kmer][1]}\n')
 
 def getFiles(filepath : str, rec : bool) -> list:
     '''
@@ -147,7 +147,7 @@ def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str, minSeg
     script.append(f"--model {model_file}")
     script.append(f"--minSegLen {minSegLen}")
     script=" ".join(script)
-    # print("Popen call:", script)
+    print("Popen call:", script)
     return openCPPScript(script)
 
 def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None, minSegLen : int = None) -> Popen:
@@ -219,16 +219,17 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> None:
     # prepare cookie for segmentation
     signal = str(np.around(signal.tolist(), 3).tolist()).replace(' ', '').replace('[', '').replace(']', '')
     cookie = f"{signal}\n{read}\n"
+    # print(cookie)
     # transfer data to bytes - needed in Python 3
     # with open("/home/yi98suv/Desktop/test.cookie", 'w') as w:
     #     w.write(cookie)
     cookie = bytes(cookie, 'UTF-8')
     # feed
-    try:
-        pipe.stdin.write(cookie)
-    except BrokenPipeError:
-        print(pipe.args)
-        raise BrokenPipeError
+    # try:
+    pipe.stdin.write(cookie)
+    # except BrokenPipeError:
+    #     print(pipe.args)
+    #     raise BrokenPipeError
     pipe.stdin.flush()
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
@@ -253,13 +254,7 @@ def trainTransitions(signal : np.ndarray, read : str, params : dict, script : st
     pipe = openCPPScriptATrain(script, params)
     feedPipe(signal, read, pipe)
     output = pipe.stdout.readline().strip().decode('UTF-8')
-    # try:
     params = {param.split(":")[0] : float(param.split(":")[1]) for param in output.split(";")}
-    # except Exception as e:
-    #     print(output)
-    #     print(pipe.stdout.readlines())
-    #     print(e)
-    #     exit(1)
 
     Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
     stopFeeding(pipe)
@@ -299,7 +294,8 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
     #               kmer                    mean                                        stdev
     newModels = {param.split(":")[0] : (float(param.split(":")[1].split(",")[0]), float(param.split(":")[1].split(",")[1])) for param in trainedParams.split(";")[:-1]}
-
+    # print(trainedParams)
+    # print(newModels)
     # then Z
     Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
     
