@@ -12,14 +12,11 @@
 #include <tuple>
 #include <bits/stdc++.h> // reverse strings
 #include <vector>
-#include <cmath> // exp
+#include <cmath> // exp, log1p
 #include <limits> // for inifinity
-#include <math.h> // log1p
 #include <assert.h>
 #include <stdlib.h>
 #include "argparse.hpp"
-// #include <iomanip>
-// #include <iterator>
 
 using namespace std;
 
@@ -64,7 +61,6 @@ void fillBASE2ID() {
     ID2BASE.insert(pair<char, int>('1', 'C'));
     ID2BASE.insert(pair<char, int>('2', 'G'));
     ID2BASE.insert(pair<char, int>('3', 'T'));
-    ID2BASE.insert(pair<char, int>('3', 'U'));
     ID2BASE.insert(pair<char, int>('4', 'N'));
 }
 
@@ -200,8 +196,8 @@ double log_normal_pdf(const double &x, const double &m, const double &s) {
  */
 inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<double, double>>* model) {
     tuple<double, double> kmerModel = (*model)[kmer];
-    return 2*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 6);
-    // return log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel));
+    // return 2*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 6);
+    return log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel));
 
     // norm signal with kmer model
     // double sig = (signal - get<0>(kmerModel)) / get<1>(kmerModel);
@@ -261,7 +257,7 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
 
             ext=logPlus(ext, M[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e1); // e1 first extend
             ext=logPlus(ext, E[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e2); // e2 extend further
-            ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1]) + e3); // e3 error
+            ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1])                           + e3); // e3 error
 
             M[t*N+n] = mat;
             E[t*N+n] = ext;
@@ -548,10 +544,10 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
     int* counts = new int[(int) pow(ALPHABET_SIZE, K)];
     fill_n(counts, pow(ALPHABET_SIZE, K), 0);
 
-    for (int n=0; n<N; n++) {
-        if (n>0){
-            counts[kmer_seq[n-1]]++;
-        }
+    for (int n=1; n<N; n++) {
+        // if (n>0){
+        counts[kmer_seq[n-1]]++;
+        // }
         for (int t=1; t<T; t++) {
             kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * sig[t-1];
             d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
@@ -568,12 +564,10 @@ tuple<double, double, double, double, double*, double*> trainBaumWelch(double* s
     double* stdevs = new double[(int) pow(ALPHABET_SIZE, K)];
     fill_n(stdevs, pow(ALPHABET_SIZE, K), 0.0);
     fill_n(d, N, 0);
-    for (int n=0; n<N; n++) {
-        for (int t=0; t<T; t++) {
-            if (t>0 && n>0) {
-                kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * abs(sig[t-1] - means[kmer_seq[n-1]]);
-                d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
-            }
+    for (int n=1; n<N; n++) {
+        for (int t=1; t<T; t++) {
+            kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * abs(sig[t-1] - means[kmer_seq[n-1]]);
+            d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
         }
         kmers[n] = kmers[n] / d[n];
     }

@@ -198,7 +198,7 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     if mode == 'indel':
         PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
     elif mode == 'basic':
-        PARAMS = {'e1': 1.0, 'm1': 0.0243729875, 'e2': 0.9753095416666665, 'e3': 0.00031753019166666665}
+        PARAMS = {'e1': 1.0, 'm1': 0.049, 'e2': 0.951, 'e3': 0.0}
     PARAMS['m'] = modelpath
     PARAMS['c'] = minSegLen
 
@@ -269,6 +269,8 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
 
             if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
                 signal = r5.getPolyAStandardizedSignal(targetID, polyAstart=polyA[targetID][0], polyAend=polyA[targetID][1])
+                # TODO remove when done with simulation!
+                signal = r5.getpASignal(targetID)
                 polyAend = polyA[targetID][1]
             else:
                 print("WARNING: NO POLYA SEGMENT FOUND!")

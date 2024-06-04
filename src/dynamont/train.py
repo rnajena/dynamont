@@ -43,6 +43,7 @@ def parse() -> Namespace:
 #     return trainableModels
 
 def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, stdev : float, minSegLen : int) -> None:
+    # print("minSegLen", minSegLen)
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
     basecalls = loadFastx(fastxpath)
@@ -76,7 +77,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
             # "s2":1.0
         }
     elif mode == 'basic':
-        transitionParams = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9650, 'e3': 0.0}
+        transitionParams = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9649, 'e3': 0.0001}
         # {
         #     "e1":1.,
         #     "m1":.025,
@@ -126,8 +127,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     # fill batch
                     if len(mp_items) < batch_size:
-                        signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 2.).filtered_data
-                        # signal = hampel(r5.getpASignal(readid), 20, 2.).filtered_data
+                        # signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 2.).filtered_data
+                        signal = hampel(r5.getpASignal(readid), 20, 2.).filtered_data
                         mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen])
                         training_readids.append(readid)
 
