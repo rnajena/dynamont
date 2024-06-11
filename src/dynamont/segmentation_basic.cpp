@@ -464,12 +464,12 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     // fill_n(GE, T*N, -INFINITY);
     int x;
 
-    for(int n=0; n<N; n++){
+    for(int t=0; t<T; t++){
         // calibrate with the sum of transitions
         double s = -INFINITY;
         // double sM = -INFINITY;
         // double sE = -INFINITY;
-        for(int t=0; t<T; t++){
+        for(int n=0; n<N; n++){
             x = t*N+n;
             
             // TODO is this korrekt?
@@ -481,7 +481,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
             // sM = logPlus(sM, GM[x]);
             // sE = logPlus(sE, GE[x]);
         }
-        for(int t=0; t<T; t++){
+        for(int n=0; n<N; n++){
             x = t*N+n;
             if (!isinf(s)) {
                 G[x] -= s;
