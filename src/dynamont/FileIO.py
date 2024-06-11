@@ -287,7 +287,11 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     # print(pipe.stderr.readline())
 
     # first the transition parameters
-    params = {param.split(":")[0] : float(param.split(":")[1]) for param in trainedParams.split(";")}
+    try:
+        params = {param.split(":")[0] : float(param.split(":")[1]) for param in trainedParams.split(";")}
+    except IndexError:
+        print("ERROR", trainedParams)
+        exit(1)
 
     # then updated emission updated
     trainedParams = pipe.stdout.readline().strip().decode('UTF-8')

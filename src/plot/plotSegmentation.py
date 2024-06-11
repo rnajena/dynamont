@@ -18,6 +18,7 @@ from dynamont.FileIO import getFiles, loadFastx, calcZ, readPolyAStartEnd, feedS
 from read5 import read
 from hampel import hampel
 import pickle
+from matplotlib import ticker
 
 STANDARDONTMODEL = pd.read_csv("/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model", sep='\t', index_col = "kmer")
 
@@ -183,6 +184,14 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
 
+    # plt.figure(figsize=(12,8))
+    plt.gcf().set_size_inches(12, 8)
+    plt.xlim(18000, 18400)
+    plt.ylim(45, 110)
+    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(100))
+    plt.savefig(join(outpath, readid + '_ausschnitt.svg'), dpi=150)
+
+
 def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int):
     '''
     Takes read in 3' -> 5' direction
@@ -198,7 +207,8 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     if mode == 'indel':
         PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
     elif mode == 'basic':
-        PARAMS = {'e1': 1.0, 'm1': 0.049, 'e2': 0.951, 'e3': 0.0}
+        # PARAMS = {'e1': 1.0, 'm1': 0.049, 'e2': 0.951, 'e3': 0.0}
+        PARAMS = {'e1': 1.0, 'm1': 0.25, 'e2': 0.75, 'e3': 0.0}
     PARAMS['m'] = modelpath
     PARAMS['c'] = minSegLen
 

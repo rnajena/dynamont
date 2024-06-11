@@ -12,11 +12,12 @@
 #include <tuple>
 #include <bits/stdc++.h> // reverse strings
 #include <vector>
-#include <cmath> // exp, log1p
-#include <limits> // for inifinity
+#include <cmath> // exp
+// #include <limits> // for inifinity
 #include <assert.h>
 #include <stdlib.h>
 #include "argparse.hpp"
+#include <algorithm>
 
 using namespace std;
 
@@ -28,10 +29,11 @@ map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE;
 double EPSILON = pow(10, -5);
-bool atrain, train, calcZ;
+bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int K; // our model works with this kmer size
 int C;
+int numKmers;
 
 const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 const string TERM_STRING = "$";
@@ -77,7 +79,7 @@ void fillBASE2ID() {
  * @param value input number in decimal to convert to base
 */
 string itoa(int value) {
-    std::string buf;
+    string buf;
     int base = K;
 
     // check that the base if valid
@@ -89,7 +91,7 @@ string itoa(int value) {
 
     // Translating number to string with base:
     do {
-        buf += ID2BASE.at("0123456789abcdef"[ std::abs( quotient % base ) ]);
+        buf += ID2BASE.at("0123456789abcdef"[ abs( quotient % base ) ]);
         quotient /= base;
     } while ( quotient );
 
@@ -100,7 +102,7 @@ string itoa(int value) {
         buf += ID2BASE.at('0');
     }
 
-    std::reverse( buf.begin(), buf.end() );
+    reverse( buf.begin(), buf.end() );
     return buf;
 }
 
@@ -187,12 +189,12 @@ double log_normal_pdf(const double &x, const double &m, const double &s) {
 }
 
 /**
- * Return probability density for a given value and a given normal distribution
+ * Return log probability density for a given value and a given normal distribution
  *
  * @param signal point to calculate probability density
  * @param kmer key for the model kmer:(mean, stdev) map
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
- * @return probability density value for x in the given normal distribution
+ * @return log probability density value for x in the given normal distribution
  */
 inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<double, double>>* model) {
     tuple<double, double> kmerModel = (*model)[kmer];
@@ -204,6 +206,7 @@ inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<doub
     // return 2*(log_normal_pdf(sig, 0.0, 1.0) + 6);
 }
 
+// https://en.wikipedia.org/wiki/Log_probability
 /**
  * Calculate addition of a+b in log space as efficiently as possible
  *
@@ -239,25 +242,25 @@ inline double error(const double &signal_dp) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const int &N, vector<tuple<double, double>>* model){
-    double mat, ext;
-    M[0*N+1] = 0; // PERF descriptive indexing
+    double mat, ext, tmp;
     for(int t=1; t<T; t++){
         for(int n=1; n<N; n++){
             mat=-INFINITY;
             ext=-INFINITY;
-
-            if (t>C){
-                // mat=logPlus(mat, E[(t-1)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1); // m1
-                mat=E[(t-(C+1))*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1;
-                // logPlus(mat, E[(t-c)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1); // m1
+            if(t==1 && n==1) {
+                mat = 0;
+            }
+            if (t>1+C){
+                tmp=E[(t-C-1)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1;
                 for(int l=1; l<=C; l++){
-                    mat+=scoreKmer(sig[t-(1+l)], kmer_seq[n-1], model);
+                    tmp+=scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
                 }
+                mat=logPlus(mat, tmp);
             }
 
             ext=logPlus(ext, M[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e1); // e1 first extend
             ext=logPlus(ext, E[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e2); // e2 extend further
-            ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1])                           + e3); // e3 error
+            ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1]) + e3); // e3 error
 
             M[t*N+n] = mat;
             E[t*N+n] = ext;
@@ -275,27 +278,30 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const int &N, vector<tuple<double, double>>* model) {
-    double mat, ext;
-    // E[(T-1)*N+(N-1)] = 0;
-    for(int t=T-1; t>=0; t--){
-        for(int n=N-1; n>=0; n--){
+    double mat, ext, tmp;
+    for(int t=T-1; t>=1; t--){
+        for(int n=N-1; n>=1; n--){
             mat=-INFINITY;
             ext=-INFINITY;
-            if (t==T-1 && n==N-1){
-                ext = 0; // initialize with log(1)
+            if(t==T-1 && n==N-1) {
+                ext = 0;
             }
+
+            // m with minimum length C
             if (t<T-1-C && n<N-1) {
-                ext=M[(t+1+C)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + m1;
-                // ext=logPlus(ext, M[(t+1)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + m1); // m1
+                tmp=M[(t+1+C)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + m1;
                 for (int l=1; l<=C; l++){
-                    ext+=scoreKmer(sig[t+l], kmer_seq[n], model);
+                    tmp+=scoreKmer(sig[t+l], kmer_seq[n], model);
                 }
+                ext=logPlus(ext, tmp);
             }
-            if (t<T-1 && n>0) {
-                mat=logPlus(mat, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model) + e1); // e1 first extend
+
+            if (t<T-1) {
+                mat=logPlus(mat, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model)  + e1); // e1 first extend
                 ext=logPlus(ext, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model) + e2); // e2 extend further
                 ext=logPlus(ext, E[(t+1)*N+n] + error(sig[t]) + e3); // e3 error
             }
+
             M[t*N+n] = mat;
             E[t*N+n] = ext;
         }
@@ -312,7 +318,6 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
  * @return matrix containing logarithmic probabilities for segment borders
  */
 double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int &N) {
-    // // cerr<<"Z: "<<Z;
     double* LP = new double[T*N];
     fill_n(LP, T*N, -INFINITY);
     for(int t=0; t<T; t++){
@@ -321,8 +326,6 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
             LP[x] = FOR[x] + BACK[x] - Z;
         }
     }
-    // cout<<"Z: "<<forZ<<endl;
-    // TODO? check LP: no value > log(1) (=0) allowed
     return LP;
 }
 
@@ -331,19 +334,20 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
  *
  */
 list<string> getBorders(double* LPM, double* LPE, const int &T, const int &N){
-    // cerr<<"DEBUG GET BORDERS"<<endl;
     double* M = new double[T*N];
     double* E = new double[T*N];
     fill_n(M, T*N, -INFINITY);
     fill_n(E, T*N, -INFINITY);
     double mat, ext;
-    M[0*N+1] = 0; // initialize
     for(int t=1; t<T; t++){
         for(int n=1; n<N; n++){
             mat=-INFINITY;
             ext=-INFINITY;
-            if (t>C) {
-                mat=max(mat, E[(t-(C+1))*N+(n-1)] + LPM[t*N+n]); // m1
+            if(t==1 && n==1) {
+                mat = 0;
+            }
+            if (t>1+C){
+                mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[t*N+n]); // m1
             }
 
             ext=max(ext, M[(t-1)*N+n] + LPE[t*N+n]); // e1
@@ -353,7 +357,6 @@ list<string> getBorders(double* LPM, double* LPE, const int &T, const int &N){
             E[t*N+n]=ext;
         }
     }
-    
     list<string> segString;
     funcE(T-1, N-1, M, E, LPM, LPE, &segString, N);
     delete[] M;
@@ -363,13 +366,13 @@ list<string> getBorders(double* LPM, double* LPE, const int &T, const int &N){
 
 void funcM(int t, int n, double* M, double* E, double* LPM, double* LPE, list<string>* segString, const int &N){
     double score = M[t*N+n];
-    if (t==0 && n==1){ // Start value
+    if (t==1 && n==1){ // Start value
         segString->push_front("M"+to_string(n-1)+","+to_string(0)); // n-1 because N is 1 larger than the sequences
         return;
     }
-    if (t>0 && n>0 && score == E[(t-(C+1))*N+(n-1)] + LPM[t*N+n]){
-        segString->push_front("M"+to_string(n-1)+","+to_string(t-(C+1)));
-        return funcE(t-(C+1), n-1, M, E, LPM, LPE, segString, N);
+    if (t>0 && n>0 && score == E[(t-C-1)*N+(n-1)] + LPM[t*N+n]){
+        segString->push_front("M"+to_string(n-1)+","+to_string(t-C-1));
+        return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N);
     }
 }
 
@@ -408,201 +411,163 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
 }
 
 /**
- * Train parameter
+ * Train transition parameter with baum welch algorithm
 */
-tuple<double, double, double, double, double*, double*> trainBaumWelch(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, double Z, const int &T, const int &N, vector<tuple<double, double>>* model) {
+tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
     // Transition parameters
-    double newM = -INFINITY;
+    double newM1 = -INFINITY;
     double newE1 = -INFINITY;
     double newE2 = -INFINITY;
     double newE3 = -INFINITY;
-    
+    double tempM = -INFINITY;
+
+    for(int t=1; t<T-1; t++){
+        for(int n=1; n<N-1; n++){
+            if (t-C+1>=0 && t-C+1<=T-1) {
+                // m1:  forward(i)        a    e(i+1)                                  backward(i+1)
+                tempM = forE[(t-C)*N+n] + m1 + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+1)*N+(n+1)];
+                for(int l=1; l<=C; l++){
+                    tempM+=scoreKmer(sig[t+l], kmer_seq[n], model);
+                }
+                newM1 = logPlus(newM1, tempM);
+            }
+            newE1 = logPlus(newE1, forM[t*N+n] + e1 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
+            newE2 = logPlus(newE2, forE[t*N+n] + e2 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
+            newE3 = logPlus(newE3, forE[t*N+n] + e3 + error(sig[t])                           + backE[(t+1)*N+n]);
+        }
+    }
+    // average over the number of transitions
+    double Am = newE1;
+    newE1 = newE1 - Am;
+    double Ae = logPlus(newE2, logPlus(newE3, newM1));
+    newM1 = newM1 - Ae;
+    newE2 = newE2 - Ae;
+    newE3 = newE3 - Ae;
+
+    return tuple<double, double, double, double>({newM1, newE1, newE2, newE3});
+}
+
+/**
+ * Train emission parameter with baum welch algorithm
+*/
+tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
     // https://people.cs.umass.edu/~mccallum/courses/inlp2004a/lect10-hmm2.pdf
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
-    double* g_M = new double[T*N];
-    fill_n(g_M, T*N, -INFINITY);
-    // gamme for state E - expected number of transitions of E at given time (T) for all latent states (kmers)
-    double* g_E = new double[T*N];
-    fill_n(g_E, T*N, -INFINITY);
+    double* G = new double[T*N];
+    fill_n(G, T*N, -INFINITY);
+    // double* GM = new double[T*N];
+    // fill_n(GM, T*N, -INFINITY);
+    // double* GE = new double[T*N];
+    // fill_n(GE, T*N, -INFINITY);
+    int x;
 
-    for(int t=0; t<T; t++){
+    for(int n=0; n<N; n++){
         // calibrate with the sum of transitions
-        double s_M = -INFINITY;
-        double s_E = -INFINITY;
+        double s = -INFINITY;
+        // double sM = -INFINITY;
+        // double sE = -INFINITY;
+        for(int t=0; t<T; t++){
+            x = t*N+n;
+            
+            // TODO is this korrekt?
+            G[x] = logPlus(forM[x] + backM[x], forE[x] + backE[x]);
+            // GM[x] = forM[x] + backM[x];
+            // GE[x] = forE[x] + backE[x];
 
-        for(int n=0; n<N; n++){
-            g_M[t*N+n] = forM[t*N+n] + backM[t*N+n];
-            g_E[t*N+n] = forE[t*N+n] + backE[t*N+n];
-            s_M = logPlus(s_M, g_M[t*N+n]);
-            s_E = logPlus(s_E, g_E[t*N+n]);
-
-            if (t<T-1 && n<N-1) {
-                double tempM = -INFINITY;
-                // A_kl: transition from state k to l: use f_k and b_l
-                // m1:                 forward(i)     a    e(i+1)                                    backward(i+1)
-                // E[(t-C)*N+n)]       M[(t+1+C)*N+(n+1)]
-                // newM =  logPlus(newM,  (forE[t*N+n] + m + scoreKmer(sig[t], kmer_seq[n], model)   + backM[(t+1)*N+(n+1)]));
-                // newM =  logPlus(newM,  (forE[(t-C)*N+n] + m + scoreKmer(sig[t], kmer_seq[n], model)   + backM[(t+1+C)*N+(n+1)]));
-                tempM = forE[(t-C)*N+n]             + m1 + scoreKmer(sig[t], kmer_seq[n], model)   + backM[(t+1)*N+(n+1)];
-                for(int l=1; l<=C; l++){
-                    tempM+=scoreKmer(sig[t-l], kmer_seq[n], model);
-                }
-                newM = logPlus(newM, tempM);
-            }
-            if (t<T-1 && n>0) {
-                newE1 = logPlus(newE1, (forM[t*N+n] + e1 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]));
-                newE2 = logPlus(newE2, (forE[t*N+n] + e2 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]));
-            }
-            if (t<T-1) {
-                newE3 = logPlus(newE3, (forE[t*N+n] + e3 + error(sig[t])                           + backE[(t+1)*N+n]));
-            }
+            s = logPlus(s, G[x]);
+            // sM = logPlus(sM, GM[x]);
+            // sE = logPlus(sE, GE[x]);
         }
-
-        for(int n=0; n<N; n++){
-            if (!isinf(s_M)) {
-                g_M[t*N+n] = g_M[t*N+n] - s_M;
-            } 
-            // else {
-            //     cerr<<"M n: "<<n<<", t:"<<t<<"; ";
-            // }
-            if (!isinf(s_E)) {
-            // if (n>0) {
-                g_E[t*N+n] = g_E[t*N+n] - s_E;
+        for(int t=0; t<T; t++){
+            x = t*N+n;
+            if (!isinf(s)) {
+                G[x] -= s;
+            } else {
+                G[x] = -INFINITY;
             }
-            // else {
-            //     cerr<<"E n: "<<n<<", t:"<<t<<"; ";
+
+            // if (!isinf(sM)) {
+            //     GM[x] -= sM;
+            // } else {
+            //     GM[x] -= INFINITY;
+            // }
+            // if (!isinf(sE)) {
+            //     GE[x] -= sE;
+            // } else {
+            //     GE[x] -= INFINITY;
             // }
         }
     }
-
-    // cerr<<endl;
-    // cerr.flush();
-
-    // divide by Z
-    newM = newM - Z;
-    newE1 = newE1 - Z;
-    newE2 = newE2 - Z;
-    newE3 = newE3 - Z;
-    // average over the number of transitions
-    double Am = newE1;
-    newE1 = newE1 - Am;
-    double Ae = logPlus(newE2, logPlus(newE3, newM));
-    newM = newM - Ae;
-    newE2 = newE2 - Ae;
-    newE3 = newE3 - Ae;
-
-    // Emission (means of kmers)
-    // calibrated new means
-    // log space
-    // double* kmers = new double[N];
-    // fill_n(kmers, N, -INFINITY);
-    // double* d = new double[N];
-    // fill_n(d, N, -INFINITY);
-    // // normal space
-    // double* means = new double[(int) pow(ALPHABET_SIZE, K)];
-    // fill_n(means, pow(ALPHABET_SIZE, K), 0.0);
-    // int* c = new int[(int) pow(ALPHABET_SIZE, K)];
-    // fill_n(c, pow(ALPHABET_SIZE, K), 0);
-
-    // for (int n=1; n<N; n++) {
-    //     c[kmer_seq[n-1]]++;
-    //     for (int t=1; t<T; t++) {
-    //         kmers[n] = logPlus(kmers[n], logPlus(g_M[t*N+n], g_E[t*N+n]) + log(sig[t-1]));
-    //         d[n] = logPlus(d[n], logPlus(g_M[t*N+n], g_E[t*N+n]));
-    //     }
-    //     kmers[n] = kmers[n] - d[n];
-    // }
-    // for (int n=1; n<N; n++) {
-    //     means[kmer_seq[n-1]] += exp(kmers[n]) / c[kmer_seq[n-1]];
-    // }
-
-    // // Emission (stdev of kmers)
-    // fill_n(kmers, N, -INFINITY);
-    // double* stdevs = new double[(int) pow(ALPHABET_SIZE, K)];
-    // fill_n(stdevs, pow(ALPHABET_SIZE, K), 0.0);
-    // for (int n=1; n<N; n++) {
-    //     for (int t=1; t<T; t++) {
-    //         kmers[n] = logPlus(kmers[n], logPlus(g_M[t*N+n], g_E[t*N+n]) + log(abs(sig[t-1] - means[kmer_seq[n-1]])));
-    //     }
-    //     kmers[n] = kmers[n] - d[n];
-    // }
-    // for (int n=1; n<N; n++) {
-    //     stdevs[kmer_seq[n-1]] += exp(kmers[n]) / c[kmer_seq[n-1]];
-    // }
-
     // decimal space
-    double* kmers = new double[N];
-    fill_n(kmers, N, 0);
-    double* d = new double[N];
-    fill_n(d, N, 0);
+    double* kmers = new double[N-1];
+    fill_n(kmers, N-1, 0);
+    double* d = new double[N-1];
+    fill_n(d, N-1, 0);
     // normal space
-    double* means = new double[(int) pow(ALPHABET_SIZE, K)];
-    fill_n(means, pow(ALPHABET_SIZE, K), 0.0);
-    int* counts = new int[(int) pow(ALPHABET_SIZE, K)];
-    fill_n(counts, pow(ALPHABET_SIZE, K), 0);
-
-    for (int n=1; n<N; n++) {
-        // if (n>0){
-        counts[kmer_seq[n-1]]++;
-        // }
-        for (int t=1; t<T; t++) {
-            kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * sig[t-1];
-            d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
+    double* means = new double[numKmers];
+    fill_n(means, numKmers, 0.0);
+    int* counts = new int[(int) numKmers];
+    fill_n(counts, numKmers, 0);
+    double g;
+    for (int n=0; n<N-1; n++) {
+        counts[kmer_seq[n]]++;
+        for (int t=0; t<T-1; t++) {
+            g = exp(G[(t+1)*N+(n+1)]);
+            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)]));
+            kmers[n] += g * sig[t];
+            d[n] += g;
         }
         kmers[n] = kmers[n] / d[n];
     }
 
-    for (int n=1; n<N; n++) {
-        means[kmer_seq[n-1]] += kmers[n] / counts[kmer_seq[n-1]];
+    for (int n=0; n<N-1; n++) {
+        means[kmer_seq[n]] += kmers[n] / counts[kmer_seq[n]];
     }
 
     // Emission (stdev of kmers)
-    fill_n(kmers, N, 0);
-    double* stdevs = new double[(int) pow(ALPHABET_SIZE, K)];
-    fill_n(stdevs, pow(ALPHABET_SIZE, K), 0.0);
-    fill_n(d, N, 0);
-    for (int n=1; n<N; n++) {
-        for (int t=1; t<T; t++) {
-            kmers[n] += (exp(g_M[t*N+n]) + exp(g_E[t*N+n])) * abs(sig[t-1] - means[kmer_seq[n-1]]);
-            d[n] += exp(g_M[t*N+n]) + exp(g_E[t*N+n]);
+    fill_n(kmers, N-1, 0);
+    double* stdevs = new double[numKmers];
+    fill_n(stdevs, numKmers, 0.0);
+    for (int n=0; n<N-1; n++) {
+        for (int t=0; t<T-1; t++) {
+            g = exp(G[(t+1)*N+(n+1)]);
+            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)]));
+            kmers[n] += g * abs(sig[t] - means[kmer_seq[n]]);
         }
         kmers[n] = kmers[n] / d[n];
     }
 
-    for (int n=1; n<N; n++) {
-        stdevs[kmer_seq[n-1]] += kmers[n] / counts[kmer_seq[n-1]];
+    for (int n=0; n<N-1; n++) {
+        stdevs[kmer_seq[n]] += kmers[n] / counts[kmer_seq[n]];
     }
 
-    delete[] g_M;
-    delete[] g_E;
+    delete[] G;
+    // delete[] GM;
+    // delete[] GE;
     delete[] kmers;
     delete[] counts;
     delete[] d;
-    return tuple<double, double, double, double, double*, double*>({newM, newE1, newE2, newE3, means, stdevs});
+    return tuple<double*, double*>({means, stdevs});
 }
 
 void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
-    auto [newM, newE1, newE2, newE3, newMeans, newStdevs] = trainBaumWelch(sig, kmer_seq, forM, forE, backM, backE, backM[1], T, N, model);
 
-    // double newParams[4] = {newM, newE1, newE2, newE3};
-    // double sumLogs = -INFINITY;
-    // for (int i = 0; i < 4; i++) {
-    //     sumLogs = logPlus(sumLogs, newParams[i]);
-    // }
-    
-    cout << fixed << showpoint;
-    cout << setprecision(10);
+    // TODO enable this again
+    auto [newM, newE1, newE2, newE3] = trainTransition(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
+    // cout<<"m1:"<<exp(newM)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<endl;
     cout<<"m1:"<<exp(newM)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<endl;
-    for (int i=0; i<pow(ALPHABET_SIZE, K); i++){
+
+    auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
+    for (int i=0; i<numKmers; i++){
         if (newMeans[i]!=0.0){
             cout<<itoa(i)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
         }
     }
     cout<<endl;
-    cout<<"Z:"<<backM[1]<<endl;
+    cout<<"Z:"<<forE[T*N-1]<<endl;
     cout.flush();
 }
 
@@ -614,17 +579,15 @@ int main(int argc, char* argv[]) {
     argparse::ArgumentParser program("dynamont basic", "0.1");
     // parameters for DP
     program.add_argument("-e1", "--extendscore1").help("Transition probability for extend rule 1").default_value(1.00).scan<'g', double>(); // e1
-    program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 2").default_value(.33).scan<'g', double>(); // m
-    program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(.33).scan<'g', double>(); // e2
-    program.add_argument("-e3", "--extendscore3").help("Transition probability for extend rule 3").default_value(.33).scan<'g', double>(); // e3
-    program.add_argument("-at", "--atrain").help("Switch algorithm to transition parameter training mode").default_value(false).implicit_value(true);
+    program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 2").default_value(.035).scan<'g', double>(); // m
+    program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(.964).scan<'g', double>(); // e2
+    program.add_argument("-e3", "--extendscore3").help("Transition probability for extend rule 3").default_value(.001).scan<'g', double>(); // e3
+    // program.add_argument("-at", "--atrain").help("Switch algorithm to transition parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value(MODELPATH);
     program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10);
     program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0).store_into(C);
-    
-    // cerr<<"DEBUG START"<<endl;
 
     try {
         program.parse_args(argc, argv);
@@ -637,7 +600,7 @@ int main(int argc, char* argv[]) {
     
     int pore = program.get<int>("pore");
     modelpath = program.get<string>("model");
-    atrain = program.get<bool>("atrain");
+    // atrain = program.get<bool>("atrain");
     train = program.get<bool>("train");
     calcZ = program.get<bool>("calcZ");
     m1 = log(program.get<double>("matchscore1"));
@@ -651,20 +614,18 @@ int main(int argc, char* argv[]) {
         K = 9;
     }
     fillBASE2ID();
-    vector<tuple<double, double>> model(pow(ALPHABET_SIZE, K), make_tuple(-INFINITY, -INFINITY));
+    numKmers = pow(ALPHABET_SIZE, K);
+    vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
     readKmerModel(modelpath, &model);
-    string input;
     string signal;
     string read;
     int truish = 1;
 
     while(truish) {
-        // cerr<<"DEBUG EXPECTING SIGNAL"<<endl;
         // truish = 0;
         // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
         // read input, signal and read whitespace separated in single line
         getline(cin, signal);
-        // cerr<<"DEBUG EXPECTING READ"<<endl;
         getline(cin, read);
 
         // break loop if termination character ...
@@ -681,8 +642,7 @@ int main(int argc, char* argv[]) {
         
         // process signal: convert string to double array
         int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
-        // // cerr<<"T: "<<T<<endl;
-        double* sig = new double[T - 1];
+        double* sig = new double[T-1];
         fill_n(sig, T-1, -INFINITY);
         string value;
         stringstream ss(signal);
@@ -697,14 +657,8 @@ int main(int argc, char* argv[]) {
         fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
         i = floor(K/2);
         for (const char &c: read) {
-            // try {
             seq[i] = BASE2ID.at(c);
             i++;
-            // } catch (const std::out_of_range) {
-            //     // TODO handle unknown nucleotide in read
-            //     // cerr<<"Unknown nucleotide: "<<c<<endl;
-            //     exit(10);
-            // }
         }
         // add NN to end of sequence
         seq[i] = 4;
@@ -717,39 +671,77 @@ int main(int argc, char* argv[]) {
         fill_n(forM, T*N, -INFINITY);
         double* forE = new double[T*N];
         fill_n(forE, T*N, -INFINITY);
+        // calculate segmentation probabilities, fill forward matrices
+        logF(sig, kmer_seq, forM, forE, T, N, &model);
+
         // initialize back matrices
         double* backM = new double[T*N];
         fill_n(backM, T*N, -INFINITY);
         double* backE = new double[T*N];
         fill_n(backE, T*N, -INFINITY);
-
-        // calculate segmentation probabilities, fill matrices
-        logF(sig, kmer_seq, forM, forE, T, N, &model);
+        // calculate segmentation probabilities, fill backward matrices
         logB(sig, kmer_seq, backM, backE, T, N, &model);
 
         // Check if Z value matches, must match between matrices
-        // cerr<<setprecision(10);
+        
+        // int idx;
+        // cout<<"forM"<<endl;
+        // for(int t=0;t<T;t++) {
+        //     for(int n=0; n<N; n++) {
+        //         idx = t*N+n;
+        //         cout<<forM[idx]<<"\t";
+        //     }
+        //     cout<<endl;
+        // }
+        // cout.flush();
 
-        // cerr<<forE[(N-1)*T+T-1]<<endl;
-        // cerr<<forE[(N-2)*T+T-1]<<endl;
-        // cerr<<forE[(N-1)*T+T-2]<<endl;
+        // cout<<"forE"<<endl;
+        // for(int t=0;t<T;t++) {
+        //     for(int n=0; n<N; n++) {
+        //         idx = t*N+n;
+        //         cout<<forE[idx]<<"\t";
+        //     }
+        //     cout<<endl;
+        // }
+        // cout.flush();
 
-        // cerr<<backM[0*T+0]<<endl;
-        // cerr<<backM[0*T+1]<<endl;
-        // cerr<<backM[1*T+0]<<endl;
+        // cout<<"backM"<<endl;
+        // for(int t=0;t<T;t++) {
+        //     for(int n=0; n<N; n++) {
+        //         idx = t*N+n;
+        //         cout<<backM[idx]<<"\t";
+        //     }
+        //     cout<<endl;
+        // }
+
+        // cout.flush();
+
+        // cout<<"backE"<<endl;
+        // for(int t=0;t<T;t++) {
+        //     for(int n=0; n<N; n++) {
+        //         idx = t*N+n;
+        //         cout<<backE[idx]<<"\t";
+        //     }
+        //     cout<<endl;
+        // }
+
+        // cout.flush();
+        cout << fixed << showpoint;
+        cout << setprecision(6);
 
         // This checks out
-        if (abs(forE[N*T-1] - backM[1])>EPSILON) {
-            // cerr<<"Z values between matrices do not match! forE: "<<forE[N*T-1]<<", backP: "<<backM[1]<<"\n";
-            // cerr.flush();
+        if (abs(forE[T*N-1] - backM[N+1])>EPSILON || isinf(backM[N+1]) || isinf(forE[T*N-1])) {
+            cout<<"Z values between matrices do not match! forE: "<<forE[T*N-1]<<", backM: "<<backM[N+1]<<"\n";
+            cout.flush();
             exit(11);
         }
+
         if (calcZ){
-            cout<<backM[1]<<"\n";
+            cout<<forE[T*N-1]<<"\n";
         
-        // train only transitions
-        } else if (atrain) {
-            printTrainedTransitionParams(sig, kmer_seq, forM, forE, backM, backE, T, N, &model);
+        // // train only transitions
+        // } else if (atrain) {
+        //     printTrainedTransitionParams(sig, kmer_seq, forM, forE, backM, backE, T, N, &model);
 
         } else {
 
@@ -759,18 +751,17 @@ int main(int argc, char* argv[]) {
             }
 
             // return segmentations for Emission training
-            double* LPM = logP(forM, backM, backM[1], T, N); // log probs
-            double* LPE = logP(forE, backE, backM[1], T, N); // log probs
+            double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
+            double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
             list<string> segString = getBorders(LPM, LPE, T, N);
 
-            // cout<<"Segmentation"<<endl;
             for (auto const& seg : segString) {
                 cout<<seg;
             }
             cout<<endl;
             cout.flush();
 
-            // calculate sum of segment probabilities
+            // // calculate sum of segment probabilities
             // double* LSP = new double[T]; // log segment probs
             // fill_n(LSP, T, -INFINITY);
             // int idx;
