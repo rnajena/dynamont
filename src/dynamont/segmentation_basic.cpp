@@ -306,6 +306,12 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
             E[t*N+n] = ext;
         }
     }
+    // t=0, n=0
+    tmp=M[(1+C)*N] + scoreKmer(sig[0], kmer_seq[0], model) + m1;
+    for (int l=1; l<=C; l++){
+        tmp+=scoreKmer(sig[l], kmer_seq[0], model);
+    }
+    E[0]=tmp;
 }
 
 /**
@@ -516,7 +522,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
         counts[kmer_seq[n]]++;
         for (int t=0; t<T-1; t++) {
             g = exp(G[(t+1)*N+(n+1)]);
-            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)]));
+            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)])) / 2;
             kmers[n] += g * sig[t];
             d[n] += g;
         }
@@ -534,7 +540,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     for (int n=0; n<N-1; n++) {
         for (int t=0; t<T-1; t++) {
             g = exp(G[(t+1)*N+(n+1)]);
-            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)]));
+            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)])) / 2;
             kmers[n] += g * abs(sig[t] - means[kmer_seq[n]]);
         }
         kmers[n] = kmers[n] / d[n];
