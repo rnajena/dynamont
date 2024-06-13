@@ -430,8 +430,8 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
     double newE3 = -INFINITY;
     double tempM = -INFINITY;
 
-    for(int t=0; t<T; t++){
-        for(int n=0; n<N; n++){
+    for(int t=1; t<T; t++){
+        for(int n=1; n<N; n++){
             if (t>C && n<N-1 && t+C<T-1) {
                 // m1:  forward(i)        a    e(i+1)                                  backward(i+1)
                 tempM = forE[(t-C)*N+n] + m1 + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+1)*N+(n+1)];
@@ -441,7 +441,7 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
                 newM1 = logPlus(newM1, tempM);
             }
 
-            if (n>0 && t<T-1) {
+            if (t<T-1) {
                 newE1 = logPlus(newE1, forM[t*N+n] + e1 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
                 newE2 = logPlus(newE2, forE[t*N+n] + e2 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
                 newE3 = logPlus(newE3, forE[t*N+n] + e3 + error(sig[t])                           + backE[(t+1)*N+n]);
@@ -470,28 +470,18 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
     double* G = new double[T*N];
     fill_n(G, T*N, -INFINITY);
-    int x;
 
-    for(int t=0; t<T; t++){
-    // for(int n=0; n<N; n++){
+    for(int t=1; t<T; t++){
         // calibrate with the sum of transitions
         double s = -INFINITY;
-        // for(int t=0; t<T; t++){
-        for(int n=0; n<N; n++){
-            x = t*N+n;
-            G[x] = logPlus(forM[x], forE[x]) + logPlus(backM[x], backE[x]);
-            // G[x] = logPlus(forM[x] + backM[x], forE[x] + backE[x]);
-            s = logPlus(s, G[x]);
+        for(int n=1; n<N; n++){
+            // G[t*N+n] = logPlus(forM[t*N+n], forE[t*N+n]) + logPlus(backM[t*N+n], backE[t*N+n]);
+            G[t*N+n] = logPlus(forM[t*N+n] + backM[t*N+n], forE[t*N+n] + backE[t*N+n]);
+            s = logPlus(s, G[t*N+n]);
         }
-        // for(int t=0; t<T; t++){
-        // double colSum = -INFINITY;
-        for(int n=0; n<N; n++){
-            x = t*N+n;
+        for(int n=1; n<N; n++){
             if (!isinf(s)) {
-                G[x] -= s;
-            }
-             else {
-                G[x] = -INFINITY;
+                G[t*N+n] -= s;
             }
         }
     }
@@ -505,13 +495,11 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     fill_n(means, numKmers, 0.0);
     int* counts = new int[(int) numKmers];
     fill_n(counts, numKmers, 0);
-    double g;
     for (int n=0; n<N-1; n++) {
         counts[kmer_seq[n]]++;
         for (int t=0; t<T-1; t++) {
-            g = exp(G[(t+1)*N+(n+1)]);
-            kmers[n] += g * sig[t];
-            d[n] += g;
+            kmers[n] += exp(G[(t+1)*N+(n+1)]) * sig[t];
+            d[n] += exp(G[(t+1)*N+(n+1)]);
         }
         kmers[n] = kmers[n] / d[n];
     }
@@ -526,8 +514,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     fill_n(stdevs, numKmers, 0.0);
     for (int n=0; n<N-1; n++) {
         for (int t=0; t<T-1; t++) {
-            g = exp(G[(t+1)*N+(n+1)]);
-            kmers[n] += g * pow(sig[t] - means[kmer_seq[n]], 2.);
+            kmers[n] += exp(G[(t+1)*N+(n+1)]) * pow(sig[t] - means[kmer_seq[n]], 2.);
 
         }
         kmers[n] = kmers[n] / d[n];
