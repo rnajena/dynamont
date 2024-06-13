@@ -157,13 +157,13 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             for kmer in newModels:
                                 meanCollector[kmer].append(newModels[kmer][0])
                                 stdevCollector[kmer].append(newModels[kmer][1])
-                        print(f"Z sum: {sum(Zs):.3f}")
+                        print(f"Z sum: {sum(Zs)}")
 
                         # update parameters
                         param_writer.write(f'{e},{batch_num},{i},') # log
                         for param in transitionParams:
                             transitionParams[param] = paramCollector[param] / batch_size #(batch_size - failedInBatch)
-                            param_writer.write(f'{transitionParams[param]:.3f},') # log
+                            param_writer.write(f'{transitionParams[param]},') # log
 
                         for kmer in meanCollector:
                             # skip unseen models
@@ -189,11 +189,11 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             # if not np.isinf(Zs[j]):
                             Zdiffs.append(Z - Zs[j])
 
-                        print(f"Updated Z sum: {Zsum:.3f}")
+                        print(f"Updated Z sum: {Zsum}")
                         deltaZ = sum(Zdiffs)/len(Zdiffs)
                         param_writer.write(f'{deltaZ}\n') # log
                         param_writer.flush() # log
-                        print(f"Z change: {deltaZ:.3f}")
+                        print(f"Z change: {deltaZ}")
 
                         # End training if delta Z is 0
                         # if deltaZ <= 0:

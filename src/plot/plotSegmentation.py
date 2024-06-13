@@ -97,13 +97,16 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             motif = motif.replace('U', 'T')
             x = int(segment[0])
             width = int(segment[1]) - int(segment[0])
+            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8)
             ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
             ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
-            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
-            height = 3.92*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
+        
+        ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, label="ONT model mean")
+        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8, label="ONT model mean+1.96*stdev")
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -127,13 +130,16 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             motif = motif.replace('U', 'T')
             x = segment[0]
             width = segment[1] - segment[0]
+            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8)
             ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
             ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
-            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
-            height = 3.92*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
+        
+        ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, label="ONT model mean")
+        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8, label="ONT model mean+1.96*stdev")
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -158,6 +164,11 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         width = segment[1] - segment[0]
 
         if segment[3] == 'M':
+            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
+            # write motif
+            ax[plotNumber].text(x + width/2 - 3, min(signal)-10, read[pos], fontdict={'size' : 7, 'color':'red'})
             # draw kmer range as rectangle
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
@@ -167,11 +178,6 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             # ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='black', alpha=0.8)
             # ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
             # ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
-            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
-            height = 3.92*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
-            # write motif
-            ax[plotNumber].text(x + width/2 - 3, min(signal)-10, read[pos], fontdict={'size' : 7, 'color':'red'})
         # elif segment[3] == 'D':
         #     height = max(signal) - min(signal)
         #     ax[plotNumber].add_patch(Rectangle((x, min(signal)), width, height, alpha=0.3, facecolor="grey"))
@@ -180,6 +186,9 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         #     ax[plotNumber].text(x - 3, min(signal)-14, 'Ins', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
         ax[plotNumber].legend()
 
+
+    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, label="ONT model mean")
+    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8, label="ONT model mean+1.96*stdev")
     # plt.legend()
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
@@ -208,7 +217,7 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
         PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
     elif mode == 'basic':
         # PARAMS = {'e1': 1.0, 'm1': 0.049, 'e2': 0.951, 'e3': 0.0}
-        PARAMS = {'e1': 1.0, 'm1': 0.25, 'e2': 0.75, 'e3': 0.0}
+        PARAMS = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9649, 'e3': 0.0001}
     PARAMS['m'] = modelpath
     PARAMS['c'] = minSegLen
 

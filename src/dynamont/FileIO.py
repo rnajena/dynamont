@@ -289,7 +289,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     # first the transition parameters
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in trainedParams.split(";")}
-    except IndexError:
+    except:
         print("ERROR", trainedParams)
         exit(1)
 
