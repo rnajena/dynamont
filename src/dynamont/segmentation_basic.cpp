@@ -28,7 +28,7 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE;
-double EPSILON = pow(10, -5);
+double EPSILON = pow(10, -7);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int K; // our model works with this kmer size
@@ -250,7 +250,8 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
             if(t==1 && n==1) {
                 mat = 0;
             }
-            if (t>1+C){
+
+            if (t>=1+C){
                 tmp=E[(t-C-1)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1;
                 for(int l=1; l<=C; l++){
                     tmp+=scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
@@ -279,8 +280,8 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
  */
 void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const int &N, vector<tuple<double, double>>* model) {
     double mat, ext, tmp;
-    for(int t=T-1; t>=1; t--){
-        for(int n=N-1; n>=1; n--){
+    for(int t=T-1; t>=0; t--){
+        for(int n=N-1; n>=0; n--){
             mat=-INFINITY;
             ext=-INFINITY;
             if(t==T-1 && n==N-1) {
@@ -296,7 +297,7 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
                 ext=logPlus(ext, tmp);
             }
 
-            if (t<T-1) {
+            if (t<T-1 && n>0) {
                 mat=logPlus(mat, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model)  + e1); // e1 first extend
                 ext=logPlus(ext, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model) + e2); // e2 extend further
                 ext=logPlus(ext, E[(t+1)*N+n] + error(sig[t]) + e3); // e3 error
@@ -307,11 +308,11 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
         }
     }
     // t=0, n=0
-    tmp=M[(1+C)*N] + scoreKmer(sig[0], kmer_seq[0], model) + m1;
-    for (int l=1; l<=C; l++){
-        tmp+=scoreKmer(sig[l], kmer_seq[0], model);
-    }
-    E[0]=tmp;
+    // tmp=M[(1+C)*N] + scoreKmer(sig[0], kmer_seq[0], model) + m1;
+    // for (int l=1; l<=C; l++){
+    //     tmp+=scoreKmer(sig[l], kmer_seq[0], model);
+    // }
+    // E[0]=tmp;
 }
 
 /**
@@ -462,100 +463,138 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     // https://people.cs.umass.edu/~mccallum/courses/inlp2004a/lect10-hmm2.pdf
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
-    double* G = new double[T*N];
-    fill_n(G, T*N, -INFINITY);
-    // double* GM = new double[T*N];
-    // fill_n(GM, T*N, -INFINITY);
-    // double* GE = new double[T*N];
-    // fill_n(GE, T*N, -INFINITY);
+    // double* G = new double[T*N];
+    // fill_n(G, T*N, -INFINITY);
+    double* GM = new double[T*N];
+    fill_n(GM, T*N, -INFINITY);
+    double* GE = new double[T*N];
+    fill_n(GE, T*N, -INFINITY);
     int x;
 
     for(int t=0; t<T; t++){
+    // for(int n=0; n<N; n++){
         // calibrate with the sum of transitions
-        double s = -INFINITY;
-        // double sM = -INFINITY;
-        // double sE = -INFINITY;
+        // double s = -INFINITY;
+        double sM = -INFINITY;
+        double sE = -INFINITY;
+        // for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
             x = t*N+n;
             
             // TODO is this korrekt?
-            G[x] = logPlus(forM[x] + backM[x], forE[x] + backE[x]);
-            // GM[x] = forM[x] + backM[x];
-            // GE[x] = forE[x] + backE[x];
+            // G[x] = logPlus(forM[x] + backM[x], forE[x] + backE[x]);
+            // G[x] = logPlus(forM[x] + backE[x], forE[x] + backM[x]);
+            GM[x] = forM[x] + backM[x];
+            GE[x] = forE[x] + backE[x];
+            // GM[x] = forM[x] + backE[x];
+            // GE[x] = forE[x] + backM[x];
 
-            s = logPlus(s, G[x]);
-            // sM = logPlus(sM, GM[x]);
-            // sE = logPlus(sE, GE[x]);
+            // s = logPlus(s, G[x]);
+            sM = logPlus(sM, GM[x]);
+            sE = logPlus(sE, GE[x]);
         }
+        // for(int t=0; t<T; t++){
+        // double colSum = -INFINITY;
         for(int n=0; n<N; n++){
             x = t*N+n;
-            if (!isinf(s)) {
-                G[x] -= s;
-            } else {
-                G[x] = -INFINITY;
-            }
+            // if (!isinf(s)) {
+            //     G[x] -= s;
+            // }
+            //  else {
+            //     G[x] = -INFINITY;
+            // }
 
-            // if (!isinf(sM)) {
-            //     GM[x] -= sM;
-            // } else {
-            //     GM[x] -= INFINITY;
-            // }
-            // if (!isinf(sE)) {
-            //     GE[x] -= sE;
-            // } else {
-            //     GE[x] -= INFINITY;
-            // }
+            // colSum = logPlus(colSum, G[x]);
+            if (!isinf(sM)) {
+                GM[x] -= sM;
+            } else {
+                GM[x] -= INFINITY;
+            }
+            if (!isinf(sE)) {
+                GE[x] -= sE;
+            } else {
+                GE[x] -= INFINITY;
+            }
         }
+        // cout<<colSum<<", ";
     }
+    // cout<<endl;
     // decimal space
-    double* kmers = new double[N-1];
-    fill_n(kmers, N-1, 0);
-    double* d = new double[N-1];
-    fill_n(d, N-1, 0);
+    // double* kmers = new double[N-1];
+    // fill_n(kmers, N-1, 0);
+    double* kmersM = new double[N-1];
+    fill_n(kmersM, N-1, 0);
+    double* kmersE = new double[N-1];
+    fill_n(kmersE, N-1, 0);
+    // double* d = new double[N-1];
+    // fill_n(d, N-1, 0);
+    double* dM = new double[N-1];
+    fill_n(dM, N-1, 0);
+    double* dE = new double[N-1];
+    fill_n(dE, N-1, 0);
     // normal space
     double* means = new double[numKmers];
     fill_n(means, numKmers, 0.0);
     int* counts = new int[(int) numKmers];
     fill_n(counts, numKmers, 0);
-    double g;
+    // double g;
     for (int n=0; n<N-1; n++) {
         counts[kmer_seq[n]]++;
         for (int t=0; t<T-1; t++) {
-            g = exp(G[(t+1)*N+(n+1)]);
-            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)])) / 2;
-            kmers[n] += g * sig[t];
-            d[n] += g;
+            // g = exp(G[(t+1)*N+(n+1)]);
+            // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)]));
+            // kmers[n] += g * sig[t];
+            // d[n] += g;
+            kmersM[n] += exp(GM[(t+1)*N+(n+1)]) * sig[t];
+            dE[n] += exp(GM[(t+1)*N+(n+1)]);
+            kmersE[n] += exp(GE[(t+1)*N+(n+1)]) * sig[t];
+            dM[n] += exp(GE[(t+1)*N+(n+1)]);
         }
-        kmers[n] = kmers[n] / d[n];
+        // kmers[n] = kmers[n] / d[n];
+        kmersM[n] = kmersM[n] / dM[n];
+        kmersE[n] = kmersE[n] / dE[n];
     }
 
     for (int n=0; n<N-1; n++) {
-        means[kmer_seq[n]] += kmers[n] / counts[kmer_seq[n]];
+        // means[kmer_seq[n]] += kmers[n] / counts[kmer_seq[n]];
+        means[kmer_seq[n]] += (kmersM[n] + kmersE[n]) / (counts[kmer_seq[n]] * 2);
     }
 
     // Emission (stdev of kmers)
-    fill_n(kmers, N-1, 0);
+    // fill_n(kmers, N-1, 0);
+    fill_n(kmersM, N-1, 0);
+    fill_n(kmersE, N-1, 0);
     double* stdevs = new double[numKmers];
     fill_n(stdevs, numKmers, 0.0);
     for (int n=0; n<N-1; n++) {
         for (int t=0; t<T-1; t++) {
-            g = exp(G[(t+1)*N+(n+1)]);
+            // g = exp(G[(t+1)*N+(n+1)]);
             // g = exp(logPlus(GM[(t+1)*N+(n+1)], GE[(t+1)*N+(n+1)])) / 2;
-            kmers[n] += g * abs(sig[t] - means[kmer_seq[n]]);
+            // kmers[n] += g * abs(sig[t] - means[kmer_seq[n]]);
+            kmersM[n] += exp(GM[(t+1)*N+(n+1)]) * abs(sig[t] - means[kmer_seq[n]]);
+            kmersE[n] += exp(GE[(t+1)*N+(n+1)]) * abs(sig[t] - means[kmer_seq[n]]);
+
         }
-        kmers[n] = kmers[n] / d[n];
+        // kmers[n] = kmers[n] / d[n];
+        kmersM[n] = kmersM[n] / dM[n];
+        kmersE[n] = kmersE[n] / dE[n];
     }
 
     for (int n=0; n<N-1; n++) {
-        stdevs[kmer_seq[n]] += kmers[n] / counts[kmer_seq[n]];
+        // stdevs[kmer_seq[n]] += kmers[n] / counts[kmer_seq[n]];
+        stdevs[kmer_seq[n]] += (kmersM[n] + kmersE[n]) / (counts[kmer_seq[n]] * 2);
     }
 
-    delete[] G;
-    // delete[] GM;
-    // delete[] GE;
-    delete[] kmers;
+    // delete[] G;
+    delete[] GM;
+    delete[] GE;
+    // delete[] kmers;
+    delete[] kmersM;
+    delete[] kmersE;
     delete[] counts;
-    delete[] d;
+    // delete[] d;
+    delete[] dM;
+    delete[] dE;
     return tuple<double*, double*>({means, stdevs});
 }
 
@@ -737,7 +776,8 @@ int main(int argc, char* argv[]) {
 
         // This checks out
         if (abs(forE[T*N-1] - backM[N+1])>EPSILON || isinf(backM[N+1]) || isinf(forE[T*N-1])) {
-            cout<<"Z values between matrices do not match! forE: "<<forE[T*N-1]<<", backM: "<<backM[N+1]<<"\n";
+            cout<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backM[N+1]: "<<backM[N+1]<<", ";
+            cout<<"backM[0]: "<<backM[0]<<"\n";
             cout.flush();
             exit(11);
         }
