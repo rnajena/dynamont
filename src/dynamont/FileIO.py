@@ -45,8 +45,9 @@ def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
             mean = kmerModels[kmer][0]
-            # safety for simulated data with stdev = 0
-            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] != 0 else 0.0001
+            # safety to avoid stdev = 0
+            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] != 0 else 1.0
+            # stdev = kmerModels[kmer][1]
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
 def getFiles(filepath : str, rec : bool) -> list:
@@ -96,15 +97,12 @@ def loadFastx(path : str, quality : int = None) -> dict:
         readDict[record.id] = str(record.seq)
     return readDict
 
-# def readNanoPolyA(file : str) -> pd.DataFrame:
-#     return pd.read_csv(file, sep='\t')
-
 def openCPPScript(cpp_script : str) -> Popen:
     '''
-    Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
+    Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE)
     '''
     print("Popen call:", cpp_script)
-    return Popen(cpp_script, shell=True, stdout=PIPE, stdin=PIPE, stderr=PIPE)
+    return Popen(cpp_script, shell=True, stdout=PIPE, stdin=PIPE) #, stderr=PIPE)
 
 def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
     '''
@@ -277,16 +275,8 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     Z : float
     '''
     pipe = openCPPScriptTrain(script, params, model_file, minSegLen)
-    # print(read)
     feedPipe(signal, read, pipe)
-    # print(pipe.stdout.readline().strip().decode('UTF-8'))
-    # print(pipe.stdout.readline().strip().decode('UTF-8'))
-    
     trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
-    # print(trainedParams)
-    # print(pipe.stderr.readline())
-
-    # first the transition parameters
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in trainedParams.split(";")}
     except:
@@ -297,13 +287,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
     #               kmer                    mean                                        stdev
     newModels = {param.split(":")[0] : (float(param.split(":")[1].split(",")[0]), float(param.split(":")[1].split(",")[1])) for param in trainedParams.split(";")[:-1]}
-    # print(trainedParams)
-    # print(newModels)
-    # then Z
     Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
-    
-    # print(pipe.stderr.readline())
-    # print(pipe.stderr.readline())
 
     # then segmentation
     segmentation = pipe.stdout.readline().strip().decode('UTF-8')
