@@ -77,7 +77,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
             # "s2":1.0
         }
     elif mode == 'basic':
-        transitionParams = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9649, 'e3': 0.0001}
+        transitionParams = {'e1': 1.0, 'm1': 0.111111, 'e2': 0.888889, 'e3': 0.0}
         # {
         #     "e1":1.,
         #     "m1":.025,

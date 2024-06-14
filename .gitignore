@@ -40,7 +40,6 @@ backup/
 src/segment
 output.pdf
 .gitignore
-src/segment_affine
 c_version
 c_version.cpp
 test_command.txt
@@ -51,3 +50,5 @@ src/segmentation
 src/_old/
 src/*/__pycache__/
 tests/playground/
+
+src/dynamont/segmentation_basic
