@@ -245,15 +245,15 @@ inline double error(const double &signal_dp) {
  */
 void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const int &N, vector<tuple<double, double>>* model){
     double mat, ext, tmp;
-    for(int t=1; t<T; t++){
-        for(int n=1; n<N; n++){
+    for(int t=0; t<T; t++){
+        for(int n=0; n<N; n++){
             mat=-INFINITY;
             ext=-INFINITY;
-            if(t==1 && n==1) {
-                mat = 0;
+            if(t==0 && n==0) {
+                ext = 0;
             }
 
-            if (t>C){
+            if (t-C>0 && n>0){
                 tmp=E[(t-C-1)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1;
                 for(int l=1; l<=C; l++){
                     tmp+=scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
@@ -261,12 +261,29 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
                 mat=logPlus(mat, tmp);
             }
 
-            ext=logPlus(ext, M[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e1); // e1 first extend
-            ext=logPlus(ext, E[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e2); // e2 extend further
-            ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1]) + e3); // e3 error
+            if (t>0 && n>0) {
+                ext=logPlus(ext, M[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e1); // e1 first extend
+                ext=logPlus(ext, E[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e2); // e2 extend further
+                ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1]) + e3); // e3 error
+            }
 
             M[t*N+n] = mat;
             E[t*N+n] = ext;
+
+            // if ((isnan(mat) || isnan(ext)) && t>0 && n>0) {
+            //     cerr<<"------"<<endl;
+            //     cerr<<"t: "<<t<<", n:"<<n<<endl;
+            //     cerr<<scoreKmer(sig[t-1], kmer_seq[n-1], model)<<endl;
+            //     cerr<<sig[t-1]<<endl;
+            //     cerr<<itoa(kmer_seq[n-1])<<endl;
+            //     cerr<<error(sig[t-1])<<endl;
+            //     cerr<<mat<<endl;
+            //     cerr<<ext<<endl;
+            //     cerr<<E[(t-C-1)*N+(n-1)]<<endl;
+            //     cerr<<M[(t-1)*N+n]<<endl;
+            //     cerr<<E[(t-1)*N+n]<<endl;
+            //     exit(0);
+            // }
         }
     }
 }
@@ -291,7 +308,7 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
             }
 
             // m with minimum length C
-            if (t<T-1-C && n<N-1) {
+            if (t+1+C<T && n+1<N) {
                 tmp=M[(t+1+C)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + m1;
                 for (int l=1; l<=C; l++){
                     tmp+=scoreKmer(sig[t+l], kmer_seq[n], model);
@@ -299,7 +316,7 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
                 ext=logPlus(ext, tmp);
             }
 
-            if (t<T-1 && n>0) {
+            if (t+1<T && n>0) {
                 mat=logPlus(mat, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model)  + e1); // e1 first extend
                 ext=logPlus(ext, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model) + e2); // e2 extend further
                 ext=logPlus(ext, E[(t+1)*N+n] + error(sig[t]) + e3); // e3 error
@@ -348,19 +365,21 @@ list<string> getBorders(double* LPM, double* LPE, const int &T, const int &N){
     fill_n(M, T*N, -INFINITY);
     fill_n(E, T*N, -INFINITY);
     double mat, ext;
-    for(int t=1; t<T; t++){
-        for(int n=1; n<N; n++){
+    for(int t=0; t<T; t++){
+        for(int n=0; n<N; n++){
             mat=-INFINITY;
             ext=-INFINITY;
-            if(t==1 && n==1) {
-                mat = 0;
+            if(t==0 && n==0) {
+                ext = 0;
             }
-            if (t>C){
+            if (t-C>0 && n>0){
                 mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[t*N+n]); // m1
             }
 
-            ext=max(ext, M[(t-1)*N+n] + LPE[t*N+n]); // e1
-            ext=max(ext, E[(t-1)*N+n] + LPE[t*N+n]); // e2, e3
+            if (t>0 && n>0) {
+                ext=max(ext, M[(t-1)*N+n] + LPE[t*N+n]); // e1
+                ext=max(ext, E[(t-1)*N+n] + LPE[t*N+n]); // e2, e3
+            }
 
             M[t*N+n]=mat;
             E[t*N+n]=ext;
@@ -379,7 +398,7 @@ void funcM(int t, int n, double* M, double* E, double* LPM, double* LPE, list<st
         segString->push_front("M"+to_string(0)+","+to_string(0)); // n-1 because N is 1 larger than the sequences
         return;
     }
-    if (n>0 && t>C && score == E[(t-C-1)*N+(n-1)] + LPM[t*N+n]){
+    if (t-C>0 && n>0 && score == E[(t-C-1)*N+(n-1)] + LPM[t*N+n]){
         segString->push_front("M"+to_string(n-1)+","+to_string(t-C-1));
         return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N);
     }
@@ -432,7 +451,7 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
 
     for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
-            if (n<N-1 && t+C+1<T) {
+            if (n+1<N && t+C+1<T) {
                 // m1:  forward(i)        a    e(i+1)                                  backward(i+1)
                 tempM = forE[t*N+n] + m1 + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+C+1)*N+(n+1)];
                 for(int l=1; l<=C; l++){
@@ -441,7 +460,7 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
                 newM1 = logPlus(newM1, tempM);
             }
 
-            if (t<T-1 && n>0) {
+            if (t+1<T && n>0) {
                 newE1 = logPlus(newE1, forM[t*N+n] + e1 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
                 newE2 = logPlus(newE2, forE[t*N+n] + e2 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
                 newE3 = logPlus(newE3, forE[t*N+n] + e3 + error(sig[t])                           + backE[(t+1)*N+n]);
@@ -527,6 +546,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     for (int n=1; n<N; n++) {
         // transform vars to stdevs
         stdevs[kmer_seq[n-1]] += kmers[n] / counts[kmer_seq[n-1]];
+        // stdevs[kmer_seq[n-1]] += kmers[n] / max(counts[kmer_seq[n-1]] - 1, 1);
         stdevs[kmer_seq[n-1]] = sqrt(stdevs[kmer_seq[n-1]]);
     }
 
@@ -714,9 +734,8 @@ int main(int argc, char* argv[]) {
         // cout << setprecision(6);
 
         // This checks out
-        if (abs(forE[T*N-1] - backM[N+1])/T>EPSILON || isinf(backM[N+1]) || isinf(forE[T*N-1])) {
-            cout<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backM[N+1]: "<<backM[N+1]<<", ";
-            cout<<"backM[0]: "<<backM[0]<<"\n";
+        if (abs(forE[T*N-1] - backE[0])/T>EPSILON || isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0])) {
+            cout<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", ";
             cout.flush();
             exit(11);
         }
