@@ -45,7 +45,7 @@ def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
             mean = kmerModels[kmer][0]
-            # safety to avoid stdev = 0
+            # safety to avoid stdev = 0 TODO find another way to fix this? This should not happen real data
             stdev = kmerModels[kmer][1] if kmerModels[kmer][1] != 0 else 1.0
             # stdev = kmerModels[kmer][1]
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
@@ -101,7 +101,7 @@ def openCPPScript(cpp_script : str) -> Popen:
     '''
     Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE)
     '''
-    print("Popen call:", cpp_script)
+    # print("Popen call:", cpp_script)
     return Popen(cpp_script, shell=True, stdout=PIPE, stdin=PIPE) #, stderr=PIPE)
 
 def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
