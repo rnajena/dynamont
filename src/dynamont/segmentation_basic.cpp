@@ -28,7 +28,7 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE;
-double EPSILON = pow(10, -7);
+double EPSILON = pow(10, -4);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int K; // our model works with this kmer size
@@ -185,6 +185,9 @@ int* seq2kmer(int* seq, const int &N) {
  * @return probabily density at position x for N~(m, s²)
 */
 double log_normal_pdf(const double &x, const double &m, const double &s) {
+    if(s==0) {
+        return -INFINITY;
+    }
     return -0.5*(log(2*M_PI*s*s)+((x - m)*(x - m)/(s*s)));
 }
 
