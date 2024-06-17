@@ -142,22 +142,18 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                         for result in p.starmap(trainTransitionsEmissions, mp_items):
                             segments, trainedParams, newModels, Z = result
-                            # print(newModels)
                             i += 1
                             Zs.append(Z)
                             segmentations.append(segments)
 
                             assert not np.isinf(Z), f'Z is infinit!: {Z}'
-                            # if not np.isinf(Z):
                             for j, param in enumerate(trainedParams):
                                 paramCollector[param] += trainedParams[param]
-                            # else:
-                            #     failedInBatch += 1
 
                             for kmer in newModels:
                                 meanCollector[kmer].append(newModels[kmer][0])
                                 stdevCollector[kmer].append(newModels[kmer][1])
-                        print(f"Z sum: {sum(Zs)}")
+                        print(f"Zs: {Zs}")
 
                         # update parameters
                         param_writer.write(f'{e},{batch_num},{i},') # log
@@ -169,8 +165,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             # skip unseen models
                             if not len(meanCollector[kmer]):
                                 continue
-                            # print(kmer)
-                            kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.mean(stdevCollector[kmer])] #min(np.mean(stdevCollector[kmer]), 10)]
+                            kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.sqrt(np.mean(np.square(stdevCollector[kmer])))]
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels)
@@ -181,16 +176,14 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             mp_items[j][4] = trainedModels
                         # print(mp_items)
                         Zdiffs = []
-                        Zsum = 0
                         for j, result in enumerate(p.starmap(calcZ, mp_items)):
                             Z = result
-                            Zsum+=Z
                             # print('Z:', Z, end='\t')
                             # if not np.isinf(Zs[j]):
                             Zdiffs.append(Z - Zs[j])
 
-                        print(f"Updated Z sum: {Zsum}")
-                        deltaZ = sum(Zdiffs)/len(Zdiffs)
+                        print(f"Z changes: {Zdiffs}")
+                        deltaZ = np.mean(Zdiffs)
                         param_writer.write(f'{deltaZ}\n') # log
                         param_writer.flush() # log
                         print(f"Z change: {deltaZ}")
