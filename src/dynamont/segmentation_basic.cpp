@@ -28,7 +28,7 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE;
-double EPSILON = pow(10, -3);
+double EPSILON = pow(10, -2);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int K; // our model works with this kmer size
