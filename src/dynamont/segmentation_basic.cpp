@@ -446,7 +446,7 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
 */
 tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
     // Transition parameters
-    double newM1 = -INFINITY;
+    double newM = -INFINITY;
     double newE1 = -INFINITY;
     double newE2 = -INFINITY;
     double newE3 = -INFINITY;
@@ -460,7 +460,7 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
                 for(int l=1; l<=C; l++){
                     tempM+=scoreKmer(sig[t+l], kmer_seq[n], model);
                 }
-                newM1 = logPlus(newM1, tempM);
+                newM = logPlus(newM, tempM);
             }
 
             if (t+1<T && n>0) {
@@ -471,14 +471,24 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
         }
     }
     // average over the number of transitions
-    double Am = newE1;
-    newE1 = newE1 - Am;
-    double Ae = logPlus(newE2, logPlus(newE3, newM1));
-    newM1 = newM1 - Ae;
-    newE2 = newE2 - Ae;
-    newE3 = newE3 - Ae;
+    newM = exp(newM);
+    newE1 = exp(newE1);
+    newE2 = exp(newE2);
+    newE3 = exp(newE3);
+    newE1 = newE1 / newE1;
+    double Ae = newE2 + newE3 + newM;
+    newM = newM / Ae;
+    newE2 = newE2 / Ae;
+    newE3 = newE3 / Ae;
 
-    return tuple<double, double, double, double>({newM1, newE1, newE2, newE3});
+    // pseudocount
+    if (newE3 == 0.0) {
+        newE3 = 0.001;
+        newE2 -= 0.0005;
+        newM -= 0.0005;
+    }
+
+    return tuple<double, double, double, double>({newM, newE1, newE2, newE3});
 }
 
 /**
@@ -564,8 +574,7 @@ void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, doub
 
     // TODO enable this again
     auto [newM, newE1, newE2, newE3] = trainTransition(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
-    // cout<<"m1:"<<exp(newM)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<endl;
-    cout<<"m1:"<<exp(newM)<<";e1:"<<exp(newE1)<<";e2:"<<exp(newE2)<<";e3:"<<exp(newE3)<<endl;
+    cout<<"m1:"<<newM<<";e1:"<<newE1<<";e2:"<<newE2<<";e3:"<<newE3<<endl;
 
     auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
     for (int i=0; i<numKmers; i++){
