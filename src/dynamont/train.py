@@ -11,9 +11,11 @@ from os import makedirs, name
 from FileIO import getFiles, loadFastx, calcZ, readPolyAStartEnd, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels
 from read5 import read
 import multiprocessing as mp
-from hampel import hampel
+# from hampel import hampel
 import random
 # import OnlineMeanVar as omv
+
+INITMODEL = None
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -89,7 +91,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         print('Extended mode not implemented')
         exit(1)
 
-    paramCollector = {param : 0 for param in transitionParams}
+    paramCollector = {param : [] for param in transitionParams}
     meanCollector = {kmer : [] for kmer in kmerModels}
     stdevCollector = {kmer : [] for kmer in kmerModels}
     param_writer.write("epoch,batch,read,")
@@ -127,7 +129,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     # fill batch
                     if len(mp_items) < batch_size:
-                        signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 50, 2.).filtered_data
+                        # signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 50, 2.).filtered_data
+                        signal = r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:]
                         mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen])
                         training_readids.append(readid)
 
@@ -147,7 +150,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                             assert not np.isinf(Z), f'Z is infinit!: {Z}'
                             for j, param in enumerate(trainedParams):
-                                paramCollector[param] += trainedParams[param]
+                                paramCollector[param].append(trainedParams[param])
 
                             for kmer in newModels:
                                 meanCollector[kmer].append(newModels[kmer][0])
@@ -157,7 +160,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         # update parameters
                         param_writer.write(f'{e},{batch_num},{i},') # log
                         for param in transitionParams:
-                            transitionParams[param] = paramCollector[param] / batch_size #(batch_size - failedInBatch)
+                            transitionParams[param] = np.mean(paramCollector[param])
                             param_writer.write(f'{transitionParams[param]},') # log
 
                         for kmer in meanCollector:
@@ -167,7 +170,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.sqrt(np.mean(np.square(stdevCollector[kmer])))]
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
-                        writeKmerModels(trainedModels, kmerModels)
+                        writeKmerModels(trainedModels, kmerModels, INITMODEL)
 
                         # rerun with new parameters to compare Zs
                         for j in range(len(mp_items)):
@@ -192,7 +195,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         #     return
 
                         # initialize new batch
-                        paramCollector = {param : 0 for param in paramCollector}
+                        paramCollector = {param : [] for param in paramCollector}
                         meanCollector = {kmer : [] for kmer in kmerModels}
                         stdevCollector = {kmer : [] for kmer in kmerModels}
 
@@ -214,10 +217,11 @@ def main() -> None:
     polya = readPolyAStartEnd(args.polya)
     # polyAEnd= readPolyAEnd(args.polya)
     # omvKmerModels = getTrainableModels(readKmerModels(args.model_path))
-    kmerModels = readKmerModels(args.model_path)
+    global INITMODEL
+    INITMODEL = readKmerModels(args.model_path)
     assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, kmerModels, trainedModels, stdev, args.minSegLen - 1)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL, trainedModels, stdev, args.minSegLen - 1)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':

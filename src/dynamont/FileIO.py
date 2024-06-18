@@ -37,7 +37,7 @@ def readKmerModels(filepath : str) -> dict:
     models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
     return models
 
-def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
+def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None) -> dict:
     '''
     Writes kmer models to a file
     '''
@@ -45,9 +45,8 @@ def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
             mean = kmerModels[kmer][0]
-            # safety to avoid stdev = 0 TODO find another way to fix this? This should not happen real data
-            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] != 0 else 1.0
-            # stdev = kmerModels[kmer][1]
+            # safety to very small stdev TODO find another way to fix this? happens in real data, when segment very small - nucleotides do not match signal
+            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] >= 1.0 else backUpModel[kmer][1]
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
 def getFiles(filepath : str, rec : bool) -> list:
