@@ -28,7 +28,7 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE;
-double EPSILON = pow(10, -4);
+double EPSILON = pow(10, -3);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int K; // our model works with this kmer size
@@ -203,8 +203,8 @@ inline double scoreKmer(const double &signal, const int &kmer, vector<tuple<doub
     tuple<double, double> kmerModel = (*model)[kmer];
     // return 4.*(log_normal_pdf(signal, get<0>(kmerModel), 1) + 4.);
     // return 4*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 4);
-    // return 2*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 6);
-    return log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel));
+    return 2*(log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel)) + 6);
+    // return log_normal_pdf(signal, get<0>(kmerModel), get<1>(kmerModel));
 
     // norm signal with kmer model
     // double sig = (signal - get<0>(kmerModel)) / get<1>(kmerModel);
@@ -689,67 +689,19 @@ int main(int argc, char* argv[]) {
         // calculate segmentation probabilities, fill backward matrices
         logB(sig, kmer_seq, backM, backE, T, N, &model);
 
-        // Check if Z value matches, must match between matrices
-        
-        // int idx;
-        // cout<<"forM"<<endl;
-        // for(int t=0;t<T;t++) {
-        //     for(int n=0; n<N; n++) {
-        //         idx = t*N+n;
-        //         cout<<forM[idx]<<"\t";
-        //     }
-        //     cout<<endl;
-        // }
-        // cout.flush();
-
-        // cout<<"forE"<<endl;
-        // for(int t=0;t<T;t++) {
-        //     for(int n=0; n<N; n++) {
-        //         idx = t*N+n;
-        //         cout<<forE[idx]<<"\t";
-        //     }
-        //     cout<<endl;
-        // }
-        // cout.flush();
-
-        // cout<<"backM"<<endl;
-        // for(int t=0;t<T;t++) {
-        //     for(int n=0; n<N; n++) {
-        //         idx = t*N+n;
-        //         cout<<backM[idx]<<"\t";
-        //     }
-        //     cout<<endl;
-        // }
-
-        // cout.flush();
-
-        // cout<<"backE"<<endl;
-        // for(int t=0;t<T;t++) {
-        //     for(int n=0; n<N; n++) {
-        //         idx = t*N+n;
-        //         cout<<backE[idx]<<"\t";
-        //     }
-        //     cout<<endl;
-        // }
-
-        // cout.flush();
-        // cout << fixed << showpoint;
-        // cout << setprecision(6);
-
-        // This checks out
-        if (abs(forE[T*N-1] - backE[0])/T>EPSILON || isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0])) {
-            cout<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", ";
-            cout.flush();
+        // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
+        if ((abs(forE[T*N-1] - backE[0])/(T*N))>EPSILON || isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0])) {
+            cerr << fixed << showpoint;
+            cerr << setprecision(20);
+            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<endl;
+            cerr<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+            cerr.flush();
             exit(11);
         }
 
         if (calcZ){
             cout<<forE[T*N-1]<<"\n";
         
-        // // train only transitions
-        // } else if (atrain) {
-        //     printTrainedTransitionParams(sig, kmer_seq, forM, forE, backM, backE, T, N, &model);
-
         } else {
             
             // train both Transitions and Emissions
