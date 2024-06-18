@@ -101,12 +101,12 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             height = 3.92*stdev
             ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
-            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8)
-            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
-            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
         
-        ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, label="ONT model mean")
-        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8, label="ONT model mean+1.96*stdev")
+        ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="ONT model mean")
+        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="ONT model mean+1.96*stdev")
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -134,12 +134,12 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
             height = 3.92*stdev
             ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
-            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8)
-            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
-            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
+            ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
+            ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
         
-        ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, label="ONT model mean")
-        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8, label="ONT model mean+1.96*stdev")
+        ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="ONT model mean")
+        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="ONT model mean+1.96*stdev")
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -187,8 +187,8 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
         ax[plotNumber].legend()
 
 
-    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, label="ONT model mean")
-    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle='--', alpha=0.8, label="ONT model mean+1.96*stdev")
+    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="ONT model mean")
+    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="ONT model mean+1.96*stdev")
     # plt.legend()
     plt.savefig(join(outpath, readid + '.svg'))
     plt.savefig(join(outpath, readid + '.pdf'))
@@ -217,7 +217,7 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
         PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
     elif mode == 'basic':
         # PARAMS = {'e1': 1.0, 'm1': 0.049, 'e2': 0.951, 'e3': 0.0}
-        PARAMS = {'e1': 1.0, 'm1': 0.035, 'e2': 0.9649, 'e3': 0.0001}
+        PARAMS = {'e1': 1.0, 'm1': 0.01848573125, 'e2': 0.9815143125000001, 'e3': 0.0}
     PARAMS['m'] = modelpath
     PARAMS['c'] = minSegLen
 
@@ -288,8 +288,6 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
 
             if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
                 signal = r5.getPolyAStandardizedSignal(targetID, polyAstart=polyA[targetID][0], polyAend=polyA[targetID][1])
-                # TODO remove when done with simulation!
-                signal = r5.getpASignal(targetID)
                 polyAend = polyA[targetID][1]
             else:
                 print("WARNING: NO POLYA SEGMENT FOUND!")
@@ -303,6 +301,7 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
 
 def main() -> None:
     args = parse()
+    # print(args)
     if not exists(args.out):
         makedirs(args.out)
     polya = readPolyAStartEnd(args.polya)
