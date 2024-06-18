@@ -167,7 +167,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             # skip unseen models
                             if not len(meanCollector[kmer]):
                                 continue
-                            kmerModels[kmer] = [np.mean(meanCollector[kmer]), np.sqrt(np.mean(np.square(stdevCollector[kmer])))]
+                            # TODO what is better here, median oder mean?
+                            kmerModels[kmer] = [np.median(meanCollector[kmer]), np.sqrt(np.median(np.square(stdevCollector[kmer])))]
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels, INITMODEL)
