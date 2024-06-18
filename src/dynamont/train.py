@@ -127,8 +127,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     # fill batch
                     if len(mp_items) < batch_size:
-                        # signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 20, 2.).filtered_data
-                        signal = hampel(r5.getpASignal(readid), 20, 2.).filtered_data
+                        signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 50, 2.).filtered_data
                         mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen])
                         training_readids.append(readid)
 
@@ -186,7 +185,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         deltaZ = np.mean(Zdiffs)
                         param_writer.write(f'{deltaZ}\n') # log
                         param_writer.flush() # log
-                        print(f"Z change: {deltaZ}")
+                        # print(f"Z change: {deltaZ}")
 
                         # End training if delta Z is 0
                         # if deltaZ <= 0:
