@@ -53,8 +53,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     # write first model file with initialized models
     baseName = trainedModels.split('.')[0]
     trainedModels = baseName + '_0_0.model'
-    # writeKmerModels(trainedModels, )
-    writeKmerModels(trainedModels, kmerModels)
+    global INITMODEL
+    writeKmerModels(trainedModels, kmerModels, INITMODEL)
     
     param_writer = open(param_file, 'w')
     
@@ -222,7 +222,7 @@ def main() -> None:
     INITMODEL = readKmerModels(args.model_path)
     assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL, trainedModels, stdev, args.minSegLen - 1)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL.copy(), trainedModels, stdev, args.minSegLen - 1)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':
