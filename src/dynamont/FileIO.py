@@ -47,6 +47,7 @@ def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None
             mean = kmerModels[kmer][0]
             # safety to very small stdev TODO find another way to fix this? happens in real data, when segment very small - nucleotides do not match signal
             stdev = kmerModels[kmer][1] if kmerModels[kmer][1] >= 1.0 else backUpModel[kmer][1]
+            
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
 def getFiles(filepath : str, rec : bool) -> list:
