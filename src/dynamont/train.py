@@ -67,20 +67,17 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         CPP_SCRIPT+='.exe'
 
     if mode == 'indel':
-        # init
         transitionParams = {
             "e1":1.,
-            "m2":.03333,
+            "m1":.03333,
             "d1":.00001,
             "e2":.96664,
             "e3":.00001,
             "i1":.00001,
-            "m3":.99,
+            "m2":.99,
             "i2":.01,
-            "m4":.99,
+            "m3":.99,
             "d2":.01,
-            # "s1":0.16,
-            # "s2":1.0
         }
     elif mode == 'basic':
         transitionParams = {'e1': 1.0, 'm1': 0.0325039, 'e2': 0.9674473750000001, 'e3': 4.86861125e-05}
