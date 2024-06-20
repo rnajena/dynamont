@@ -13,6 +13,8 @@ from read5 import read
 import multiprocessing as mp
 # from hampel import hampel
 import random
+import pickle
+from datetime import datetime
 # import OnlineMeanVar as omv
 
 INITMODEL = None
@@ -32,7 +34,7 @@ def parse() -> Namespace:
     parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
     parser.add_argument('--same_batch', action='store_true', help='Always train on first batch of signals in the file')
     parser.add_argument('--random_batch', type=int, metavar='seed', default=None, help='Randomizes the batches of each file with a given seed')
-    parser.add_argument('--stdev', type=float, default=None, help='Set a stdev value instead of using the calculated one for the models')
+    # parser.add_argument('--stdev', type=float, default=None, help='Set a stdev value instead of using the calculated one for the models')
     parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     return parser.parse_args()
 
@@ -44,7 +46,7 @@ def parse() -> Namespace:
 #         trainableModels[kmer].append(np.random.normal(loc=kmerModels[kmer][0], scale=kmerModels[kmer][1], size=1000))
 #     return trainableModels
 
-def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, stdev : float, minSegLen : int) -> None:
+def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, minSegLen : int, errorfile : str, params_pickle : str) -> None:
     # print("minSegLen", minSegLen)
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
@@ -57,6 +59,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     writeKmerModels(trainedModels, kmerModels, INITMODEL)
     
     param_writer = open(param_file, 'w')
+    error_writer = open(errorfile, 'w')
+    params_pickle_writer = open(params_pickle, 'wb')
     
     CPP_SCRIPT = join(dirname(__file__), f'segmentation_{mode}')
     if name == 'nt': # check for windows
@@ -79,21 +83,16 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
             # "s2":1.0
         }
     elif mode == 'basic':
-        transitionParams = {'e1': 1.0, 'm1': 0.111111, 'e2': 0.888889, 'e3': 0.0}
-        # {
-        #     "e1":1.,
-        #     "m1":.025,
-        #     "e2":.955,
-        #     "e3":.02,
-        # }
+        transitionParams = {'e1': 1.0, 'm1': 0.0325039, 'e2': 0.9674473750000001, 'e3': 4.86861125e-05}
     elif mode == 'extended':
         # TODO
         print('Extended mode not implemented')
         exit(1)
 
-    paramCollector = {param : [] for param in transitionParams}
-    meanCollector = {kmer : [] for kmer in kmerModels}
-    stdevCollector = {kmer : [] for kmer in kmerModels}
+    paramCollector = {kmer:[[kmerModels[kmer][0]], [kmerModels[kmer][1]]] for kmer in kmerModels}
+    paramCollector = paramCollector | {param : [] for param in transitionParams}
+    paramBatchCollector = {param : [] for param in transitionParams}
+    modelBatchCollector = {kmer : [[], []] for kmer in kmerModels}
     param_writer.write("epoch,batch,read,")
     for param in transitionParams:
         param_writer.write(param+',')
@@ -131,7 +130,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     if len(mp_items) < batch_size:
                         # signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 50, 2.).filtered_data
                         signal = r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:]
-                        mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen])
+                        mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen, readid])
                         training_readids.append(readid)
 
                     if len(mp_items) == batch_size:
@@ -143,6 +142,12 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         segmentations = []
 
                         for result in p.starmap(trainTransitionsEmissions, mp_items):
+                            if isinstance(result, str):
+                                print(f"No segmentation calculated for {result} in {e}: {trainedModels}.")
+                                error_writer.write(f"No segmentation calculated for {result} in {e}: {trainedModels}.")
+                                error_writer.flush()
+                                continue
+
                             segments, trainedParams, newModels, Z = result
                             i += 1
                             Zs.append(Z)
@@ -150,28 +155,35 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                             assert not np.isinf(Z), f'Z is infinit!: {Z}'
                             for j, param in enumerate(trainedParams):
+                                paramBatchCollector[param].append(trainedParams[param])
                                 paramCollector[param].append(trainedParams[param])
 
                             for kmer in newModels:
-                                meanCollector[kmer].append(newModels[kmer][0])
-                                stdevCollector[kmer].append(newModels[kmer][1])
+                                modelBatchCollector[kmer][0].append(newModels[kmer][0])
+                                modelBatchCollector[kmer][1].append(newModels[kmer][1])
+                                paramCollector[kmer][0].append(newModels[kmer][0])
+                                paramCollector[kmer][1].append(newModels[kmer][1])
                         print(f"Zs: {Zs}")
 
                         # update parameters
                         param_writer.write(f'{e},{batch_num},{i},') # log
                         for param in transitionParams:
+                            # transitionParams[param] = np.mean(paramBatchCollector[param])
                             transitionParams[param] = np.mean(paramCollector[param])
                             param_writer.write(f'{transitionParams[param]},') # log
 
-                        for kmer in meanCollector:
+                        for kmer in modelBatchCollector:
                             # skip unseen models
-                            if not len(meanCollector[kmer]):
+                            if not len(modelBatchCollector[kmer]):
                                 continue
                             # TODO what is better here, median oder mean?
-                            kmerModels[kmer] = [np.median(meanCollector[kmer]), np.sqrt(np.median(np.square(stdevCollector[kmer])))]
+                            # kmerModels[kmer] = [np.median(modelBatchCollector[kmer][0]), np.sqrt(np.mean(np.square(modelBatchCollector[kmer][1])))]
+                            kmerModels[kmer] = [np.median(paramCollector[kmer][0]), np.median(paramCollector[kmer][1])]
+                            # print(kmerModels[kmer])
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels, INITMODEL)
+                        pickle.dump(paramCollector, params_pickle_writer, pickle.HIGHEST_PROTOCOL)
 
                         # rerun with new parameters to compare Zs
                         for j in range(len(mp_items)):
@@ -196,25 +208,28 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         #     return
 
                         # initialize new batch
-                        paramCollector = {param : [] for param in paramCollector}
-                        meanCollector = {kmer : [] for kmer in kmerModels}
-                        stdevCollector = {kmer : [] for kmer in kmerModels}
+                        paramBatchCollector = {param : [] for param in paramBatchCollector}
+                        modelBatchCollector = {kmer : [[],[]] for kmer in kmerModels}
+                        # stdevBatchCollector = {kmer : [] for kmer in kmerModels}
 
                         if not same_batch:
                             mp_items = []
                             training_readids = []
                         
-        
+        error_writer.close()
         param_writer.close()
+        params_pickle_writer.close()
 
 def main() -> None:
     args = parse()
-    outdir = args.out
-    stdev = args.stdev
+    outdir = args.out + f'_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
+    # stdev = args.stdev
     if not exists(outdir):
         makedirs(outdir)
     param_file = join(outdir, 'params.txt')
     trainedModels = join(outdir, 'trained.model')
+    errorfile = join(outdir, 'error.log')
+    params_pickle = join(outdir, 'params.pickle')
     polya = readPolyAStartEnd(args.polya)
     # polyAEnd= readPolyAEnd(args.polya)
     # omvKmerModels = getTrainableModels(readKmerModels(args.model_path))
@@ -222,7 +237,7 @@ def main() -> None:
     INITMODEL = readKmerModels(args.model_path)
     assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL.copy(), trainedModels, stdev, args.minSegLen - 1)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL.copy(), trainedModels, args.minSegLen - 1, errorfile, params_pickle)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':

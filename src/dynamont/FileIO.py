@@ -176,7 +176,7 @@ def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None,
     script=" ".join(script)
     return openCPPScript(script)
 
-def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, minSegLen : int = None) -> float:
+def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, minSegLen : int = None, readid : str = None) -> float:
     pipe = openCPPScriptCalcZ(script, params, model_file, minSegLen)
     feedPipe(signal, read, pipe)
     Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
@@ -254,7 +254,7 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> None:
 #     return params, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, minSegLen : int) -> tuple:
+def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, minSegLen : int, readid : str) -> tuple|str:
     '''
     Parse & feed signal & read to the C++ segmentation script.
 
@@ -280,8 +280,9 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in trainedParams.split(";")}
     except:
-        print("ERROR", trainedParams)
-        exit(1)
+        print(f"ERROR in {readid}", trainedParams)
+        # raise SegmentationError(readid)
+        return readid
 
     # then updated emission updated
     trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
