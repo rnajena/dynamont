@@ -700,10 +700,16 @@ int main(int argc, char* argv[]) {
     // Argparser
     argparse::ArgumentParser program("dynamont basic", "0.1");
     // parameters for DP
+    program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 1").default_value(.033).scan<'g', double>(); // m1
+    program.add_argument("-m2", "--matchscore2").help("Transition probability for match rule 2").default_value(.99).scan<'g', double>(); // m2
+    program.add_argument("-m3", "--matchscore3").help("Transition probability for match rule 3").default_value(.99).scan<'g', double>(); // m3
     program.add_argument("-e1", "--extendscore1").help("Transition probability for extend rule 1").default_value(1.00).scan<'g', double>(); // e1
-    program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 2").default_value(.035).scan<'g', double>(); // m
     program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(.964).scan<'g', double>(); // e2
     program.add_argument("-e3", "--extendscore3").help("Transition probability for extend rule 3").default_value(.001).scan<'g', double>(); // e3
+    program.add_argument("-d1", "--deletionscore1").help("Transition probability for deletion rule 1").default_value(.001).scan<'g', double>(); // d1
+    program.add_argument("-d2", "--deletionscore2").help("Transition probability for deletion rule 2").default_value(.01).scan<'g', double>(); // d2
+    program.add_argument("-i1", "--insertionscore1").help("Transition probability for insertion rule 1").default_value(.001).scan<'g', double>(); // i1
+    program.add_argument("-i2", "--insertionscore2").help("Transition probability for insertion rule 2").default_value(.01).scan<'g', double>(); // i2
     // program.add_argument("-at", "--atrain").help("Switch algorithm to transition parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true);
@@ -726,9 +732,15 @@ int main(int argc, char* argv[]) {
     train = program.get<bool>("train");
     calcZ = program.get<bool>("calcZ");
     m1 = log(program.get<double>("matchscore1"));
+    m2 = log(program.get<double>("matchscore2"));
+    m3 = log(program.get<double>("matchscore3"));
     e1 = log(program.get<double>("extendscore1"));
     e2 = log(program.get<double>("extendscore2"));
     e3 = log(program.get<double>("extendscore3"));
+    d1 = log(program.get<double>("deletionscore1"));
+    d2 = log(program.get<double>("deletionscore2"));
+    i1 = log(program.get<double>("insertionscore1"));
+    i2 = log(program.get<double>("insertionscore2"));
     
     if (pore == 9) {
         K = 5;
