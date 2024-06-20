@@ -52,3 +52,4 @@ src/*/__pycache__/
 tests/playground/
 
 src/dynamont/segmentation_basic
+src/dynamont/segmentation_indel
