@@ -67,20 +67,9 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         CPP_SCRIPT+='.exe'
 
     if mode == 'indel':
-        transitionParams = {
-            "e1":1.,
-            "m1":.03333,
-            "d1":.00001,
-            "e2":.96664,
-            "e3":.00001,
-            "i1":.00001,
-            "m2":.99,
-            "i2":.01,
-            "m3":.99,
-            "d2":.01,
-        }
+        transitionParams = {'e1': 1.0, 'm1': 0.10319949594779426, 'd1': 0.10610745507008552, 'e2': 0.7884055549172662, 'e3': 0.00017942642216108796, 'i1': 0.002108069659237201, 'm2': 0.02937758310704649, 'i2': 0.08849246645562929, 'm3': 0.9115075346587537, 'd2': 0.9706224218081904}
     elif mode == 'basic':
-        transitionParams = {'e1': 1.0, 'm1': 0.0325039, 'e2': 0.9674473750000001, 'e3': 4.86861125e-05}
+        transitionParams = {'e1': 1.0, 'm1': 0.031232499993784957, 'e2': 0.968433326911128, 'e3': 0.00033417358727719085}
     elif mode == 'extended':
         # TODO
         print('Extended mode not implemented')
@@ -132,25 +121,23 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     if len(mp_items) == batch_size:
                         print("============================")
-                        print(f"Training epoch: {e}, reads: {i}, batch: {batch_num}\n{transitionParams}")
+                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {batch_num}\n{transitionParams}")
                         print("Training with read:", training_readids)
                         batch_num += 1
                         Zs = []
-                        segmentations = []
 
-                        for result in p.starmap(trainTransitionsEmissions, mp_items):
+                        for rid, result in enumerate(p.starmap(trainTransitionsEmissions, mp_items)):
                             if isinstance(result, str):
                                 print(f"No segmentation calculated for {result} in {e}: {trainedModels}.")
-                                error_writer.write(f"No segmentation calculated for {result} in {e}: {trainedModels}.")
+                                error_writer.write(f"No segmentation calculated for {result} in {e}: {trainedModels}.\n")
                                 error_writer.flush()
+                                del mp_items[rid]
                                 continue
 
-                            segments, trainedParams, newModels, Z = result
+                            trainedParams, newModels, Z = result
                             i += 1
                             Zs.append(Z)
-                            segmentations.append(segments)
 
-                            assert not np.isinf(Z), f'Z is infinit!: {Z}'
                             for j, param in enumerate(trainedParams):
                                 paramBatchCollector[param].append(trainedParams[param])
                                 paramCollector[param].append(trainedParams[param])
@@ -189,6 +176,12 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         # print(mp_items)
                         Zdiffs = []
                         for j, result in enumerate(p.starmap(calcZ, mp_items)):
+                            if isinstance(result, str):
+                                print(f"No segmentation calculated for {result} in {e} calcZ.")
+                                error_writer.write(f"No segmentation calculated for {result} in {e} calcZ.\n")
+                                error_writer.flush()
+                                Zdiffs.append(0)
+                                continue
                             Z = result
                             # print('Z:', Z, end='\t')
                             # if not np.isinf(Zs[j]):
