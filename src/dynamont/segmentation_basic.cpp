@@ -272,21 +272,6 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
 
             M[t*N+n] = mat;
             E[t*N+n] = ext;
-
-            // if ((isnan(mat) || isnan(ext)) && t>0 && n>0) {
-            //     cerr<<"------"<<endl;
-            //     cerr<<"t: "<<t<<", n:"<<n<<endl;
-            //     cerr<<scoreKmer(sig[t-1], kmer_seq[n-1], model)<<endl;
-            //     cerr<<sig[t-1]<<endl;
-            //     cerr<<itoa(kmer_seq[n-1])<<endl;
-            //     cerr<<error(sig[t-1])<<endl;
-            //     cerr<<mat<<endl;
-            //     cerr<<ext<<endl;
-            //     cerr<<E[(t-C-1)*N+(n-1)]<<endl;
-            //     cerr<<M[(t-1)*N+n]<<endl;
-            //     cerr<<E[(t-1)*N+n]<<endl;
-            //     exit(0);
-            // }
         }
     }
 }
@@ -329,12 +314,6 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
             E[t*N+n] = ext;
         }
     }
-    // t=0, n=0
-    // tmp=M[(1+C)*N] + scoreKmer(sig[0], kmer_seq[0], model) + m1;
-    // for (int l=1; l<=C; l++){
-    //     tmp+=scoreKmer(sig[l], kmer_seq[0], model);
-    // }
-    // E[0]=tmp;
 }
 
 /**
@@ -591,10 +570,11 @@ int main(int argc, char* argv[]) {
     // Argparser
     argparse::ArgumentParser program("dynamont basic", "0.1");
     // parameters for DP
+    // {'e1': 1.0, 'm1': 0.031232499993784957, 'e2': 0.968433326911128, 'e3': 0.00033417358727719085}
     program.add_argument("-e1", "--extendscore1").help("Transition probability for extend rule 1").default_value(1.00).scan<'g', double>(); // e1
-    program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 2").default_value(.035).scan<'g', double>(); // m
-    program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(.964).scan<'g', double>(); // e2
-    program.add_argument("-e3", "--extendscore3").help("Transition probability for extend rule 3").default_value(.001).scan<'g', double>(); // e3
+    program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 2").default_value(.0312).scan<'g', double>(); // m
+    program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(.9684).scan<'g', double>(); // e2
+    program.add_argument("-e3", "--extendscore3").help("Transition probability for extend rule 3").default_value(.0004).scan<'g', double>(); // e3
     // program.add_argument("-at", "--atrain").help("Switch algorithm to transition parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true);
@@ -696,7 +676,7 @@ int main(int argc, char* argv[]) {
         logB(sig, kmer_seq, backM, backE, T, N, &model);
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if ((abs(forE[T*N-1] - backE[0])/(T*N))>EPSILON || isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0])) {
+        if ((isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0] || abs(forE[T*N-1] - backE[0])/(T*N))>EPSILON)) {
             cerr << fixed << showpoint;
             cerr << setprecision(20);
             cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<endl;
@@ -713,38 +693,38 @@ int main(int argc, char* argv[]) {
             // train both Transitions and Emissions
             if (train) {
                 printTrainedTransitionParams(sig, kmer_seq, forM, forE, backM, backE, T, N, &model);
+            } else {
+                double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
+                double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
+                list<string> segString = getBorders(LPM, LPE, T, N);
+
+                for (auto const& seg : segString) {
+                    cout<<seg;
+                }
+                cout<<endl;
+                cout.flush();
+
+                // // calculate sum of segment probabilities
+                // double* LSP = new double[T]; // log segment probs
+                // fill_n(LSP, T, -INFINITY);
+                // int idx;
+                // double sum;
+                // for(int t=0;t<T;t++) {
+                //     sum = -INFINITY;
+                //     for(int n=0; n<N; n++) {
+                //         idx = t*N+n;
+                //         sum = logPlus(sum, LPM[idx]);
+                //     }
+                //     LSP[i] = sum;
+                //     cout<<sum<<",";
+                // }
+                // cout<<endl;
+                // cout.flush();
+
+                // Clean up
+                delete[] LPM;
+                delete[] LPE; //, LSP;
             }
-
-            double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
-            double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
-            list<string> segString = getBorders(LPM, LPE, T, N);
-
-            for (auto const& seg : segString) {
-                cout<<seg;
-            }
-            cout<<endl;
-            cout.flush();
-
-            // // calculate sum of segment probabilities
-            // double* LSP = new double[T]; // log segment probs
-            // fill_n(LSP, T, -INFINITY);
-            // int idx;
-            // double sum;
-            // for(int t=0;t<T;t++) {
-            //     sum = -INFINITY;
-            //     for(int n=0; n<N; n++) {
-            //         idx = t*N+n;
-            //         sum = logPlus(sum, LPM[idx]);
-            //     }
-            //     LSP[i] = sum;
-            //     cout<<sum<<",";
-            // }
-            // cout<<endl;
-            // cout.flush();
-
-            // Clean up
-            delete[] LPM;
-            delete[] LPE; //, LSP;
         }
         delete[] forM;
         delete[] forE;
