@@ -44,10 +44,11 @@ def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None
     with open(filepath, 'w') as w:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
-            mean = kmerModels[kmer][0]
+            # happens in indel model, when kmer is deleted in all paths
+            mean = kmerModels[kmer][0] if not np.isnan(kmerModels[kmer][0]) else backUpModel[kmer][0]
             # safety to very small stdev TODO find another way to fix this? happens in real data, when segment very small - nucleotides do not match signal
             stdev = kmerModels[kmer][1] if kmerModels[kmer][1] >= 1.0 else backUpModel[kmer][1]
-            
+
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
 def getFiles(filepath : str, rec : bool) -> list:
@@ -179,8 +180,12 @@ def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None,
 def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, minSegLen : int = None, readid : str = None) -> float:
     pipe = openCPPScriptCalcZ(script, params, model_file, minSegLen)
     feedPipe(signal, read, pipe)
-    Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
-    stopFeeding(pipe)
+    try:
+        Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
+    except:
+        print(f"ERROR in {readid}", Z)
+        stopFeeding(pipe)
+        return readid
     return Z
 
 def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
@@ -282,6 +287,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     except:
         print(f"ERROR in {readid}", trainedParams)
         # raise SegmentationError(readid)
+        stopFeeding(pipe)
         return readid
 
     # then updated emission updated
@@ -291,12 +297,12 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
 
     # then segmentation
-    segmentation = pipe.stdout.readline().strip().decode('UTF-8')
-    segments = formatSegmentationOutput(segmentation, len(signal), len(read))
+    # segmentation = pipe.stdout.readline().strip().decode('UTF-8')
+    # segments = formatSegmentationOutput(segmentation, len(signal), len(read))
 
     stopFeeding(pipe)
 
-    return segments, params, newModels, Z
+    return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
 def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dict = None) -> np.ndarray:
@@ -336,7 +342,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
     # probabilities : np.ndarray
     #     in 3' -> 5' orientation
     #     numpy array of floats showing the border probability
-    
+
     if params is None:
         pipe = openCPPScript(script)
     else:
@@ -354,7 +360,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
 def formatSegmentationOutput(output : str, signalLength : int, readLength : int) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
-    
+
     Parameters
     ----------
     output : str
@@ -363,7 +369,7 @@ def formatSegmentationOutput(output : str, signalLength : int, readLength : int)
         Length of the read signal
     readLength : int
         Length of the read or number of nucleotides
-    
+
     Returns
     -------
     segmentation : np.ndarray
@@ -385,7 +391,7 @@ def formatSegmentationOutput(output : str, signalLength : int, readLength : int)
         end = output[i+1][1:].split(',')[1] if i < len(output)-1 else signalLength
         # convert basepos to 5' -> 3' direction
         segments.append([int(start), int(end), readLength - int(basepos) - 1, state])
-        
+
     return np.array(segments, dtype=object)
 
 def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str) -> str:
@@ -413,7 +419,7 @@ def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str)
     return table
 
 def stopFeeding(pipe : Popen) -> None:
-    pipe.stdin.write(bytes(f'{TERM_STRING} {TERM_STRING}\n', 'UTF-8'))
+    pipe.stdin.write(bytes(f'{TERM_STRING}\n{TERM_STRING}\n', 'UTF-8'))
     pipe.stdin.close()
     pipe.stdout.close()
 
