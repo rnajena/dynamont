@@ -32,7 +32,7 @@ string modelpath;
 int ALPHABET_SIZE;
 double EPSILON = pow(10, -2);
 bool train, calcZ; // atrain
-double m1, e1, e2, e3, d1, d2, m2, i1, i2, m3; // transition parameters
+double m1, m2, m3, e1, e2, e3, d1, d2, i1, i2; // transition parameters
 int K; // our model works with this kmer size
 int C;
 int numKmers;
@@ -253,6 +253,10 @@ inline double indel(const double &signal_dp, const int &kmer, const int &sucKmer
     return -INFINITY;
 }
 
+// inline double indel() {
+//     return log(1/200);
+// }
+
 /**
  * Calculate forward matrices using logarithmic values
  *
@@ -335,23 +339,23 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
                 ext=logPlus(ext, tmp);
             }
 
-            if (t+1<T && n+1<N) {
+            if (t<T-1 && n<N-1) {
                 ins=logPlus(ins, M[(t+1)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + m2);
                 del=logPlus(del, M[(t+1)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + m3);
             }
 
-            if (t+1<T && n>0) {
+            if (t<T-1 && n>0) {
                 mat=logPlus(mat, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model) + e1); // e1 first extend
                 ext=logPlus(ext, E[(t+1)*N+n] + scoreKmer(sig[t], kmer_seq[n-1], model) + e2); // e2 extend further
                 ext=logPlus(ext, E[(t+1)*N+n] + error(sig[t]) + e3); // e3 error
             }
 
-            if (t+1<T && n>0 && n+1<N) {
+            if (t<T-1 && n>0 && n<N-1) {
                 ext=logPlus(ext, D[(t+1)*N+n] + indel(sig[t], kmer_seq[n-1], kmer_seq[n], model) + d1);
                 del=logPlus(del, D[(t+1)*N+n] + indel(sig[t], kmer_seq[n-1], kmer_seq[n], model) + d2);
             }
 
-            if (n+1<N-1 && t>0) {
+            if (n<N-2 && t>0) {
                 ext=logPlus(ext, I[t*N+(n+1)] + indel(sig[t-1], kmer_seq[n], kmer_seq[n+1], model) + i1);
                 ins=logPlus(ins, I[t*N+(n+1)] + indel(sig[t-1], kmer_seq[n], kmer_seq[n+1], model) + i2);
             }
@@ -408,11 +412,12 @@ list<string> getBorders(double* LPM, double* LPE, double* LPD, double* LPI, cons
             if(t==0 && n==0) {
                 ext = 0;
             }
-            if (t-C>0 && n>0){
-                mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[t*N+n]); // m1
-            }
-
+            
             if (t>0 && n>0) {
+                if (t-C>0){
+                    mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[t*N+n]); // m1
+                }
+
                 ext=max(ext, M[(t-1)*N+n] + LPE[t*N+n]); // e1
                 ext=max(ext, E[(t-1)*N+n] + LPE[t*N+n]); // e2, e3
                 mat=max(mat, D[(t-1)*N+(n-1)] + LPM[t*N+n]); // m2
@@ -448,15 +453,15 @@ void funcM(int t, int n, double* M, double* E, double* D, double* I, double* LPM
         segString->push_front("M"+to_string(0)+","+to_string(0)); // n-1 because N is 1 larger than the sequences
         return;
     }
-    if (score == E[(t-C-1)*N+(n-1)] + LPM[t*N+n]){
+    if (t>0 && n>0 && score == E[(t-C-1)*N+(n-1)] + LPM[t*N+n]){
         segString->push_front("M"+to_string(n-1)+","+to_string(t-C-1));
         return funcE(t-C-1, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
-    if (score == D[(t-1)*N+(n-1)] + LPM[t*N+n]) {
+    if (t>0 && n>0 && score == D[(t-1)*N+(n-1)] + LPM[t*N+n]) {
         segString->push_front("M"+to_string(n-1)+","+to_string(t-1));
         return funcD(t-1, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
-    if (score == I[(t-1)*N+(n-1)] + LPM[t*N+n]) {
+    if (t>0 && n>0 && score == I[(t-1)*N+(n-1)] + LPM[t*N+n]) {
         segString->push_front("M"+to_string(n-1)+","+to_string(t-1));
         return funcI(t-1, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
@@ -464,20 +469,20 @@ void funcM(int t, int n, double* M, double* E, double* D, double* I, double* LPM
 
 void funcE(int t, int n, double* M, double* E, double* D, double* I, double* LPM, double* LPE, double* LPD, double* LPI, list<string>* segString, const int &N){
     double score = E[t*N+n];
-    if (score == M[(t-1)*N+n] + LPE[t*N+n]){
+    if (t>0 && score == M[(t-1)*N+n] + LPE[t*N+n]){
         return funcM(t-1, n, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
-    if (score == E[(t-1)*N+n] + LPE[t*N+n]){
+    if (t>0 && score == E[(t-1)*N+n] + LPE[t*N+n]){
         return funcE(t-1, n, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
 }
 
 void funcI(int t, int n, double* M, double* E, double* D, double* I, double* LPM, double* LPE, double* LPD, double* LPI, list<string>* segString, const int &N){
     double score = I[t*N+n];
-    if (score == I[t*N+(n-1)] + LPI[t*N+n]) {
+    if (n>0 && score == I[t*N+(n-1)] + LPI[t*N+n]) {
         return funcI(t, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
-    if (score == E[t*N+(n-1)] + LPI[t*N+n]) {
+    if (n>0 && score == E[t*N+(n-1)] + LPI[t*N+n]) {
         segString->push_front("I"+to_string(n-1)+","+to_string(t));
         return funcE(t, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
@@ -485,10 +490,10 @@ void funcI(int t, int n, double* M, double* E, double* D, double* I, double* LPM
 
 void funcD(int t, int n, double* M, double* E, double* D, double* I, double* LPM, double* LPE, double* LPD, double* LPI, list<string>* segString, const int &N){
     double score = D[t*N+n];
-    if (score == D[(t-1)*N+n] + LPD[t*N+n]) {
+    if (t>0 && score == D[(t-1)*N+n] + LPD[t*N+n]) {
         return funcI(t-1, n, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
-    if (score == E[(t-1)*N+n] + LPD[t*N+n]) {
+    if (t>0 && score == E[(t-1)*N+n] + LPD[t*N+n]) {
         segString->push_front("D"+to_string(n)+","+to_string(t-1));
         return funcE(t-1, n, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
@@ -590,7 +595,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
 /**
  * Train emission parameter with baum welch algorithm
 */
-tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
+tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, double* forE, double* forD, double* forI, double* backM, double* backE, double* backD, double* backI, const int &T, const int &N, vector<tuple<double, double>>* model) {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
@@ -604,7 +609,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
         double s = -INFINITY;
         for(int n=0; n<N; n++){
             G[t*N+n] = logPlus(forM[t*N+n] + backM[t*N+n], forE[t*N+n] + backE[t*N+n]);
-            s = logPlus(s, G[t*N+n]);
+            s = logPlus(s, logPlus(forM[t*N+n] + backM[t*N+n], forE[t*N+n] + backE[t*N+n]));
         }
         for(int n=0; n<N; n++){
             if (!isinf(s)) {
@@ -682,7 +687,7 @@ void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, doub
 
     cout<<"m1:"<<newM1<<";e1:"<<newE1<<";e2:"<<newE2<<";e3:"<<newE3<<";i1:"<<newI1<<";d1:"<<newD1<<";d2:"<<newD2<<";m2:"<<newM2<<";i2:"<<newI2<<";m3:"<<newM3<<endl;
 
-    auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
+    auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, forD, forI, backM, backE, backD, backI, T, N, model);
     for (int i=0; i<numKmers; i++){
         if (newMeans[i]!=0.0){
             cout<<itoa(i)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
@@ -698,8 +703,9 @@ void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, doub
 */
 int main(int argc, char* argv[]) {
     // Argparser
-    argparse::ArgumentParser program("dynamont basic", "0.1");
+    argparse::ArgumentParser program("dynamont indel", "0.1");
     // parameters for DP
+    // {'e1': 1.0, 'm1': 0.10319949594779426, 'd1': 0.10610745507008552, 'e2': 0.7884055549172662, 'e3': 0.00017942642216108796, 'i1': 0.002108069659237201, 'm2': 0.02937758310704649, 'i2': 0.08849246645562929, 'm3': 0.9115075346587537, 'd2': 0.9706224218081904}
     program.add_argument("-m1", "--matchscore1").help("Transition probability for match rule 1").default_value(.033).scan<'g', double>(); // m1
     program.add_argument("-m2", "--matchscore2").help("Transition probability for match rule 2").default_value(.99).scan<'g', double>(); // m2
     program.add_argument("-m3", "--matchscore3").help("Transition probability for match rule 3").default_value(.99).scan<'g', double>(); // m3
@@ -842,42 +848,25 @@ int main(int argc, char* argv[]) {
             // train both Transitions and Emissions
             if (train) {
                 printTrainedTransitionParams(sig, kmer_seq, forM, forE, forD, forI, backM, backE, backD, backI, T, N, &model);
+            } else {
+                double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
+                double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
+                double* LPD = logP(forD, backD, forE[T*N-1], T, N); // log probs
+                double* LPI = logP(forI, backI, forE[T*N-1], T, N); // log probs
+                list<string> segString = getBorders(LPM, LPE, LPD, LPI, T, N);
+
+                for (auto const& seg : segString) {
+                    cout<<seg;
+                }
+                cout<<endl;
+                cout.flush();
+
+                // Clean up
+                delete[] LPM;
+                delete[] LPE;
+                delete[] LPD;
+                delete[] LPI;
             }
-
-            double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
-            double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
-            double* LPD = logP(forD, backD, forE[T*N-1], T, N); // log probs
-            double* LPI = logP(forI, backI, forE[T*N-1], T, N); // log probs
-            list<string> segString = getBorders(LPM, LPE, LPD, LPI, T, N);
-
-            for (auto const& seg : segString) {
-                cout<<seg;
-            }
-            cout<<endl;
-            cout.flush();
-
-            // // calculate sum of segment probabilities
-            // double* LSP = new double[T]; // log segment probs
-            // fill_n(LSP, T, -INFINITY);
-            // int idx;
-            // double sum;
-            // for(int t=0;t<T;t++) {
-            //     sum = -INFINITY;
-            //     for(int n=0; n<N; n++) {
-            //         idx = t*N+n;
-            //         sum = logPlus(sum, LPM[idx]);
-            //     }
-            //     LSP[i] = sum;
-            //     cout<<sum<<",";
-            // }
-            // cout<<endl;
-            // cout.flush();
-
-            // Clean up
-            delete[] LPM;
-            delete[] LPE;
-            delete[] LPD;
-            delete[] LPI;
         }
         delete[] forM;
         delete[] forE;
