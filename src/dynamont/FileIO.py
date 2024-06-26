@@ -6,6 +6,8 @@
 
 TERM_STRING = "$"
 
+import os
+import signal
 from subprocess import PIPE, Popen
 import re
 import numpy as np
@@ -103,7 +105,7 @@ def openCPPScript(cpp_script : str) -> Popen:
     Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE)
     '''
     # print("Popen call:", cpp_script)
-    return Popen(cpp_script, shell=True, stdout=PIPE, stdin=PIPE) #, stderr=PIPE)
+    return Popen(cpp_script, shell=True, stdout=PIPE, stdin=PIPE, preexec_fn=os.setsid) #, stderr=PIPE)
 
 def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
     '''
@@ -184,7 +186,7 @@ def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_fi
         Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
     except:
         print(f"ERROR in {readid}", Z)
-        stopFeeding(pipe)
+        stopFeeding(pipe, critical=True)
         return readid
     return Z
 
@@ -229,35 +231,6 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> None:
     pipe.stdin.write(cookie)
     pipe.stdin.flush()
 
-# # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-# def trainTransitions(signal : np.ndarray, read : str, params : dict, script : str) -> tuple:
-#     '''
-#     Parse & feed signal & read to the C++ segmentation script.
-
-#     Parameters
-#     ----------
-#     signal : np.ndarray
-#     read : str
-#         in 3' -> 5' direction
-#     stream
-#         Open stdin stream of the C++ segmentation algorithm
-
-#     Returns
-#     -------
-#     params : dict
-#         {str : float}
-#     Z : float
-#     '''
-#     pipe = openCPPScriptATrain(script, params)
-#     feedPipe(signal, read, pipe)
-#     output = pipe.stdout.readline().strip().decode('UTF-8')
-#     params = {param.split(":")[0] : float(param.split(":")[1]) for param in output.split(";")}
-
-#     Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
-#     stopFeeding(pipe)
-
-#     return params, Z
-
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
 def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, minSegLen : int, readid : str) -> tuple|str:
     '''
@@ -287,7 +260,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     except:
         print(f"ERROR in {readid}", trainedParams)
         # raise SegmentationError(readid)
-        stopFeeding(pipe)
+        stopFeeding(pipe, critical=True)
         return readid
 
     # then updated emission updated
@@ -325,6 +298,8 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
         in 3' -> 5' direction
     script : str
         script file name
+    params : dict
+        params for the c++ script in short form: e.g. {-m : "model_path"}
 
     Returns
     -------
@@ -352,12 +327,17 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
     # receive segmentation result
     output = pipe.stdout.readline().strip().decode('UTF-8')
     # format output into np.ndarray
-    segments = formatSegmentationOutput(output, len(signal), len(read))
+    try:
+        segments = formatSegmentationOutput(output, len(signal), read)
+    except:
+        stopFeeding(pipe, critical=True)
+        # some error during segmentation - no proper output
+        return []
     stopFeeding(pipe)
 
     return segments #, probs
 
-def formatSegmentationOutput(output : str, signalLength : int, readLength : int) -> np.ndarray:
+def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
 
@@ -388,13 +368,15 @@ def formatSegmentationOutput(output : str, signalLength : int, readLength : int)
     for i in range(len(output)):
         state = output[i][0]
         basepos, start = output[i][1:].split(',')
-        end = output[i+1][1:].split(',')[1] if i < len(output)-1 else signalLength
+        end = output[i+1][1:].split(',')[1] if i < len(output)-1 else sigLen
         # convert basepos to 5' -> 3' direction
-        segments.append([int(start), int(end), readLength - int(basepos) - 1, state])
+        pos = len(read) - int(basepos) - 1
+        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state])
+        segments[-1] = list(map(str, segments[-1]))
 
     return np.array(segments, dtype=object)
 
-def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str) -> str:
+def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str, model : str = None) -> str:
     '''
     Transform segmentation into a string to write into a file
 
@@ -412,16 +394,21 @@ def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str)
     table : str
         string to write in a segmentation result file
     '''
-    segmentation = feedSegmentation(signal, read, script)
+    if model is not None:
+        params = {"m" : model}
+    segmentation = feedSegmentation(signal, read, script, params)
     table = ''
     for segment in segmentation:
         table += readid + ',' + ','.join(segment) + '\n'
     return table
 
-def stopFeeding(pipe : Popen) -> None:
-    pipe.stdin.write(bytes(f'{TERM_STRING}\n{TERM_STRING}\n', 'UTF-8'))
-    pipe.stdin.close()
-    pipe.stdout.close()
+def stopFeeding(pipe : Popen, critical : bool = False) -> None:
+    if not critical:
+        pipe.stdin.write(bytes(f'{TERM_STRING}\n{TERM_STRING}\n', 'UTF-8'))
+        pipe.stdin.close()
+        pipe.stdout.close()
+
+    os.killpg(os.getpgid(pipe.pid), signal.SIGTERM)
 
 def readPolyAEnd(file : str) -> dict:
     df = pd.read_csv(file, usecols=['readname', 'transcript_start'], sep='\t')
