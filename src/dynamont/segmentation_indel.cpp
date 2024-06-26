@@ -834,8 +834,7 @@ int main(int argc, char* argv[]) {
         if ((abs(forE[T*N-1] - backE[0])/(T*N))>EPSILON || isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0])) {
             cerr << fixed << showpoint;
             cerr << setprecision(20);
-            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<endl;
-            cerr<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
             cerr.flush();
             exit(11);
         }
