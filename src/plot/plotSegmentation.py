@@ -38,7 +38,7 @@ def parse() -> Namespace:
     parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     return parser.parse_args()
 
-def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame):
+def plotBorders(signal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame):
     '''
     Input
     -----
@@ -70,7 +70,7 @@ def plotBorders(signal : np.ndarray, hampel_signal : np.ndarray, polyAend : int,
     x=np.arange(-polyAend, len(signal) - polyAend, 1)
     for axis in range(nPlots):
         ax[axis].plot(x, signal, alpha=0.4, color='black', label='signal', linewidth=1)
-        ax[axis].plot(x, hampel_signal, color='purple', label='hampel(signal)', linewidth=0.5)
+        # ax[axis].plot(x, hampel_signal, color='purple', label='hampel(signal)', linewidth=0.5)
         ax[axis].set_ylim((min(signal)-15, max(signal)))
         ax[axis].set_ylabel('Signal pico Ampere')
         ax[axis].set_xticks(np.arange(0, len(signal), 2000))
@@ -222,14 +222,14 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     PARAMS['c'] = minSegLen
 
     # filter outliers
-    hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
+    # hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
     # hampel_raw_signal = hampel(rawSignal, 20, 2.).filtered_data
     # segments = feedSegmentation(hampel_std_signal[polyAstart:], read, CPP_SCRIPT, PARAMS)
-    segments = feedSegmentation(hampel_std_signal, read, CPP_SCRIPT, PARAMS)
+    segments = feedSegmentation(standardizedSignal, read, CPP_SCRIPT, PARAMS)
 
     if not len(segments):
         # print(segments)
-        print(str(list(hampel_std_signal[-300:])).replace(" ", "")[1:-1], end=' ')
+        print(str(list(standardizedSignal[-300:])).replace(" ", "")[1:-1], end=' ')
         print(read[-30:])
         raise SegmentationError(readid)
 
@@ -239,7 +239,7 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     with open(join(outdir, readid + '.txt'), 'w') as w:
         w.write('\n'.join(list(map(str, segments))))
 
-    plotBorders(standardizedSignal, hampel_std_signal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels)
+    plotBorders(standardizedSignal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels)
     print(calcZ(standardizedSignal, read, PARAMS, CPP_SCRIPT))
 
 def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, modelpath, minSegLen) -> tuple:
