@@ -36,6 +36,7 @@ def parse() -> Namespace:
     parser.add_argument('--random_batch', type=int, metavar='seed', default=None, help='Randomizes the batches of each file with a given seed')
     # parser.add_argument('--stdev', type=float, default=None, help='Set a stdev value instead of using the calculated one for the models')
     parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
+    parser.add_argument('--normalised', action="store_true", help="Use Z normalised signal in training. Make sure, that the model is also normalised.")
     return parser.parse_args()
 
 # def getTrainableModels(kmerModels : dict) -> dict:
@@ -46,7 +47,7 @@ def parse() -> Namespace:
 #         trainableModels[kmer].append(np.random.normal(loc=kmerModels[kmer][0], scale=kmerModels[kmer][1], size=1000))
 #     return trainableModels
 
-def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, minSegLen : int, errorfile : str, params_pickle : str) -> None:
+def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, minSegLen : int, errorfile : str, params_pickle : str, normalised : bool) -> None:
     # print("minSegLen", minSegLen)
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
@@ -115,7 +116,10 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     # fill batch
                     if len(mp_items) < batch_size:
                         # signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 50, 2.).filtered_data
-                        signal = r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:]
+                        if normalised:
+                            signal = r5.getZNormSignal(readid, "mean")[polya[readid][1]:]
+                        else:
+                            signal = r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:]
                         mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen, readid])
                         training_readids.append(readid)
 
@@ -227,7 +231,7 @@ def main() -> None:
     INITMODEL = readKmerModels(args.model_path)
     assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL.copy(), trainedModels, args.minSegLen - 1, errorfile, params_pickle)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL.copy(), trainedModels, args.minSegLen - 1, errorfile, params_pickle, args.normalised)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':
