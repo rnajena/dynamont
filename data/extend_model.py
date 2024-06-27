@@ -20,7 +20,7 @@ def parse() -> Namespace:
     )
     parser.add_argument("model", help="Contains empty kmers (with nan values)")
     parser.add_argument("output", help="Fully filled model file to fill missing values")
-    parser.add_argument("-a", default='ACGU', type=str, help='Set of nucleotide characters')
+    parser.add_argument("-a", default='ACGT', type=str, help='Set of nucleotide characters')
     parser.add_argument("-k", default=5, type=int)
     return parser.parse_args()
 
@@ -57,7 +57,7 @@ def main() -> None:
             level_mean = level_stdv = sd_mean = sd_stdv = ig_lambda = weight = 0
             for _, row in subset.iterrows():
                 level_mean+=row['level_mean']
-                level_stdv+=row['level_stdv']
+                # level_stdv+=row['level_stdv']
                 # try:
                 #     sd_mean+=row['sd_mean']
                 #     sd_stdv+=row['sd_stdv']
@@ -71,7 +71,7 @@ def main() -> None:
             new_entry = {
                 'kmer': [pattern.replace('.', 'N')],
                 'level_mean': [level_mean/len(subset.index)],
-                'level_stdv': [level_stdv/len(subset.index)],
+                # 'level_stdv': [level_stdv/len(subset.index)],
                 # 'sd_mean': [sd_mean/len(subset.index)],
                 # 'sd_stdv': [sd_stdv/len(subset.index)],
                 # 'ig_lambda': [ig_lambda/len(subset.index)],
