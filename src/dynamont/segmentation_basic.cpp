@@ -623,14 +623,14 @@ int main(int argc, char* argv[]) {
 
         // break loop if termination character ...
         if (signal.find(TERM_STRING) != string::npos) {
-            break;
+            return 0;
         // ... or signal or read is missing
         } else if (signal.empty()) {
             cout<<"Signal missing!\n";
-            break;
+            return 1;
         } else if (read.empty()) {
             cout<<"Read missing!\n";
-            break;
+            return 2;
         }
         
         // process signal: convert string to double array
@@ -686,7 +686,7 @@ int main(int argc, char* argv[]) {
 
         if (calcZ){
             cout<<forE[T*N-1]<<"\n";
-        
+            cout.flush();
         } else {
             
             // train both Transitions and Emissions
