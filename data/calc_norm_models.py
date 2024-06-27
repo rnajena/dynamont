@@ -38,17 +38,23 @@ def extractSegments(normSignal : np.ndarray, segments : list, models : dict) -> 
     for segment in segments:
         start, end, motif = segment
         # skip short segments
-        if end-start < 6:
+        if end-start < 20:
             continue
-        models[motif].extend(normSignal[start:end])
+        models[motif].extend(normSignal[start+5:end-5])
     return models
 
 def writeModels(models : dict, outfile : str) -> None:
     print(f"Writing {len(models)} models to {outfile}")
-    with open(outfile, 'w') as w:
+    with open(outfile + "_mean", 'w') as w:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for motif in [''.join(motif) for motif in list(product('ACGT', repeat=5))]:
-            w.write(f'{motif}\t{np.median(models[motif[::-1]])}\t{mad(models[motif[::-1]])}\n')
+            w.write(f'{motif}\t{np.mean(models[motif[::-1]]):.5f}\t{np.std(models[motif[::-1]]):.5f}\n')
+
+    with open(outfile + "_median", 'w') as w:
+        w.write('kmer\tlevel_mean\tlevel_stdv\n')
+        for motif in [''.join(motif) for motif in list(product('ACGT', repeat=5))]:
+            w.write(f'{motif}\t{np.median(models[motif[::-1]]):.5f}\t{mad(models[motif[::-1]]):.5f}\n')
+
 
 def main() -> None:
     args = parse()
@@ -64,7 +70,7 @@ def main() -> None:
             print(f"Extracting from read {rnum+1}", end='\r')
         if (rnum+1)%10000==0:
             writeModels(models, args.outfile + f"_{rnum+1}")
-        models = extractSegments(r5.getZNormSignal(readid), dynamont[readid], models)
+        models = extractSegments(r5.getZNormSignal(readid, "mean"), dynamont[readid], models)
     writeModels(models, args.outfile)
 
 if __name__ == '__main__':
