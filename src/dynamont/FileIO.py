@@ -6,8 +6,6 @@
 
 TERM_STRING = "$"
 
-import os
-import signal
 from subprocess import PIPE, Popen
 import re
 import numpy as np
@@ -20,6 +18,7 @@ from os.path import join
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from multiprocessing import Queue
 
 class SegmentationError(Exception):
     """Raised when no segmentation was calculated for a read"""
@@ -36,7 +35,11 @@ def readKmerModels(filepath : str) -> dict:
         format: {kmer : (mean, stdev)}
     '''
     df = pd.read_csv(filepath, sep='\t')
-    models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
+    try:
+        models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
+    except AttributeError:
+        df['level_stdv'] = 1.0
+        models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
     return models
 
 def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None) -> dict:
@@ -105,7 +108,7 @@ def openCPPScript(cpp_script : str) -> Popen:
     Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE)
     '''
     # print("Popen call:", cpp_script)
-    return Popen(cpp_script, shell=True, stdout=PIPE, stdin=PIPE, preexec_fn=os.setsid) #, stderr=PIPE)
+    return Popen(cpp_script, stdout=PIPE, stdin=PIPE, text=True)
 
 def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
     '''
@@ -126,7 +129,6 @@ def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
     for param in params:
         script.extend([f"-{param}", str(params[param])])
     script.append("--atrain")
-    script=" ".join(script)
     return openCPPScript(script)
 
 def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str, minSegLen : int) -> Popen:
@@ -147,10 +149,27 @@ def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str, minSeg
     script = [cpp_script]
     for param in params:
         script.extend([f"-{param}", str(params[param])])
-    script.append("--train")
-    script.append(f"--model {model_file}")
-    script.append(f"--minSegLen {minSegLen}")
-    script=" ".join(script)
+    script.extend(["--train", "--model", model_file, "--minSegLen", str(minSegLen)])
+    return openCPPScript(script)
+
+def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
+    '''
+    Open cpp script with transition params
+
+    Parameters
+    ----------
+    cpp_script : str
+        Path of script
+    params : dict
+        {str : float}
+
+    Returns
+    -------
+    subprocess : Popen
+    '''
+    script = [cpp_script]
+    for param in params:
+        script.extend([f"-{param}", str(params[param])])
     return openCPPScript(script)
 
 def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None, minSegLen : int = None) -> Popen:
@@ -173,63 +192,43 @@ def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None,
         script.extend([f"-{param}", str(params[param])])
     script.append("--calcZ")
     if model_file is not None:
-        script.append(f"--model {model_file}")
+        script.extend(["--model", model_file])
     if minSegLen is not None:
-        script.append(f"--minSegLen {minSegLen}")
-    script=" ".join(script)
+        script.extend(["--minSegLen",  str(minSegLen)])
     return openCPPScript(script)
 
 def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, minSegLen : int = None, readid : str = None) -> float:
     pipe = openCPPScriptCalcZ(script, params, model_file, minSegLen)
-    feedPipe(signal, read, pipe)
     try:
-        Z = float(pipe.stdout.readline().strip().decode('UTF-8'))
+        Z = float(feedPipe(signal, read, pipe).strip())
     except:
-        print(f"ERROR in {readid}", Z)
-        stopFeeding(pipe, critical=True)
         return readid
     return Z
 
-def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
+def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     '''
-    Open cpp script with transition params
-
-    Parameters
-    ----------
-    cpp_script : str
-        Path of script
-    params : dict
-        {str : float}
-
-    Returns
-    -------
-    subprocess : Popen
-    '''
-    script = [cpp_script]
-    for param in params:
-        script.extend([f"-{param}", str(params[param])])
-    script=" ".join(script)
-    return openCPPScript(script)
-
-def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> None:
-    '''
-    Feeds signal and read to pipe
+    Feeds signal and read to pipe with an immediate stop signal afterwards.
+    Uses communicate.
 
     Params
     ------
     signal : np.ndarray
     read : str
     pipe : Popen
+
+    Returns
+    -------
+    result : str
     '''
     # prepare cookie for segmentation
-    signal = str(np.around(signal.tolist(), 3).tolist()).replace(' ', '').replace('[', '').replace(']', '')
-    cookie = f"{signal}\n{read}\n"
+    # signal = str(np.around(signal.tolist(), 5).tolist()).replace(' ', '').replace('[', '').replace(']', '')
+    signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
+    cookie = f"{signal}\n{read}\n{TERM_STRING}\n{TERM_STRING}\n"
+    result = pipe.communicate(input=cookie)[0]
+    stopFeeding(pipe)
     # with open("lastCookie.txt", "w") as w:
     #     w.write(cookie)
-    # print(cookie)
-    cookie = bytes(cookie, 'UTF-8')
-    pipe.stdin.write(cookie)
-    pipe.stdin.flush()
+    return result
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
 def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, minSegLen : int, readid : str) -> tuple|str:
@@ -253,34 +252,24 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     Z : float
     '''
     pipe = openCPPScriptTrain(script, params, model_file, minSegLen)
-    feedPipe(signal, read, pipe)
-    trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
+    transitionParams, modelParams, Z, _ = feedPipe(signal, read, pipe).split('\n')
     try:
-        params = {param.split(":")[0] : float(param.split(":")[1]) for param in trainedParams.split(";")}
+        params = {param.split(":")[0] : float(param.split(":")[1]) for param in transitionParams.split(";")}
     except:
-        print(f"ERROR in {readid}", trainedParams)
+        print(f"ERROR in {readid}", transitionParams)
         # raise SegmentationError(readid)
-        stopFeeding(pipe, critical=True)
         return readid
-
     # then updated emission updated
-    trainedParams = pipe.stdout.readline().strip().decode('UTF-8')
     #               kmer                    mean                                        stdev
-    newModels = {param.split(":")[0] : (float(param.split(":")[1].split(",")[0]), float(param.split(":")[1].split(",")[1])) for param in trainedParams.split(";")[:-1]}
-    Z = float(pipe.stdout.readline().strip().decode('UTF-8').split(':')[1])
-
-    # then segmentation
-    # segmentation = pipe.stdout.readline().strip().decode('UTF-8')
-    # segments = formatSegmentationOutput(segmentation, len(signal), len(read))
-
-    stopFeeding(pipe)
-
+    newModels = {param.split(":")[0] : (float(param.split(":")[1].split(",")[0]), float(param.split(":")[1].split(",")[1])) for param in modelParams.split(";")[:-1]}
+    Z = float(Z.split(':')[-1])
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
 def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dict = None) -> np.ndarray:
     '''
     Parse & feed signal & read to the C++ segmentation script.
+    Opens and closes a pipe to the given script.
 
     Parameters
     ----------
@@ -322,20 +311,88 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
         pipe = openCPPScript(script)
     else:
         pipe = openCPPScriptParams(script, params)
-    # print(pipe.args, len(signal), len(read))
-    feedPipe(signal, read, pipe)
+    output = feedPipe(signal, read, pipe)
     # receive segmentation result
-    output = pipe.stdout.readline().strip().decode('UTF-8')
     # format output into np.ndarray
     try:
         segments = formatSegmentationOutput(output, len(signal), read)
     except:
-        stopFeeding(pipe, critical=True)
         # some error during segmentation - no proper output
-        return []
-    stopFeeding(pipe)
-
+        return np.array([])
     return segments #, probs
+
+
+def feedSegmentationAsynchronous(signal : np.ndarray, read : str, readid : str, pipe : Popen, queue : Queue) -> None:
+    '''
+    Parse & feed signal & read to the C++ segmentation script.
+    Needs an open pipe for communication.
+
+    Parameters
+    ----------
+    segmentation : np.ndarray
+        numpy array of marking the borders
+        format: [[start : int, end : int, readpos : int, state : str] ...]
+            start : signal idx
+            end : signal idx
+            readpos : base position within 5' - 3' read
+            state: {'M', 'I', 'D'}
+                'M' : match
+                'I' : insertion of a base
+                'D' : deletion of a base
+    read : str
+        in 3' -> 5' direction
+    pipe : Popen
+
+    Returns
+    -------
+    segmentation : np.ndarray
+        numpy array of marking the borders
+        format: [[start : int, end : int, readpos : int, state : str] ...]
+            start : signal idx
+            end : signal idx
+            readpos : base position within 5' - 3' read
+            state: {'M', 'I', 'D'}
+                'M' : match
+                'I' : insertion of a base
+                'D' : deletion of a base
+    '''
+    # probabilities : np.ndarray
+    #     in 3' -> 5' orientation
+    #     numpy array of floats showing the border probability
+
+    output = feedPipeAsynchronous(signal, read, pipe)
+    try:
+        segments = formatSegmentationOutput(output, len(signal), read)
+    except Exception as e:
+        print("Exception in readid", readid, e)
+        return None
+    queue.put(formatSegmentation(readid, segments))
+
+def feedPipeAsynchronous(signal : np.ndarray, read : str, pipe : Popen) -> str:
+    '''
+    Feeds signal and read to pipe without a stop signal.
+    Uses stdin.write
+    Then reads and returns one line with stdout.readline().
+
+    Params
+    ------
+    signal : np.ndarray
+    read : str
+    pipe : Popen
+
+    Returns
+    -------
+    result : str
+    '''
+    # prepare cookie for segmentation
+    # signal = str(np.around(signal.tolist(), 5).tolist()).replace(' ', '').replace('[', '').replace(']', '')
+    signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
+    cookie = f"{signal}\n{read}\n"
+    # with open("lastCookie.txt", "w") as w:
+    #     w.write(cookie)
+    pipe.stdin.write(cookie)
+    pipe.stdin.flush()
+    return pipe.stdout.readline()
 
 def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarray:
     '''
@@ -376,17 +433,39 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
 
     return np.array(segments, dtype=object)
 
-def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str, model : str = None) -> str:
+# def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str, model : str = None) -> str:
+#     '''
+#     Transform segmentation into a string to write into a file
+
+#     Parameters
+#     ----------
+#     signal : np.ndarray
+#     read : str
+#         in 3' -> 5' direction
+#     script : str
+#         script file name
+#     readid : str
+
+#     Returns
+#     -------
+#     table : str
+#         string to write in a segmentation result file
+#     '''
+#     if model is not None:
+#         params = {"m" : model}
+#     segmentation = feedSegmentation(signal, read, script, params)
+#     table = ''
+#     for segment in segmentation:
+#         table += readid + ',' + ','.join(segment) + '\n'
+#     return table
+
+def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     '''
     Transform segmentation into a string to write into a file
 
     Parameters
     ----------
-    signal : np.ndarray
-    read : str
-        in 3' -> 5' direction
-    script : str
-        script file name
+    segmentation : np.ndarray
     readid : str
 
     Returns
@@ -394,21 +473,23 @@ def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str,
     table : str
         string to write in a segmentation result file
     '''
-    if model is not None:
-        params = {"m" : model}
-    segmentation = feedSegmentation(signal, read, script, params)
+    # if model is not None:
+    #     params = {"m" : model}
+    # segmentation = feedSegmentation(signal, read, script, params)
     table = ''
     for segment in segmentation:
         table += readid + ',' + ','.join(segment) + '\n'
     return table
 
-def stopFeeding(pipe : Popen, critical : bool = False) -> None:
-    if not critical:
-        pipe.stdin.write(bytes(f'{TERM_STRING}\n{TERM_STRING}\n', 'UTF-8'))
-        pipe.stdin.close()
-        pipe.stdout.close()
-
-    os.killpg(os.getpgid(pipe.pid), signal.SIGTERM)
+def stopFeeding(pipe : Popen) -> None:
+    if pipe.poll() == 0:
+        return None
+    else:
+        try:
+            pipe.communicate(input=f'{TERM_STRING}\n{TERM_STRING}\n')
+        except:
+            pipe.kill()
+            return None
 
 def readPolyAEnd(file : str) -> dict:
     df = pd.read_csv(file, usecols=['readname', 'transcript_start'], sep='\t')
@@ -423,7 +504,9 @@ def readPolyAStartEnd(file : str) -> dict:
     polya : dict
         {readid : [polyastart, polyaend]}
     '''
-    df = pd.read_csv(file, usecols=['readname', 'polya_start', 'transcript_start'], sep='\t')
+    df = pd.read_csv(file, usecols=['readname', 'polya_start', 'transcript_start', 'qc_tag'], sep='\t')
+    # filter for good quality reads, set by nanopolish
+    df = df[df['qc_tag'] == "PASS"]
     df = df.astype({'readname' : str, 'polya_start' : int, 'transcript_start' : int})
     return pd.Series([[a,b] for a,b in zip(df.polya_start.values, df.transcript_start.values)], index=df.readname).to_dict()
 
