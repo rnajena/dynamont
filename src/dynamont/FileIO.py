@@ -52,7 +52,7 @@ def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None
             # happens in indel model, when kmer is deleted in all paths
             mean = kmerModels[kmer][0] if not np.isnan(kmerModels[kmer][0]) else backUpModel[kmer][0]
             # safety to very small stdev TODO find another way to fix this? happens in real data, when segment very small - nucleotides do not match signal
-            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] >= 1.0 else backUpModel[kmer][1]
+            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] > 0 else backUpModel[kmer][1]
 
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
@@ -252,7 +252,12 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     Z : float
     '''
     pipe = openCPPScriptTrain(script, params, model_file, minSegLen)
-    transitionParams, modelParams, Z, _ = feedPipe(signal, read, pipe).split('\n')
+    try:
+        transitionParams, modelParams, Z, _ = feedPipe(signal, read, pipe).split('\n')
+    except:
+        print(f"ERROR in {readid}", transitionParams)
+        # raise SegmentationError(readid)
+        return readid
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in transitionParams.split(";")}
     except:
@@ -322,45 +327,38 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
     return segments #, probs
 
 
-def feedSegmentationAsynchronous(signal : np.ndarray, read : str, readid : str, pipe : Popen, queue : Queue) -> None:
+# def feedSegmentationAsynchronousDummy(signal : np.ndarray, read : str, readid : str, queue : Queue) -> None:
+#     print(readid)
+
+globalPipe : Popen = None
+
+# def openGlobalPipe(script : str, params : dict) -> None:
+#     PIPE = openCPPScriptParams(script, params)
+
+def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, readid : str, queue : Queue) -> None:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Needs an open pipe for communication.
 
     Parameters
     ----------
-    segmentation : np.ndarray
-        numpy array of marking the borders
-        format: [[start : int, end : int, readpos : int, state : str] ...]
-            start : signal idx
-            end : signal idx
-            readpos : base position within 5' - 3' read
-            state: {'M', 'I', 'D'}
-                'M' : match
-                'I' : insertion of a base
-                'D' : deletion of a base
+    signal : np.ndarray
+        in 4' -> 5' direction
     read : str
         in 3' -> 5' direction
+    readid : str
     pipe : Popen
-
-    Returns
-    -------
-    segmentation : np.ndarray
-        numpy array of marking the borders
-        format: [[start : int, end : int, readpos : int, state : str] ...]
-            start : signal idx
-            end : signal idx
-            readpos : base position within 5' - 3' read
-            state: {'M', 'I', 'D'}
-                'M' : match
-                'I' : insertion of a base
-                'D' : deletion of a base
+    queue : Queue
     '''
-    # probabilities : np.ndarray
-    #     in 3' -> 5' orientation
-    #     numpy array of floats showing the border probability
+    global globalPipe
+    # terminate
+    if read == TERM_STRING:
+        stopFeeding(globalPipe)
+        return None
+    if globalPipe is None:
+        globalPipe = openCPPScriptParams(CPP_SCRIPT, params)
 
-    output = feedPipeAsynchronous(signal, read, pipe)
+    output = feedPipeAsynchronous(signal, read, globalPipe)
     try:
         segments = formatSegmentationOutput(output, len(signal), read)
     except Exception as e:
@@ -433,32 +431,6 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
 
     return np.array(segments, dtype=object)
 
-# def genSegmentTable(signal : np.ndarray, read : str, script : str, readid : str, model : str = None) -> str:
-#     '''
-#     Transform segmentation into a string to write into a file
-
-#     Parameters
-#     ----------
-#     signal : np.ndarray
-#     read : str
-#         in 3' -> 5' direction
-#     script : str
-#         script file name
-#     readid : str
-
-#     Returns
-#     -------
-#     table : str
-#         string to write in a segmentation result file
-#     '''
-#     if model is not None:
-#         params = {"m" : model}
-#     segmentation = feedSegmentation(signal, read, script, params)
-#     table = ''
-#     for segment in segmentation:
-#         table += readid + ',' + ','.join(segment) + '\n'
-#     return table
-
 def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     '''
     Transform segmentation into a string to write into a file
@@ -482,6 +454,8 @@ def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     return table
 
 def stopFeeding(pipe : Popen) -> None:
+    if pipe is None:
+        return None
     if pipe.poll() == 0:
         return None
     else:
