@@ -9,9 +9,14 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name
-from FileIO import getFiles, loadFastx, openCPPScript, feedSegmentationAsynchronous
-from read5 import read
+
+import read5.AbstractFileReader
+import read5.Pod5Reader
+from FileIO import getFiles, loadFastx, feedSegmentationAsynchronous
+import read5
 import multiprocessing as mp
+
+TERM_STRING = "$"
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -20,10 +25,11 @@ def parse() -> Namespace:
     parser.add_argument('--raw', type=str, required=True, help='Raw ONT training data')
     parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     # parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
-    parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--batch_size', type=int, default=16, help='Number of reads to train before updating')
+    parser.add_argument('--outfile', type=str, required=True, help='Outpath to write files')
+    parser.add_argument('--batch_size', type=int, default=None, help='Number of reads to train before updating')
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
+    parser.add_argument('--normalised', action="store_true", help="Use Z normalised signal in training. Make sure, that the model is also normalised.")
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str):
@@ -34,7 +40,7 @@ def listener(q : mp.Queue, outfile : str):
         while 1:
             m = q.get()
             i+=1
-            if i%1000==0:
+            if i%100==0:
                 print(f"Segmented {i} reads", end='\r')
             if m == 'kill':
                 break
@@ -42,7 +48,7 @@ def listener(q : mp.Queue, outfile : str):
             f.flush()
 
 # def segment(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, mode : str, outfile : str, modelpath : str) -> None:
-def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, outfile : str, modelpath : str) -> None:
+def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, outfile : str, modelpath : str, normalised : bool) -> None:
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
     basecalls = loadFastx(fastxpath)
@@ -56,38 +62,55 @@ def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, ou
         CPP_SCRIPT = join(dirname(__file__), 'segmentation_basic')
         if name == 'nt': # check for windows
             CPP_SCRIPT+='.exe'
-    
-    i = 0
-    pool = mp.Pool(batch_size)
-    pipes = [openCPPScript(CPP_SCRIPT) for _ in range(batch_size - 1)]
-    queue = mp.Manager().Queue()
-    pool.apply_async(listener, (queue, outfile))
 
+    if batch_size is None:
+        batch_size = mp.cpu_count()-1 or 1
+    print(f"Using {batch_size} processes in segmentation.")
+    pool = mp.Pool(batch_size)
+    queue = mp.Manager().Queue()
+    watcher = pool.apply_async(listener, (queue, outfile))
+    
     jobs = []
     for file in files:
-        r5 = read(file)
+        r5 = read5.read(file)
         for readid in r5:
             if not readid in basecalls: # or (readid not in polyAIndex)
                 continue
-            job = pool.apply_async(feedSegmentationAsynchronous, (r5.getpASignal(readid, "mean"), basecalls[readid][::-1], readid, pipes[i%len(pipes)], queue))
-            jobs.append(job)
-            i+=1
-            
+            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath}, getSignal(r5, readid, normalised), basecalls[readid][::-1], readid, queue)))
+    
+    # wait for all jobs to finish
     for job in jobs:
         job.get()
-    
+        
+    # tell queue to terminate
     queue.put("kill")
+
+    # # terminate pipes
+    # jobs = []
+    # for _ in range(batch_size*2):
+    #     jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath}, TERM_STRING, TERM_STRING, "End", queue)))
+
+    # wait for all processes to finish
+    for job in jobs:
+        job.get()
+    watcher.get()
     pool.close()
     pool.join()
+    print("Done segmenting signals")
+
+def getSignal(r5 : read5.AbstractFileReader.AbstractFileReader, readid : str, normalised : bool):
+    if normalised:
+        return r5.getZNormSignal(readid, "mean")
+    return r5.getpASignal(readid)
 
 def main() -> None:
     args = parse()
-    outdir = args.out
-    if not exists(outdir):
-        makedirs(outdir)
+    outfile = args.outfile
+    if not exists(dirname(outfile)):
+        makedirs(dirname(outfile))
     # polya=readPolyAStartEnd(args.polya)
     # segment(args.raw, args.fastx, polya, args.batch_size, args.mode, join(outdir, "dynamont.csv"), args.model_path)
-    segment(args.raw, args.fastx, args.batch_size, args.mode, join(outdir, "dynamont.csv"), args.model_path)
+    segment(args.raw, args.fastx, args.batch_size, args.mode, outfile, args.model_path, args.normalised)
 
 if __name__ == '__main__':
     main()
