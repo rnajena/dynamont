@@ -59,11 +59,11 @@ void fillBASE2ID() {
     BASE2ID.insert(pair<char, int>('t', 3));
     BASE2ID.insert(pair<char, int>('u', 3));
     BASE2ID.insert(pair<char, int>('n', 4));
-    ID2BASE.insert(pair<char, int>('0', 'A'));
-    ID2BASE.insert(pair<char, int>('1', 'C'));
-    ID2BASE.insert(pair<char, int>('2', 'G'));
-    ID2BASE.insert(pair<char, int>('3', 'T'));
-    ID2BASE.insert(pair<char, int>('4', 'N'));
+    ID2BASE.insert(pair<char, char>('0', 'A'));
+    ID2BASE.insert(pair<char, char>('1', 'C'));
+    ID2BASE.insert(pair<char, char>('2', 'G'));
+    ID2BASE.insert(pair<char, char>('3', 'T'));
+    ID2BASE.insert(pair<char, char>('4', 'N'));
 }
 
 /**
@@ -627,9 +627,11 @@ int main(int argc, char* argv[]) {
         // ... or signal or read is missing
         } else if (signal.empty()) {
             cout<<"Signal missing!\n";
+            cout.flush();
             return 1;
         } else if (read.empty()) {
             cout<<"Read missing!\n";
+            cout.flush();
             return 2;
         }
         
@@ -676,7 +678,7 @@ int main(int argc, char* argv[]) {
         logB(sig, kmer_seq, backM, backE, T, N, &model);
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if ((isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0] || abs(forE[T*N-1] - backE[0])/(T*N))>EPSILON)) {
+        if ((isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0]) || abs(forE[T*N-1] - backE[0])/(T*N)>EPSILON)) {
             cerr << fixed << showpoint;
             cerr << setprecision(20);
             cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
