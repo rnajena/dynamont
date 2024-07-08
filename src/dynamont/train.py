@@ -27,7 +27,7 @@ def parse() -> Namespace:
     parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--mode', type=str, choices=['basic', 'indel'], required=True, help='Segmentation algorithm used for segmentation')
+    parser.add_argument('--mode', type=str, choices=['basic', 'basic_sparsed', 'indel'], required=True, help='Segmentation algorithm used for segmentation')
     parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'template_median69pA_extended.model'), help='Which models to train')
     parser.add_argument('--pore', type=int, choices=[9, 10], default=9, help='Pore generation used to sequence the data')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
@@ -69,7 +69,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
     if mode == 'indel':
         transitionParams = {'e1': 1.0, 'm1': 0.10319949594779426, 'd1': 0.10610745507008552, 'e2': 0.7884055549172662, 'e3': 0.00017942642216108796, 'i1': 0.002108069659237201, 'm2': 0.02937758310704649, 'i2': 0.08849246645562929, 'm3': 0.9115075346587537, 'd2': 0.9706224218081904}
-    elif mode == 'basic':
+    elif mode == 'basic' or mode == 'basic_sparsed':
         transitionParams = {'e1': 1.0, 'm1': 0.031232499993784957, 'e2': 0.968433326911128, 'e3': 0.00033417358727719085}
     elif mode == 'extended':
         # TODO
