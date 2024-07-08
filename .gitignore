@@ -53,3 +53,5 @@ tests/playground/
 
 src/dynamont/segmentation_basic
 src/dynamont/segmentation_indel
+src/dynamont/segmentation_basic_sparsed
+src/dynamont/segmentation_3d_extended
