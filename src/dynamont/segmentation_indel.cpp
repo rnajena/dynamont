@@ -29,13 +29,10 @@ void funcI(int t, int n, double* M, double* E, double* D, double* I, double* LPM
 map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
-int ALPHABET_SIZE;
+int ALPHABET_SIZE, numKmers, C, kmerSize; // our model works with this kmer size
 double EPSILON = pow(10, -2);
 bool train, calcZ; // atrain
 double m1, m2, m3, e1, e2, e3, d1, d2, i1, i2; // transition parameters
-int K; // our model works with this kmer size
-int C;
-int numKmers;
 
 const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 const string TERM_STRING = "$";
@@ -82,7 +79,7 @@ void fillBASE2ID() {
 */
 string itoa(int value) {
     string buf;
-    int base = K;
+    int base = kmerSize;
 
     // check that the base if valid
     if (base < 2 || base > 16) return to_string(value);
@@ -149,9 +146,9 @@ int kmer2int(const string &s) {
 */
 int* seq2kmer(int* seq, const int &N) {
     int* kmer_seq = new int[N];
-    int* tempKmer = new int[K];
+    int* tempKmer = new int[kmerSize];
     for (int n=0; n<N; n++){ // extend loop to ad 2 Ns at start and end of read
-        copy(seq + n, seq + n+K, tempKmer);
+        copy(seq + n, seq + n+kmerSize, tempKmer);
         kmer_seq[n] = toDeci(tempKmer);
     }
     delete[] tempKmer;
@@ -730,12 +727,12 @@ int main(int argc, char* argv[]) {
     i2 = log(program.get<double>("insertionscore2"));
     
     if (pore == 9) {
-        K = 5;
+        kmerSize = 5;
     } else if (pore == 10) {
-        K = 9;
+        kmerSize = 9;
     }
     fillBASE2ID();
-    numKmers = pow(ALPHABET_SIZE, K);
+    numKmers = pow(ALPHABET_SIZE, kmerSize);
     vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
     readKmerModel(modelpath, &model);
     string signal;
@@ -775,10 +772,10 @@ int main(int argc, char* argv[]) {
         }
         // process read: convert string to int array
         int N = read.size() + 1; // operate on base transitions
-        int seq_size = read.size() + (K-1); 
+        int seq_size = read.size() + (kmerSize-1); 
         int* seq = new int[seq_size];
         fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
-        i = floor(K/2);
+        i = floor(kmerSize/2);
         for (const char &c: read) {
             seq[i] = BASE2ID.at(c);
             i++;
