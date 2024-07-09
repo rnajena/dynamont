@@ -110,24 +110,6 @@ string itoa(int value) {
 
 /**
  * Converts a number of base ALPHABET_SIZE to a decimal number.
- * TODO Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
- * 
- * @param value input number in the given base
-*/
-int toDeci(int value) {
-    int ret = 0, r = 0;
-    int m = 1;
-    while(value > 0) {
-        r = value % 10;
-        ret += m*r;
-        m *= ALPHABET_SIZE;
-        value /= 10;
-    }
-    return ret;
-}
-
-/**
- * Converts a number of base ALPHABET_SIZE to a decimal number.
  * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
  * 
  * @param i input number in the given base as an array
@@ -135,7 +117,7 @@ int toDeci(int value) {
 int toDeci(int *i) {
     int ret = 0;
     int m = 1;
-    for(int r = K - 1; r >= 0; r--) {
+    for(int r = kmerSize - 1; r >= 0; r--) {
         ret += m*i[r];
         m *= ALPHABET_SIZE;
     }
@@ -149,13 +131,12 @@ int toDeci(int *i) {
  * @return integer representation of the given kmer
  */
 int kmer2int(const string &s) {
-    int i = 0;
+    int ret = 0;
     for (char const &c:s){
-        assert (BASE2ID.at(c)>=0);
-        i *= 10; // move the number to the left
-        i+=BASE2ID.at(c);
+        // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
+        ret*=kmerSize; // move the number in base to the left
+        ret+=BASE2ID.at(c);
     }
-    int ret = toDeci(i);
     return ret;
 }
 
