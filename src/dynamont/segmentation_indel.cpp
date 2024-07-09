@@ -819,6 +819,8 @@ int main(int argc, char* argv[]) {
             exit(11);
         }
 
+        cerr<<"forZ: "<<forE[T*N-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+
         if (calcZ){
             cout<<forE[T*N-1]<<"\n";
             cout.flush();
