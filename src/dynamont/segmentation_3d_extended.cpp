@@ -287,7 +287,7 @@ inline double error(const double &signal_dp) {
  */
 void logF(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E, double* I, const int &T, const int &N, const int &K, vector<tuple<double, double>>* model){
     double a, p, s, e, i;
-
+    int preKmer;
     for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
             for(int k=0; k<K; k++){
@@ -304,30 +304,31 @@ void logF(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E
 
                 if(t>0 && n>0){
                     for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
-                        a=logPlus(a, E[(t-1)*(N*T)+(n-1)*T+precessingKmer(k, prevK)] + a1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                       // a=logPlus(a, I[(t-1)*(N*T)+(n-1)*T+precessingKmer(k, prevK)] + a2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                        preKmer = precessingKmer(k, prevK);
+                        a=logPlus(a, E[(t-1)*(N*K)+(n-1)*K+preKmer] + a1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                        a=logPlus(a, I[(t-1)*(N*K)+(n-1)*K+preKmer] + a2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
 
-                        // p=logPlus(p, S[(t-1)*(N*T)+n*T+precessingKmer(k, prevK)] + p1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                        // p=logPlus(p, E[(t-1)*(N*T)+n*T+precessingKmer(k, prevK)] + p2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                        // p=logPlus(p, I[(t-1)*(N*T)+n*T+precessingKmer(k, prevK)] + p3 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                        p=logPlus(p, S[(t-1)*(N*K)+n*K+preKmer] + p1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                        p=logPlus(p, E[(t-1)*(N*K)+n*K+preKmer] + p2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                        p=logPlus(p, I[(t-1)*(N*K)+n*K+preKmer] + p3 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
                     }
-                    // s=logPlus(s, P[(t-1)*(N*T)+(n-1)*T+k] + s1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                    // s=logPlus(s, E[(t-1)*(N*T)+(n-1)*T+k] + s2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                    // s=logPlus(s, I[(t-1)*(N*T)+(n-1)*T+k] + s3 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                    s=logPlus(s, P[(t-1)*(N*K)+(n-1)*K+k] + s1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                    s=logPlus(s, E[(t-1)*(N*K)+(n-1)*K+k] + s2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                    s=logPlus(s, I[(t-1)*(N*K)+(n-1)*K+k] + s3 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
 
-                    e=logPlus(e, A[(t-1)*(N*T)+n*T+k] + e1 + score(sig[t-1], kmer_seq[n-1], k, model));
-                    // e=logPlus(e, P[(t-1)*(N*T)+n*T+k] + e2 + score(sig[t-1], kmer_seq[n-1], k, model));
-                    // e=logPlus(e, S[(t-1)*(N*T)+n*T+k] + e3 + score(sig[t-1], kmer_seq[n-1], k, model));
-                    e=logPlus(e, E[(t-1)*(N*T)+n*T+k] + e4 + score(sig[t-1], kmer_seq[n-1], k, model));
+                    e=logPlus(e, A[(t-1)*(N*K)+n*K+k] + e1 + score(sig[t-1], kmer_seq[n-1], k, model));
+                    e=logPlus(e, P[(t-1)*(N*K)+n*K+k] + e2 + score(sig[t-1], kmer_seq[n-1], k, model));
+                    e=logPlus(e, S[(t-1)*(N*K)+n*K+k] + e3 + score(sig[t-1], kmer_seq[n-1], k, model));
+                    e=logPlus(e, E[(t-1)*(N*K)+n*K+k] + e4 + score(sig[t-1], kmer_seq[n-1], k, model));
 
-                    // i=logPlus(i, E[t*(N*T)+(n-1)*T+k] + i1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                    // i=logPlus(i, I[t*(N*T)+(n-1)*T+k] + i2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                    i=logPlus(i, E[t*(N*K)+(n-1)*K+k] + i1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                    i=logPlus(i, I[t*(N*K)+(n-1)*K+k] + i2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
                 }
-                A[t*(N*T)+n*T+k]=a;
-                P[t*(N*T)+n*T+k]=p;
-                S[t*(N*T)+n*T+k]=s;
-                E[t*(N*T)+n*T+k]=e;
-                I[t*(N*T)+n*T+k]=i;
+                A[t*(N*K)+n*K+k]=a;
+                P[t*(N*K)+n*K+k]=p;
+                S[t*(N*K)+n*K+k]=s;
+                E[t*(N*K)+n*K+k]=e;
+                I[t*(N*K)+n*K+k]=i;
             }
         }
     }
@@ -344,7 +345,7 @@ void logF(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E
  */
 void logB(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E, double* I, const int &T, const int &N, const int &K, vector<tuple<double, double>>* model){
     double a, p, s, e, i;
-
+    int sucKmer;
     for(int t=T-1; t>=0; t--){
         for(int n=N-1; n>=0; n--){
             for(int k=K-1; k>=0; k--){
@@ -361,42 +362,44 @@ void logB(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E
 
                 if (t<T-1) {
                     if (n>0) {
-                        a=logPlus(a, E[(t+1)*(N*T)+n*T+k] + e1 + score(sig[t], kmer_seq[n-1], k, model));
-                        // p=logPlus(p, E[(t+1)*(N*T)+n*T+k] + e2 + score(sig[t], kmer_seq[n-1], k, model));
-                        // s=logPlus(s, E[(t+1)*(N*T)+n*T+k] + e3 + score(sig[t], kmer_seq[n-1], k, model));
-                        e=logPlus(e, E[(t+1)*(N*T)+n*T+k] + e4 + score(sig[t], kmer_seq[n-1], k, model));
-                        // if (k<K-1) {
-                        //     for (int nextK=0; nextK<kmerSize; nextK++){
-                        //         s=logPlus(s, P[(t+1)*(N*T)+n*T+successingKmer(k, nextK)] + p1 + score(sig[t], kmer_seq[n-1], successingKmer(k, nextK), 0.05, model));
-                        //         e=logPlus(e, P[(t+1)*(N*T)+n*T+successingKmer(k, nextK)] + p2 + score(sig[t], kmer_seq[n-1], successingKmer(k, nextK), 0.05, model));
-                        //         i=logPlus(i, P[(t+1)*(N*T)+n*T+successingKmer(k, nextK)] + p3 + score(sig[t], kmer_seq[n-1], successingKmer(k, nextK), 0.05, model));
-                        //     }
-                        // }
+                        a=logPlus(a, E[(t+1)*(N*K)+n*K+k] + e1 + score(sig[t], kmer_seq[n-1], k, model));
+                        p=logPlus(p, E[(t+1)*(N*K)+n*K+k] + e2 + score(sig[t], kmer_seq[n-1], k, model));
+                        s=logPlus(s, E[(t+1)*(N*K)+n*K+k] + e3 + score(sig[t], kmer_seq[n-1], k, model));
+                        e=logPlus(e, E[(t+1)*(N*K)+n*K+k] + e4 + score(sig[t], kmer_seq[n-1], k, model));
+                        if (k<K-1) {
+                            for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
+                                sucKmer = successingKmer(k, nextK);
+                                s=logPlus(s, P[(t+1)*(N*K)+n*K+sucKmer] + p1 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
+                                e=logPlus(e, P[(t+1)*(N*K)+n*K+sucKmer] + p2 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
+                                i=logPlus(i, P[(t+1)*(N*K)+n*K+sucKmer] + p3 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
+                            }
+                        }
                     }
 
                     if (n<N-1) {
-                        // p=logPlus(p, S[(t+1)*(N*T)+(n+1)*T+k] + s1 + score(sig[t], kmer_seq[n], k, 0.05, model));
-                        // e=logPlus(e, S[(t+1)*(N*T)+(n+1)*T+k] + s2 + score(sig[t], kmer_seq[n], k, 0.05, model));
-                        // i=logPlus(i, S[(t+1)*(N*T)+(n+1)*T+k] + s3 + score(sig[t], kmer_seq[n], k, 0.05, model));
+                        p=logPlus(p, S[(t+1)*(N*K)+(n+1)*K+k] + s1 + score(sig[t], kmer_seq[n], k, 0.05, model));
+                        e=logPlus(e, S[(t+1)*(N*K)+(n+1)*K+k] + s2 + score(sig[t], kmer_seq[n], k, 0.05, model));
+                        i=logPlus(i, S[(t+1)*(N*K)+(n+1)*K+k] + s3 + score(sig[t], kmer_seq[n], k, 0.05, model));
                         
-                        for (int nextK=0; nextK<kmerSize; nextK++){
-                            e=logPlus(e, A[(t+1)*(N*T)+(n+1)*T+successingKmer(k, nextK)] + a1 + score(sig[t], kmer_seq[n], successingKmer(k, nextK), 0.05, model));
-                            // i=logPlus(i, A[(t+1)*(N*T)+(n+1)*T+successingKmer(k, nextK)] + a2 + score(sig[t], kmer_seq[n], successingKmer(k, nextK), 0.05, model));
+                        for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
+                            sucKmer = successingKmer(k, nextK);
+                            e=logPlus(e, A[(t+1)*(N*K)+(n+1)*K+sucKmer] + a1 + score(sig[t], kmer_seq[n], sucKmer, 0.05, model));
+                            i=logPlus(i, A[(t+1)*(N*K)+(n+1)*K+sucKmer] + a2 + score(sig[t], kmer_seq[n], sucKmer, 0.05, model));
                         }
                         
                     }
                 }
 
-                // if (t>0 && n<N-1) {
-                //     e=logPlus(e, I[t*(N*T)+(n+1)*T+k] + i1 + score(sig[t-1], kmer_seq[n], k, 0.05, model));
-                //     i=logPlus(i, I[t*(N*T)+(n+1)*T+k] + i2 + score(sig[t-1], kmer_seq[n], k, 0.05, model));                    
-                // }
+                if (t>0 && n<N-1) {
+                    e=logPlus(e, I[t*(N*K)+(n+1)*K+k] + i1 + score(sig[t-1], kmer_seq[n], k, 0.05, model));
+                    i=logPlus(i, I[t*(N*K)+(n+1)*K+k] + i2 + score(sig[t-1], kmer_seq[n], k, 0.05, model));                    
+                }
 
-                A[t*(N*T)+n*T+k]=a;
-                P[t*(N*T)+n*T+k]=p;
-                S[t*(N*T)+n*T+k]=s;
-                E[t*(N*T)+n*T+k]=e;
-                I[t*(N*T)+n*T+k]=i;
+                A[t*(N*K)+n*K+k]=a;
+                P[t*(N*K)+n*K+k]=p;
+                S[t*(N*K)+n*K+k]=s;
+                E[t*(N*K)+n*K+k]=e;
+                I[t*(N*K)+n*K+k]=i;
             }
         }
     }
@@ -417,7 +420,7 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
     for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
             for(int k=0; k<K; k++){
-                int x = t*(N*T)+n*T+k;
+                int x = t*(N*K)+n*K+k;
                 LP[x] = FOR[x] + BACK[x] - Z;
             }
         }
@@ -451,7 +454,7 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
 //                 e=-INFINITY;
 //                 i=-INFINITY;
                 
-//                 idx = t*(N*T)+n*T+k;
+//                 idx = t*(N*K)+n*K+k;
 
 //                 if(t==0 && n==0 && k==0){
 //                     e=0;
@@ -459,27 +462,27 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
 
 //                 if(t>0 && n>0 && k>0){
 //                     for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
-//                         a=max(a, E[(t-1)*(N*T)+(n-1)*T+precessingKmer(k, prevK)] + LPA[idx]);
-//                         a=max(a, I[(t-1)*(N*T)+(n-1)*T+precessingKmer(k, prevK)] + LPA[idx]);
+//                         a=max(a, E[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[idx]);
+//                         a=max(a, I[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[idx]);
 
-//                         p=max(p, S[(t-1)*(N*T)+n*T+precessingKmer(k, prevK)] + LPP[idx]);
-//                         p=max(p, E[(t-1)*(N*T)+n*T+precessingKmer(k, prevK)] + LPP[idx]);
-//                         p=max(p, I[(t-1)*(N*T)+n*T+precessingKmer(k, prevK)] + LPP[idx]);
+//                         p=max(p, S[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
+//                         p=max(p, E[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
+//                         p=max(p, I[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
 //                     }
 //                 }
 
 //                 if (t>0 && n>0) {
-//                     s=max(s, P[(t-1)*(N*T)+(n-1)*T+k] + LPS[idx]);
-//                     s=max(s, E[(t-1)*(N*T)+(n-1)*T+k] + LPS[idx]);
-//                     s=max(s, I[(t-1)*(N*T)+(n-1)*T+k] + LPS[idx]);
+//                     s=max(s, P[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
+//                     s=max(s, E[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
+//                     s=max(s, I[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
 
-//                     e=max(e, A[(t-1)*(N*T)+n*T+k] + LPE[idx]);
-//                     e=max(e, P[(t-1)*(N*T)+n*T+k] + LPE[idx]);
-//                     e=max(e, S[(t-1)*(N*T)+n*T+k] + LPE[idx]);
-//                     e=max(e, E[(t-1)*(N*T)+n*T+k] + LPE[idx]);
+//                     e=max(e, A[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+//                     e=max(e, P[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+//                     e=max(e, S[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+//                     e=max(e, E[(t-1)*(N*K)+n*K+k] + LPE[idx]);
 
-//                     i=max(i, E[t*(N*T)+(n-1)*T+k] + LPI[idx]);
-//                     i=max(i, I[t*(N*T)+(n-1)*T+k] + LPI[idx]);
+//                     i=max(i, E[t*(N*K)+(n-1)*K+k] + LPI[idx]);
+//                     i=max(i, I[t*(N*K)+(n-1)*K+k] + LPI[idx]);
 //                 }
 //                 A[idx]=a;
 //                 P[idx]=p;
@@ -500,17 +503,17 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
 // }
 
 // void funcA(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T){
-//     double score = A[t*(N*T)+n*T+k];
+//     double score = A[t*(N*K)+n*K+k];
 //     if (t<=1 && n<=1){ // Start value
 //         segString->push_front("M"+to_string(0)+","+to_string(0)); // n-1 because N is 1 larger than the sequences
 //         return;
 //     }
 //     // TODO fix to get correct k here
-//     if (t>0 && n>0 && score == E[(t-1)*N+(n-1)] + LPA[t*(N*T)+n*T+k]){
+//     if (t>0 && n>0 && score == E[(t-1)*N+(n-1)] + LPA[t*(N*K)+n*K+k]){
 //         segString->push_front("M"+to_string(n-1)+","+to_string(t-1));
 //         return funcE(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T);
 //     }
-//     if (t>0 && n>0 && score == I[(t-1)*N+(n-1)] + LPA[t*(N*T)+n*T+k]){
+//     if (t>0 && n>0 && score == I[(t-1)*N+(n-1)] + LPA[t*(N*K)+n*K+k]){
 //         segString->push_front("M"+to_string(n-1)+","+to_string(t-1));
 //         return funcI(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T);
 //     }
@@ -854,7 +857,7 @@ int main(int argc, char* argv[]) {
 
         // init, log(1) for any k
         for(int k=0; k<K; k++){
-            Zf = logPlus(Zf, forE[(T-1)*(N*T)+(N-1)*T+k]);
+            Zf = logPlus(Zf, forE[(T-1)*(N*K)+(N-1)*K+k]);
             Zb = logPlus(Zb, backE[k]);
         }
 
@@ -866,7 +869,7 @@ int main(int argc, char* argv[]) {
         for(int t=T-1; t>=0; t--){
             for(int n=N-1; n>=0; n--){
                 for(int k=K-1; k>=0; k--){
-                    idx = t*(N*T)+n*T+k;
+                    idx = t*(N*K)+n*K+k;
                     MaxFe=max(MaxFe, forE[idx]);
                     MaxBe=max(MaxBe, backE[idx]);
                     MaxFa=max(MaxFa, forA[idx]);
