@@ -458,6 +458,7 @@ void funcE(int t, int n, double* M, double* E, double* D, double* I, double* LPM
 void funcI(int t, int n, double* M, double* E, double* D, double* I, double* LPM, double* LPE, double* LPD, double* LPI, list<string>* segString, const int &N){
     double score = I[t*N+n];
     if (n>0 && score == I[t*N+(n-1)] + LPI[t*N+n]) {
+        segString->push_front("I"+to_string(n-1)+","+to_string(t));
         return funcI(t, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
     if (n>0 && score == E[t*N+(n-1)] + LPI[t*N+n]) {
@@ -469,6 +470,7 @@ void funcI(int t, int n, double* M, double* E, double* D, double* I, double* LPM
 void funcD(int t, int n, double* M, double* E, double* D, double* I, double* LPM, double* LPE, double* LPD, double* LPI, list<string>* segString, const int &N){
     double score = D[t*N+n];
     if (t>0 && score == D[(t-1)*N+n] + LPD[t*N+n]) {
+        segString->push_front("D"+to_string(n)+","+to_string(t-1));
         return funcI(t-1, n, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
     }
     if (t>0 && score == E[(t-1)*N+n] + LPD[t*N+n]) {

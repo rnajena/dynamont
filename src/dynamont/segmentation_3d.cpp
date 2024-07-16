@@ -8,27 +8,28 @@
 #include <fstream> // file io
 #include <sstream> // file io
 #include <string>
-#include <map> // dictionary
+#include <algorithm>
+#include <vector>
+#include <array>
+#include <unordered_map> 
 #include <tuple>
 #include <bits/stdc++.h> // reverse strings
-#include <vector>
 #include <cmath> // exp
 // #include <limits> // for inifinity
 #include <assert.h>
 #include <stdlib.h>
 #include "argparse.hpp"
-#include <algorithm>
 
 using namespace std;
 
-// void funcA(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T);
-// void funcP(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T);
-// void funcS(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T);
-// void funcE(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T);
-// void funcI(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T);
+void funcA(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K);
+void funcP(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K);
+void funcS(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K);
+void funcE(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K);
+void funcI(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K);
 
-map<char, int> BASE2ID;
-map<char, int> ID2BASE;
+unordered_map<char, int> BASE2ID;
+unordered_map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE, kmerSize, C, numKmers; // size of acceptable base characters, kmer size, min segment length, number of kmers
 double EPSILON = pow(10, -2);
@@ -212,6 +213,13 @@ int distanceSequenceKmer(const int &kmer_N, const int &kmer_K) {
 }
 
 /**
+ * Return shifted & scaled log probability density for a given value and a given normal distribution
+ */
+inline double scoreSignalKmer(const double &signal_T, const double &mean, const double &stdev) {
+    return 2*(log_normal_pdf(signal_T, mean, stdev) + 6);
+}
+
+/**
  * Return log probability density for a given value and a given normal distribution.
  * affineScale = 0.05 -> https://bmcgenomics.biomedcentral.com/articles/10.1186/s12864-024-10440-w#Fig1
  * 
@@ -224,15 +232,15 @@ inline double score(const double &signal_T, const int &kmer_N, const int &kmer_K
     tuple<double, double> kmerModel_N = (*model)[kmer_N];
     tuple<double, double> kmerModel_K = (*model)[kmer_K];
 
-    double scoreNT = 2*(log_normal_pdf(signal_T, get<0>(kmerModel_N), get<1>(kmerModel_N)) + 6);
-    double scoreKT = 2*(log_normal_pdf(signal_T, get<0>(kmerModel_K), get<1>(kmerModel_K)) + 6);
+    double scoreNT = scoreSignalKmer(signal_T, get<0>(kmerModel_N), get<1>(kmerModel_N));
+    double scoreKT = scoreSignalKmer(signal_T, get<0>(kmerModel_K), get<1>(kmerModel_K));
     double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K) * affineScale; // log(exp(-HD * affineCost)) = -HD * affineCost
 
     return scoreNT + scoreKT + scoreNK;
 }
 
 /**
- * Return log probability density for a given value and a given normal distribution
+ * Return combined log probability density for a given value and a given normal distribution
  *
  * @param signal point to calculate probability density
  * @param kmer key for the model kmer:(mean, stdev) map
@@ -243,8 +251,8 @@ inline double score(const double &signal_T, const int &kmer_N, const int &kmer_K
     tuple<double, double> kmerModel_N = (*model)[kmer_N];
     tuple<double, double> kmerModel_K = (*model)[kmer_K];
 
-    double scoreNT = 2*(log_normal_pdf(signal_T, get<0>(kmerModel_N), get<1>(kmerModel_N)) + 6);
-    double scoreKT = 2*(log_normal_pdf(signal_T, get<0>(kmerModel_K), get<1>(kmerModel_K)) + 6);
+    double scoreNT = scoreSignalKmer(signal_T, get<0>(kmerModel_N), get<1>(kmerModel_N));
+    double scoreKT = scoreSignalKmer(signal_T, get<0>(kmerModel_K), get<1>(kmerModel_K));
     double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K); // log(exp(-HD)) = -HD
 
     return scoreNT + scoreKT + scoreNK;
@@ -277,6 +285,31 @@ inline double error(const double &signal_dp) {
 }
 
 /**
+ * Preprocess on signal and nucleotides to select plausible indices
+ * Speeds up the DP
+ */
+void preProcTN(double* sig, int* kmer_seq, vector<int>& allowedTNKeys, const int &N, const int &T, const int &K, vector<tuple<double, double>>* model) {
+    const double THRESHOLD = log(pow(10, -5));
+    tuple<double, double> kmerModel;
+    for(int n=0; n<N; n++) {
+        allowedTNKeys.push_back(0*N+n);
+    }
+    for(int t=0; t<T; t++) {
+        allowedTNKeys.push_back(t*N+0);
+    }
+    for(int n=1; n<N; n++) {
+        auto& [mean, stdev] = (*model)[kmer_seq[n-1]];
+        for(int t=1; t<T; t++){
+            // store allowed indices
+            if(scoreSignalKmer(sig[t-1], mean, stdev) > THRESHOLD) {
+                allowedTNKeys.push_back(t*N+n);
+            }
+        }
+    }
+    sort(allowedTNKeys.begin(), allowedTNKeys.end());
+}
+
+/**
  * Calculate forward matrices using logarithmic values
  *
  * @param sig ONT raw signal with pA values
@@ -286,7 +319,7 @@ inline double error(const double &signal_dp) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logF(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E, double* I, const int &T, const int &N, const int &K, vector<tuple<double, double>>* model){
-    double a, p, s, e, i;
+    double a, p, s, e, i, openScore, extendScore;
     int preKmer;
     for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
@@ -296,33 +329,37 @@ void logF(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E
                 s=-INFINITY;
                 e=-INFINITY;
                 i=-INFINITY;
-                
                 // init, log(1) for any k
                 if(t==0 && n==0){
                     e=0;
                 }
-
                 if(t>0 && n>0){
+                    extendScore = score(sig[t-1], kmer_seq[n-1], k, model);
+                    // using sparsity
+                    // if (extendScore < log(pow(10, -5))) {
+                    //     continue;
+                    // }
+                    openScore = score(sig[t-1], kmer_seq[n-1], k, 0.05, model);
                     for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
                         preKmer = precessingKmer(k, prevK);
-                        a=logPlus(a, E[(t-1)*(N*K)+(n-1)*K+preKmer] + a1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                        a=logPlus(a, I[(t-1)*(N*K)+(n-1)*K+preKmer] + a2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-
-                        p=logPlus(p, S[(t-1)*(N*K)+n*K+preKmer] + p1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                        p=logPlus(p, E[(t-1)*(N*K)+n*K+preKmer] + p2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                        p=logPlus(p, I[(t-1)*(N*K)+n*K+preKmer] + p3 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                        a=logPlus(a, E[(t-1)*(N*K)+(n-1)*K+preKmer] + a1 + openScore);
+                        a=logPlus(a, I[(t-1)*(N*K)+(n-1)*K+preKmer] + a2 + openScore);
+                    
+                        p=logPlus(p, S[(t-1)*(N*K)+n*K+preKmer] + p1 + openScore);
+                        p=logPlus(p, E[(t-1)*(N*K)+n*K+preKmer] + p2 + openScore);
+                        p=logPlus(p, I[(t-1)*(N*K)+n*K+preKmer] + p3 + openScore);
                     }
-                    s=logPlus(s, P[(t-1)*(N*K)+(n-1)*K+k] + s1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                    s=logPlus(s, E[(t-1)*(N*K)+(n-1)*K+k] + s2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                    s=logPlus(s, I[(t-1)*(N*K)+(n-1)*K+k] + s3 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-
-                    e=logPlus(e, A[(t-1)*(N*K)+n*K+k] + e1 + score(sig[t-1], kmer_seq[n-1], k, model));
-                    e=logPlus(e, P[(t-1)*(N*K)+n*K+k] + e2 + score(sig[t-1], kmer_seq[n-1], k, model));
-                    e=logPlus(e, S[(t-1)*(N*K)+n*K+k] + e3 + score(sig[t-1], kmer_seq[n-1], k, model));
-                    e=logPlus(e, E[(t-1)*(N*K)+n*K+k] + e4 + score(sig[t-1], kmer_seq[n-1], k, model));
-
-                    i=logPlus(i, E[t*(N*K)+(n-1)*K+k] + i1 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
-                    i=logPlus(i, I[t*(N*K)+(n-1)*K+k] + i2 + score(sig[t-1], kmer_seq[n-1], k, 0.05, model));
+                    s=logPlus(s, P[(t-1)*(N*K)+(n-1)*K+k] + s1 + openScore);
+                    s=logPlus(s, E[(t-1)*(N*K)+(n-1)*K+k] + s2 + openScore);
+                    s=logPlus(s, I[(t-1)*(N*K)+(n-1)*K+k] + s3 + openScore);
+                    
+                    e=logPlus(e, A[(t-1)*(N*K)+n*K+k] + e1 + extendScore);
+                    e=logPlus(e, P[(t-1)*(N*K)+n*K+k] + e2 + extendScore);
+                    e=logPlus(e, S[(t-1)*(N*K)+n*K+k] + e3 + extendScore);
+                    e=logPlus(e, E[(t-1)*(N*K)+n*K+k] + e4 + extendScore);
+                    
+                    i=logPlus(i, E[t*(N*K)+(n-1)*K+k] + i1 + openScore);
+                    i=logPlus(i, I[t*(N*K)+(n-1)*K+k] + i2 + openScore);
                 }
                 A[t*(N*K)+n*K+k]=a;
                 P[t*(N*K)+n*K+k]=p;
@@ -354,47 +391,38 @@ void logB(double* sig, int* kmer_seq, double* A, double* P, double* S, double* E
                 s=-INFINITY;
                 e=-INFINITY;
                 i=-INFINITY;
-
                 // init, log(1) for any k
                 if (t==T-1 && n==N-1) {
                     e=0;
                 }
-
                 if (t<T-1) {
                     if (n>0) {
                         a=logPlus(a, E[(t+1)*(N*K)+n*K+k] + e1 + score(sig[t], kmer_seq[n-1], k, model));
                         p=logPlus(p, E[(t+1)*(N*K)+n*K+k] + e2 + score(sig[t], kmer_seq[n-1], k, model));
                         s=logPlus(s, E[(t+1)*(N*K)+n*K+k] + e3 + score(sig[t], kmer_seq[n-1], k, model));
                         e=logPlus(e, E[(t+1)*(N*K)+n*K+k] + e4 + score(sig[t], kmer_seq[n-1], k, model));
-                        if (k<K-1) {
-                            for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
-                                sucKmer = successingKmer(k, nextK);
-                                s=logPlus(s, P[(t+1)*(N*K)+n*K+sucKmer] + p1 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
-                                e=logPlus(e, P[(t+1)*(N*K)+n*K+sucKmer] + p2 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
-                                i=logPlus(i, P[(t+1)*(N*K)+n*K+sucKmer] + p3 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
-                            }
+                        for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
+                            sucKmer = successingKmer(k, nextK);
+                            s=logPlus(s, P[(t+1)*(N*K)+n*K+sucKmer] + p1 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
+                            e=logPlus(e, P[(t+1)*(N*K)+n*K+sucKmer] + p2 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
+                            i=logPlus(i, P[(t+1)*(N*K)+n*K+sucKmer] + p3 + score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model));
                         }
                     }
-
                     if (n<N-1) {
                         p=logPlus(p, S[(t+1)*(N*K)+(n+1)*K+k] + s1 + score(sig[t], kmer_seq[n], k, 0.05, model));
                         e=logPlus(e, S[(t+1)*(N*K)+(n+1)*K+k] + s2 + score(sig[t], kmer_seq[n], k, 0.05, model));
                         i=logPlus(i, S[(t+1)*(N*K)+(n+1)*K+k] + s3 + score(sig[t], kmer_seq[n], k, 0.05, model));
-                        
                         for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
                             sucKmer = successingKmer(k, nextK);
                             e=logPlus(e, A[(t+1)*(N*K)+(n+1)*K+sucKmer] + a1 + score(sig[t], kmer_seq[n], sucKmer, 0.05, model));
                             i=logPlus(i, A[(t+1)*(N*K)+(n+1)*K+sucKmer] + a2 + score(sig[t], kmer_seq[n], sucKmer, 0.05, model));
                         }
-                        
                     }
                 }
-
                 if (t>0 && n<N-1) {
                     e=logPlus(e, I[t*(N*K)+(n+1)*K+k] + i1 + score(sig[t-1], kmer_seq[n], k, 0.05, model));
-                    i=logPlus(i, I[t*(N*K)+(n+1)*K+k] + i2 + score(sig[t-1], kmer_seq[n], k, 0.05, model));                    
+                    i=logPlus(i, I[t*(N*K)+(n+1)*K+k] + i2 + score(sig[t-1], kmer_seq[n], k, 0.05, model));
                 }
-
                 A[t*(N*K)+n*K+k]=a;
                 P[t*(N*K)+n*K+k]=p;
                 S[t*(N*K)+n*K+k]=s;
@@ -432,104 +460,154 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
  * Calculate the maximum a posteriori path through LP
  *
  */
-// list<string> getBorders(double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, const int &T, const int &N, const int &K){
-//     double* A = new double[T*N*K];
-//     double* P = new double[T*N*K];
-//     double* S = new double[T*N*K];
-//     double* E = new double[T*N*K];
-//     double* I = new double[T*N*K];
-//     fill_n(A, T*N*K, -INFINITY);
-//     fill_n(P, T*N*K, -INFINITY);
-//     fill_n(S, T*N*K, -INFINITY);
-//     fill_n(E, T*N*K, -INFINITY);
-//     fill_n(I, T*N*K, -INFINITY);
-//     double a, p, s, e, i;
-//     int idx;
-//     for(int t=0; t<T; t++){
-//         for(int n=0; n<N; n++){
-//             for(int k=0; k<K; k++){
-//                 a=-INFINITY;
-//                 p=-INFINITY;
-//                 s=-INFINITY;
-//                 e=-INFINITY;
-//                 i=-INFINITY;
+list<string> getBorders(double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, const int &T, const int &N, const int &K){
+    double* A = new double[T*N*K];
+    double* P = new double[T*N*K];
+    double* S = new double[T*N*K];
+    double* E = new double[T*N*K];
+    double* I = new double[T*N*K];
+    fill_n(A, T*N*K, -INFINITY);
+    fill_n(P, T*N*K, -INFINITY);
+    fill_n(S, T*N*K, -INFINITY);
+    fill_n(E, T*N*K, -INFINITY);
+    fill_n(I, T*N*K, -INFINITY);
+    double a, p, s, e, i;
+    int idx;
+    for(int t=0; t<T; t++){
+        for(int n=0; n<N; n++){
+            for(int k=0; k<K; k++){
+                a=-INFINITY;
+                p=-INFINITY;
+                s=-INFINITY;
+                e=-INFINITY;
+                i=-INFINITY;
                 
-//                 idx = t*(N*K)+n*K+k;
+                idx = t*(N*K)+n*K+k;
 
-//                 if(t==0 && n==0 && k==0){
-//                     e=0;
-//                 }
+                if(t==0 && n==0 && k==0){
+                    e=0;
+                }
 
-//                 if(t>0 && n>0 && k>0){
-//                     for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
-//                         a=max(a, E[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[idx]);
-//                         a=max(a, I[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[idx]);
+                if(t>0 && n>0 && k>0){
+                    for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
+                        a=max(a, E[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[idx]);
+                        a=max(a, I[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[idx]);
 
-//                         p=max(p, S[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
-//                         p=max(p, E[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
-//                         p=max(p, I[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
-//                     }
-//                 }
+                        p=max(p, S[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
+                        p=max(p, E[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
+                        p=max(p, I[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[idx]);
+                    }
+                }
 
-//                 if (t>0 && n>0) {
-//                     s=max(s, P[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
-//                     s=max(s, E[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
-//                     s=max(s, I[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
+                if (t>0 && n>0) {
+                    s=max(s, P[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
+                    s=max(s, E[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
+                    s=max(s, I[(t-1)*(N*K)+(n-1)*K+k] + LPS[idx]);
 
-//                     e=max(e, A[(t-1)*(N*K)+n*K+k] + LPE[idx]);
-//                     e=max(e, P[(t-1)*(N*K)+n*K+k] + LPE[idx]);
-//                     e=max(e, S[(t-1)*(N*K)+n*K+k] + LPE[idx]);
-//                     e=max(e, E[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+                    e=max(e, A[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+                    e=max(e, P[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+                    e=max(e, S[(t-1)*(N*K)+n*K+k] + LPE[idx]);
+                    e=max(e, E[(t-1)*(N*K)+n*K+k] + LPE[idx]);
 
-//                     i=max(i, E[t*(N*K)+(n-1)*K+k] + LPI[idx]);
-//                     i=max(i, I[t*(N*K)+(n-1)*K+k] + LPI[idx]);
-//                 }
-//                 A[idx]=a;
-//                 P[idx]=p;
-//                 S[idx]=s;
-//                 E[idx]=e;
-//                 I[idx]=i;
-//             }
-//         }
-//     }
-//     list<string> segString;
-//     funcE(T-1, N-1, K-1, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, &segString, N, T);
-//     delete[] A;
-//     delete[] P;
-//     delete[] S;
-//     delete[] E;
-//     delete[] I;
-//     return segString;
-// }
+                    i=max(i, E[t*(N*K)+(n-1)*K+k] + LPI[idx]);
+                    i=max(i, I[t*(N*K)+(n-1)*K+k] + LPI[idx]);
+                }
+                A[idx]=a;
+                P[idx]=p;
+                S[idx]=s;
+                E[idx]=e;
+                I[idx]=i;
+            }
+        }
+    }
+    list<string> segString;
+    funcE(T-1, N-1, K-1, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, &segString, N, T, K);
+    delete[] A;
+    delete[] P;
+    delete[] S;
+    delete[] E;
+    delete[] I;
+    return segString;
+}
 
-// void funcA(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T){
-//     double score = A[t*(N*K)+n*K+k];
-//     if (t<=1 && n<=1){ // Start value
-//         segString->push_front("M"+to_string(0)+","+to_string(0)); // n-1 because N is 1 larger than the sequences
-//         return;
-//     }
-//     // TODO fix to get correct k here
-//     if (t>0 && n>0 && score == E[(t-1)*N+(n-1)] + LPA[t*(N*K)+n*K+k]){
-//         segString->push_front("M"+to_string(n-1)+","+to_string(t-1));
-//         return funcE(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T);
-//     }
-//     if (t>0 && n>0 && score == I[(t-1)*N+(n-1)] + LPA[t*(N*K)+n*K+k]){
-//         segString->push_front("M"+to_string(n-1)+","+to_string(t-1));
-//         return funcI(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T);
-//     }
-// }
+void funcA(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K){
+    double score = A[t*(N*K)+n*K+k];
+    if (t<=1 && n<=1){ // Start value
+        segString->push_front("M"+to_string(0)+","+to_string(0)+","+itoa(k)+";"); // n-1 because N is 1 larger than the sequences
+        return;
+    }
+    for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
+        if (t>0 && n>0 && score == E[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[t*(N*K)+n*K+k]){
+            segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+            return funcE(t-1, n-1, precessingKmer(k, prevK), A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+        }
+        if (t>0 && n>0 && score == I[(t-1)*(N*K)+(n-1)*K+precessingKmer(k, prevK)] + LPA[t*(N*K)+n*K+k]){
+            segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+            return funcI(t-1, n-1, precessingKmer(k, prevK), A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+        }
+    }
+}
+void funcE(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K){
+    double score = E[t*(N*K)+n*K+k];
+    if (t>0 && n>0 && score == E[(t-1)*(N*K)+n*K+k] + LPE[t*N+n]){
+        return funcE(t-1, n, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+    if (t>0 && n>0 && score == A[(t-1)*(N*K)+n*K+k] + LPE[t*N+n]){
+        return funcA(t-1, n, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+    if (t>0 && n>0 && score == S[(t-1)*(N*K)+n*K+k] + LPE[t*N+n]){
+        return funcS(t-1, n, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+    if (t>0 && n>0 && score == I[(t-1)*(N*K)+n*K+k] + LPE[t*N+n]){
+        return funcI(t-1, n, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+}
 
-// void funcE(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T){
-    // TODO
+void funcP(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K){
+    double score = P[t*(N*K)+n*K+k];
+    for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
+        if (t>0 && n>0 && score == S[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[t*(N*K)+n*K+k]){
+            segString->push_front("P"+to_string(n)+","+to_string(t-1)+","+itoa(k)+";");
+            return funcS(t-1, n, precessingKmer(k, prevK), A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+        }
+        if (t>0 && n>0 && score == E[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[t*(N*K)+n*K+k]){
+            segString->push_front("P"+to_string(n)+","+to_string(t-1)+","+itoa(k)+";");
+            return funcE(t-1, n, precessingKmer(k, prevK), A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+        }
+        if (t>0 && n>0 && score == I[(t-1)*(N*K)+n*K+precessingKmer(k, prevK)] + LPP[t*(N*K)+n*K+k]){
+            segString->push_front("P"+to_string(n)+","+to_string(t-1)+","+itoa(k)+";");
+            return funcI(t-1, n, precessingKmer(k, prevK), A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+        }
+    }
+}
 
-    // double score = E[t*N+n];
-    // if (t>0 && n>0 && score == M[(t-1)*N+n] + LPE[t*N+n]){
-    //     return funcM(t-1, n, M, E, LPM, LPE, segString, N);
-    // }
-    // if (t>0 && n>0 && score == E[(t-1)*N+n] + LPE[t*N+n]){
-    //     return funcE(t-1, n, M, E, LPM, LPE, segString, N);
-    // }
-// }
+void funcS(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K){
+    double score = S[t*(N*K)+n*K+k];
+    if (t>0 && n>0 && score == E[(t-1)*(N*K)+(n-1)*K+k] + LPS[t*N+n]){
+        segString->push_front("S"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+        return funcE(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+    if (t>0 && n>0 && score == P[(t-1)*(N*K)+(n-1)*K+k] + LPS[t*N+n]){
+        segString->push_front("S"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+        return funcP(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+    if (t>0 && n>0 && score == I[(t-1)*(N*K)+(n-1)*K+k] + LPS[t*N+n]){
+        segString->push_front("S"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+        return funcI(t-1, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+}
+
+void funcI(int t, int n, int k, double* A, double* P, double* S, double* E, double* I, double* LPA, double* LPP, double* LPS, double* LPE, double* LPI, list<string>* segString, const int &N, const int &T, const int &K){
+    double score = I[t*(N*K)+n*K+k];
+    if (t>0 && n>0 && score == I[t*(N*K)+(n-1)*K+k] + LPI[t*N+n]){
+        segString->push_front("I"+to_string(n-1)+","+to_string(t)+","+itoa(k)+";");
+        return funcI(t, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+    if (t>0 && n>0 && score == E[t*(N*K)+(n-1)*K+k] + LPI[t*N+n]){
+        segString->push_front("I"+to_string(n-1)+","+to_string(t)+","+itoa(k)+";");
+        return funcE(t, n-1, k, A, P, S, E, I, LPA, LPP, LPS, LPE, LPI, segString, N, T, K);
+    }
+}
 
 /**
  * Read the normal distribution parameters from a given TSV file
@@ -558,30 +636,31 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
 /**
  * Train transition parameter with baum welch algorithm
 */
-// tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
+// tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, const int &K, vector<tuple<double, double>>* model) {
 //     // Transition parameters
-//     double newM1 = -INFINITY;
-//     double newE1 = -INFINITY;
-//     double newE2 = -INFINITY;
-//     double newE3 = -INFINITY;
-//     double tempM = -INFINITY;
+    
+//     double newa1=-INFINITY, newa2=-INFINITY, newp1=-INFINITY, newp2=-INFINITY, newp3=-INFINITY, news1=-INFINITY, news2=-INFINITY, news3=-INFINITY, newe1=-INFINITY, newe2=-INFINITY, newe3=-INFINITY, newe4=-INFINITY, newi1=-INFINITY, newi2=-INFINITY; // transition parameters
 
 //     for(int t=0; t<T; t++){
 //         for(int n=0; n<N; n++){
-//             if (n+1<N && t+C+1<T) {
-//                 // m1:  forward(i)        a    e(i+1)                                  backward(i+1)
-//                 tempM = forE[t*N+n] + m1 + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+C+1)*N+(n+1)];
-//                 for(int l=1; l<=C; l++){
-//                     tempM+=scoreKmer(sig[t+l], kmer_seq[n], model);
-//                 }
-//                 newM1 = logPlus(newM1, tempM);
+//             for(int k=0; k<K; k++){
+            
 //             }
 
-//             if (t+1<T && n>0) {
-//                 newE1 = logPlus(newE1, forM[t*N+n] + e1 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
-//                 newE2 = logPlus(newE2, forE[t*N+n] + e2 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
-//                 newE3 = logPlus(newE3, forE[t*N+n] + e3 + error(sig[t])                           + backE[(t+1)*N+n]);
-//             }
+//             // if (n+1<N && t+C+1<T) {
+//             //     // m1:  forward(i)        a    e(i+1)                                  backward(i+1)
+//             //     tempM = forE[t*N+n] + m1 + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+C+1)*N+(n+1)];
+//             //     for(int l=1; l<=C; l++){
+//             //         tempM+=scoreKmer(sig[t+l], kmer_seq[n], model);
+//             //     }
+//             //     newM1 = logPlus(newM1, tempM);
+//             // }
+
+//             // if (t+1<T && n>0) {
+//             //     newE1 = logPlus(newE1, forM[t*N+n] + e1 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
+//             //     newE2 = logPlus(newE2, forE[t*N+n] + e2 + scoreKmer(sig[t], kmer_seq[n-1], model) + backE[(t+1)*N+n]);
+//             //     newE3 = logPlus(newE3, forE[t*N+n] + e3 + error(sig[t])                           + backE[(t+1)*N+n]);
+//             // }
 //         }
 //     }
 //     // average over the number of transitions
@@ -820,7 +899,7 @@ int main(int argc, char* argv[]) {
         seq[i+1] = 4;
 
         // polishing dimension K
-        int K = pow(4, 5); // currently acceptable A, C, G, T, N
+        int K = pow(kmerSize, ALPHABET_SIZE); // currently acceptable A, C, G, T, N
 
         int* kmer_seq = seq2kmer(seq, N-1);
 
@@ -851,6 +930,17 @@ int main(int argc, char* argv[]) {
         fill_n(backI, T*N*K, -INFINITY);
         // calculate segmentation probabilities, fill backward matrices
         logB(sig, kmer_seq, backA, backP, backS, backE, backI, T, N, K, &model);
+        // vector<int> allowedTNKeys;
+        // preProcTN(sig, kmer_seq, allowedTNKeys, N, T, K, &model);
+        // cout<<allowedTNKeys.size()*K<<"/"<<T*N*K<<endl;
+        // unordered_map<int, array<dproxy, 5>> forAPSEI;
+        // unordered_map<int, array<dproxy, 5>> backAPSEI;
+        // // initMatrices(forAPSEI, backAPSEI, T, N, K);
+        // cout<<"Done init!"<<endl;
+        // logF(sig, kmer_seq, forAPSEI, allowedTNKeys, T, N, K, &model);
+        // cout<<"Done Forward!"<<endl;
+        // logB(sig, kmer_seq, backAPSEI, allowedTNKeys, T, N, K, &model);
+        // cout<<"Done Backward!"<<endl;
 
         double Zf = -INFINITY;
         double Zb = -INFINITY;
@@ -860,28 +950,6 @@ int main(int argc, char* argv[]) {
             Zf = logPlus(Zf, forE[(T-1)*(N*K)+(N-1)*K+k]);
             Zb = logPlus(Zb, backE[k]);
         }
-
-        double MaxFe = -INFINITY;
-        double MaxFa = -INFINITY;
-        double MaxBe = -INFINITY;
-        double MaxBa = -INFINITY;
-        int idx;
-        for(int t=T-1; t>=0; t--){
-            for(int n=N-1; n>=0; n--){
-                for(int k=K-1; k>=0; k--){
-                    idx = t*(N*K)+n*K+k;
-                    MaxFe=max(MaxFe, forE[idx]);
-                    MaxBe=max(MaxBe, backE[idx]);
-                    MaxFa=max(MaxFa, forA[idx]);
-                    MaxBa=max(MaxBa, backA[idx]);
-                }
-            }
-        }
-        cout<<"MaxFe: "<<MaxFe<<endl;
-        cout<<"MaxBe: "<<MaxBe<<endl;
-        cout<<"MaxFa: "<<MaxFa<<endl;
-        cout<<"MaxBa: "<<MaxBa<<endl;
-
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
         if ((isinf(Zf) || isinf(Zb) || isnan(Zf) || isnan(Zb) || abs(Zf-Zb)/(T*N*K)>EPSILON)) {
@@ -894,30 +962,52 @@ int main(int argc, char* argv[]) {
 
         cerr<<"forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/(T*N*K)<<" > "<<EPSILON<<endl;
 
-
-        // // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        // if ((isinf(forE[T*N*K-1]) || isinf(backE[0]) || isnan(forE[T*N*K-1]) || isnan(backE[0] || abs(forE[T*N*K-1] - backE[0])/(T*N*K))>EPSILON)) {
-        //     cerr << fixed << showpoint;
-        //     cerr << setprecision(20);
-        //     cerr<<"Z values between matrices do not match! forE[T*N*K-1]: "<<forE[T*N*K-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[T*N*K-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
-        //     cerr.flush();
-        //     exit(11);
-        // }
+        cout<<"Done"<<endl;
 
         // if (calcZ){
-        //     cout<<forE[T*N*K-1]<<"\n";
+        //     cout<<Zf<<"\n";
         //     cout.flush();
         // } else {
         //     // train both Transitions and Emissions
         //     if (train) {
-        //         printTrainedTransitionParams(sig, kmer_seq, forA, forP, forS, forE, forI, backA, backP, backS, backE, backI, T, N, &model);
+        // //         printTrainedTransitionParams(sig, kmer_seq, forA, forP, forS, forE, forI, backA, backP, backS, backE, backI, T, N, &model);
         //     } else {
-        //         double* LPA = logP(forA, backA, forE[T*N*K-1], T, N); // log probs
-        //         double* LPP = logP(forP, backP, forE[T*N*K-1], T, N); // log probs
-        //         double* LPS = logP(forS, backS, forE[T*N*K-1], T, N); // log probs
-        //         double* LPE = logP(forE, backE, forE[T*N*K-1], T, N); // log probs
-        //         double* LPI = logP(forI, backI, forE[T*N*K-1], T, N); // log probs
-        //         list<string> segString = getBorders(LPA, LPP, LPS, LPE, LPI, T, N);
+        //         double* LPA = logP(forA, backA, Zf, T, N, K); // log probs
+        //         double* LPP = logP(forP, backP, Zf, T, N, K); // log probs
+        //         double* LPS = logP(forS, backS, Zf, T, N, K); // log probs
+        //         double* LPE = logP(forE, backE, Zf, T, N, K); // log probs
+        //         double* LPI = logP(forI, backI, Zf, T, N, K); // log probs
+        //         list<string> segString = getBorders(LPA, LPP, LPS, LPE, LPI, T, N, K);
+
+        //         // testing stuff
+        //         int numCells = T*N*K;
+        //         int magnitude = 20;
+        //         int numDenseCells[magnitude] = {0}; // 10^-0, ..., 10^-(magnitude-1)
+        //         double maxVal = 0;
+        //         int idx = 0;
+
+        //         for(int t=0; t<T; t++){
+        //             for(int n=0; n<N; n++){
+        //                 for(int k=0; k<K; k++){
+        //                     idx = t*(N*K)+n*K+k;
+        //                     maxVal = exp(max(LPA[idx], max(max(LPE[idx], LPI[idx]), max(LPP[idx], LPS[idx]))));
+        //                     // maxVal = max(LPA[idx], max(LPP[idx], max(LPS[idx], max(LPE[idx], LPI[idx]))));
+                            
+        //                     for(int i=0; i<magnitude; i++){
+        //                         if(maxVal > pow(10, -i)) {
+        //                             for(int j=i; j<magnitude; j++) {
+        //                                 numDenseCells[j]+=1;
+        //                             }
+        //                             break;
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //         for(int i=0; i<magnitude; i++){
+        //             cout<<"10^-"<<i<<": "<<numDenseCells[i]<<", "<<numDenseCells[i]/double(numCells)<<endl;
+        //         }
+        //         cout<<numCells<<endl;
 
         //         for (auto const& seg : segString) {
         //             cout<<seg;
@@ -934,16 +1024,16 @@ int main(int argc, char* argv[]) {
         //     }
         // }
 
-        delete[] forA;
-        delete[] forP;
-        delete[] forS;
-        delete[] forE;
-        delete[] forI;
-        delete[] backA;
-        delete[] backP;
-        delete[] backS;
-        delete[] backE;
-        delete[] backI;
+        // delete[] forA;
+        // delete[] forP;
+        // delete[] forS;
+        // delete[] forE;
+        // delete[] forI;
+        // delete[] backA;
+        // delete[] backP;
+        // delete[] backS;
+        // delete[] backE;
+        // delete[] backI;
         delete[] sig;
         delete[] seq;
         delete[] kmer_seq;
