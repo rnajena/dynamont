@@ -458,6 +458,10 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
  * Train emission parameter with baum welch algorithm
 */
 tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const int &T, const int &N, vector<tuple<double, double>>* model) {
+
+    // TODO calculate this with LP matrices
+    // see notes
+
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf

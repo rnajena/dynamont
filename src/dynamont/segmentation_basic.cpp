@@ -465,14 +465,10 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     }
     // decimal space
     double* kmers = new double[N];
-    fill_n(kmers, N, 0);
     double* d = new double[N];
-    fill_n(d, N, 0);
     // normal space
     double* means = new double[numKmers];
-    fill_n(means, numKmers, 0.0);
     int* counts = new int[(int) numKmers];
-    fill_n(counts, numKmers, 0);
     for (int n=0; n<N; n++) {
         if (n>0) {
             counts[kmer_seq[n-1]]++;
@@ -493,7 +489,6 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     // Emission (stdev of kmers)
     fill_n(kmers, N, 0);
     double* stdevs = new double[numKmers];
-    fill_n(stdevs, numKmers, 0.0);
     for (int n=0; n<N; n++) {
         for (int t=0; t<T; t++) {
             if (n>0 && t>0) {
