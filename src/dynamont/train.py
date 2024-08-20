@@ -11,7 +11,7 @@ from os import makedirs, name
 from FileIO import getFiles, loadFastx, calcZ, readPolyAStartEnd, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels
 from read5 import read
 import multiprocessing as mp
-# from hampel import hampel
+from hampel import hampel
 import random
 import pickle
 from datetime import datetime
@@ -115,11 +115,11 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     # fill batch
                     if len(mp_items) < batch_size:
-                        # signal = hampel(r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:], 50, 2.).filtered_data
                         if normalised:
                             signal = r5.getZNormSignal(readid, "mean")[polya[readid][1]:]
                         else:
                             signal = r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:]
+                        signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen, readid])
                         training_readids.append(readid)
 

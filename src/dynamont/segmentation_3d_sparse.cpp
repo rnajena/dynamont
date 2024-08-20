@@ -40,10 +40,11 @@ unordered_map<char, int> BASE2ID, ID2BASE;
 string modelpath;
 const int ALPHABET_SIZE = 5;
 const int NUMMAT = 5;
-const double EPSILON = pow(10, -2);
+const double EPSILON = pow(10, -2); // chose by eye just to distinguish real errors from numeric errors
+const double TRAIN_THRESHOLD = pow(10, -6); // plotted one example as histogram and chose by eye
 int kmerSize, C; // size of acceptable base characters, kmer size, min segment length, number of kmers
 bool train, calcZ; // atrain
-double a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, e5, i1, i2; // transition parameters
+double a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2; // transition parameters
 
 // init model for unnormalised signals r9
 // const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
@@ -86,7 +87,6 @@ void fillBASE2ID() {
 }
 
 /**
- *
  * C++ version 0.4 std::string style "itoa":
  * Contributions from Stuart Lowe, Ray-Yuan Sheu,
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
@@ -94,6 +94,8 @@ void fillBASE2ID() {
  * 
  * Converts a decimal to number to a number of base ALPHABET_SIZE.
  * TODO Works for base between 2 and 16 (included)
+ * 
+ * Returns kmer in reversed direction!
  * 
  * @param value input number in decimal to convert to base
 */
@@ -121,7 +123,8 @@ string itoa(const int &value) {
         buf += ID2BASE.at('0');
     }
 
-    reverse( buf.begin(), buf.end() );
+    // skip this so kmer is in 5' - 3' direction for output
+    // reverse( buf.begin(), buf.end() );
     return buf;
 }
 
@@ -283,13 +286,13 @@ inline double score(const double &signal_T, const int &kmer_N, const int &kmer_K
  * @param signal point to calculate probability density
  * @return log probability density value for signal_T
  */
-inline double errorScore(const double &signal_T) {
-    // TODO make variable for user input
-    if (signal_T > 4 || signal_T < -4) { // normalised
-        return 0;
-    }
-    return -INFINITY;
-}
+// inline double errorScore(const double &signal_T) {
+//     // TODO make variable for user input
+//     if (signal_T > 4 || signal_T < -4) { // normalised
+//         return 0;
+//     }
+//     return -INFINITY;
+// }
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**
@@ -343,30 +346,32 @@ inline double logPlus(const double &x, const double &y) {
  * Speeds up the DP
  */
 void preProcTK(const double *sig, const int *kmer_seq, vector<int> &allowedKeys, const int &T, const int &K, const vector<tuple<double, double>> &model) {
-    int e = 0;
+    // int e = 0;
     // TODO make variable for user
     const double THRESHOLD = log(0.15); // normalised
     // const double THRESHOLD = log(0); // normalised
-    allowedKeys.push_back(0);
+    // init first column with all ks possible
+    for(int k=0; k<K; k++){
+        allowedKeys.push_back(k);
+    }
     tuple<double, double> kmerModel;
     for(int k=0; k<K; k++) {
         auto& [mean, stdev] = model[k];
         for(int t=1; t<T; t++){
             if(scoreSignalKmer(sig[t-1], mean, stdev) > THRESHOLD) { [[likely]]
                 allowedKeys.push_back(t*K+k);
-                if (t<T-1 && k<K-1) { [[likely]]
-                    for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
-                        allowedKeys.push_back((t+1)*K+precessingKmer(k, prevK));
-                    }
+                for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
+                    allowedKeys.push_back((t-1)*K+precessingKmer(k, prevK));
                 }
-                // add a range to fix weird transitions
-            } else if(errorScore(sig[t-1]) > -INFINITY) {
-                allowedKeys.push_back(t*K+k);
-                e++;
             }
+                // add a range to fix weird transitions
+            // } else if(errorScore(sig[t-1]) > -INFINITY) {
+            //     allowedKeys.push_back(t*K+k);
+            //     e++;
+            // }
         }
     }
-    cerr<<"sensor error rate: "<<e/float(T*K)<<endl;
+    // cerr<<"sensor error rate: "<<e/float(T*K)<<endl;
     sort(allowedKeys.begin(), allowedKeys.end());
     allowedKeys.erase(unique(allowedKeys.begin(), allowedKeys.end()), allowedKeys.end());
 }
@@ -427,7 +432,6 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<int, array<dprox
                 e=logPlus(e, forAPSEI[(t-1)*(N*K)+n*K+k][1] + e2 + extendScore);
                 e=logPlus(e, forAPSEI[(t-1)*(N*K)+n*K+k][2] + e3 + extendScore);
                 e=logPlus(e, forAPSEI[(t-1)*(N*K)+n*K+k][3] + e4 + extendScore);
-                e=logPlus(e, forAPSEI[(t-1)*(N*K)+n*K+k][3] + e5 + errorScore(sig[t-1]));
                 
                 i=logPlus(i, forAPSEI[t*(N*K)+(n-1)*K+k][3] + i1 + openScore);
                 i=logPlus(i, forAPSEI[t*(N*K)+(n-1)*K+k][4] + i2 + openScore);
@@ -472,7 +476,6 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<int, array<dprox
                     p=logPlus(p, pv + e2 + sc);
                     s=logPlus(s, pv + e3 + sc);
                     e=logPlus(e, pv + e4 + sc);
-                    e=logPlus(e, pv + e5 + errorScore(sig[t]));
                     for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
                         sucKmer = successingKmer(k, nextK);
                         pv=backAPSEI[(t+1)*(N*K)+n*K+sucKmer][1];
@@ -684,7 +687,9 @@ void readKmerModel(const string &file, vector<tuple<double, double>>& model) {
     while(getline(inputFile, line)) { // read line
         stringstream buffer(line); // parse line to stringstream for getline
         getline(buffer, kmer, '\t');
-        // reverse(kmer.begin(), kmer.end()); // 3-5 -> 5-3 orientation
+        // legacy models are stored from 3' - 5'
+        // all other (basically new) models are stored in 5' - 3'
+        reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
         getline(buffer, tmp, '\t'); // level_mean
         mean = atof(tmp.c_str());
         getline(buffer, tmp, '\t'); // level_stdv
@@ -697,9 +702,9 @@ void readKmerModel(const string &file, vector<tuple<double, double>>& model) {
 /**
  * Train transition parameter with baum welch algorithm
 */
-tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double, double> trainTransition(const double *sig, const int *kmer_seq, unordered_map<int, array<dproxy, NUMMAT>> &forAPSEI, unordered_map<int, array<dproxy, NUMMAT>> &backAPSEI, vector<int> &allowedKeys, const int &T, const int &N, const int &K, vector<tuple<double, double>> &model) {
+tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double> trainTransition(const double *sig, const int *kmer_seq, unordered_map<int, array<dproxy, NUMMAT>> &forAPSEI, unordered_map<int, array<dproxy, NUMMAT>> &backAPSEI, vector<int> &allowedKeys, const int &T, const int &N, const int &K, vector<tuple<double, double>> &model) {
     // Transition parameters
-    double newa1=-INFINITY, newa2=-INFINITY, newp1=-INFINITY, newp2=-INFINITY, newp3=-INFINITY, news1=-INFINITY, news2=-INFINITY, news3=-INFINITY, newe1=-INFINITY, newe2=-INFINITY, newe3=-INFINITY, newe4=-INFINITY, newe5=-INFINITY, newi1=-INFINITY, newi2=-INFINITY; // transition parameters
+    double newa1=-INFINITY, newa2=-INFINITY, newp1=-INFINITY, newp2=-INFINITY, newp3=-INFINITY, news1=-INFINITY, news2=-INFINITY, news3=-INFINITY, newe1=-INFINITY, newe2=-INFINITY, newe3=-INFINITY, newe4=-INFINITY, newi1=-INFINITY, newi2=-INFINITY; // transition parameters
     int t, k, sucKmer;
     double sc;
 
@@ -714,7 +719,6 @@ tuple<double, double, double, double, double, double, double, double, double, do
                     newe2 = logPlus(newe2, forAPSEI[t*(N*K)+n*K+k][1] + e2 + sc                 + backAPSEI[(t+1)*(N*K)+n*K+k][3]);
                     newe3 = logPlus(newe3, forAPSEI[t*(N*K)+n*K+k][2] + e3 + sc                 + backAPSEI[(t+1)*(N*K)+n*K+k][3]);
                     newe4 = logPlus(newe4, forAPSEI[t*(N*K)+n*K+k][3] + e4 + sc                 + backAPSEI[(t+1)*(N*K)+n*K+k][3]);
-                    newe5 = logPlus(newe5, forAPSEI[t*(N*K)+n*K+k][3] + e5 + errorScore(sig[t]) + backAPSEI[(t+1)*(N*K)+n*K+k][3]);
 
                     for (int nextK=0; nextK<ALPHABET_SIZE; nextK++){
                         sucKmer = successingKmer(k, nextK);
@@ -750,18 +754,12 @@ tuple<double, double, double, double, double, double, double, double, double, do
 
     // average over the number of transitions
     newe1=exp(newe1-newe1); // Aa
-    double Ae = logPlus(logPlus(newa1, news2), logPlus(logPlus(newe4, newe5), logPlus(newi1, newp2)));
+    double Ae = logPlus(logPlus(logPlus(newa1, news2), logPlus(newe4, newi1)), newp2);
     newa1=exp(newa1-Ae);
     news2=exp(news2-Ae);
     newe4=exp(newe4-Ae);
-    newe5=exp(newe5-Ae);
     newi1=exp(newi1-Ae);
     newp2=exp(newp2-Ae);
-    // pseudocounts for errorneous signals
-    if(newe5 == 0.0) {
-        newe5+=0.00001;
-        newe4-=0.00001;
-    }
     double As = logPlus(newe3, newp1);
     newe3=exp(newe3-As);
     newp1=exp(newp1-As);
@@ -774,13 +772,13 @@ tuple<double, double, double, double, double, double, double, double, double, do
     newp3=exp(newp3-Ai);
     news3=exp(news3-Ai);
 
-    return tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double, double>({newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newe5, newi1, newi2});
+    return tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double>({newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2});
 }
 
 /**
  * Train emission parameter with baum welch algorithm
 */
-tuple<double*, double*> trainEmission(const double* sig, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, vector<int> &allowedKeys, const int &N, const int &K) {
+tuple<double*, double*> trainEmission(const double* sig, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, vector<int> &allowedKeys, const int &T, const int &N, const int &K) {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
@@ -826,7 +824,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<int, arra
     int k, t, idx;
     double* means = new double[K];
     double* stdevs = new double[K];
-    double w;
+    double w = -INFINITY;
     double* normFactorT = new double[K];
 
     // int* normFactorN = new int[K];
@@ -853,12 +851,19 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<int, arra
 
     for(int k=0; k<K; k++){
         means[k] = means[k] / normFactorT[k];
+        // means[k] = means[k] / T;
+        // cerr<<normFactorT[k]/T<<",";
     }
+    // exit(1);
 
     // Emission (stdev of kmers)
     for(vector<int>::iterator iter = allowedKeys.begin(); iter<allowedKeys.end(); iter++){
         t = *iter / K;
         k = *iter % K;
+        // skip kmers that have a very low weight, they will not be updated
+        if(normFactorT[k]/T < TRAIN_THRESHOLD){
+            continue;
+        }
         w = -INFINITY;
         for(int n=0; n<N; n++){
             idx = t*(N*K)+n*K+k;
@@ -870,23 +875,24 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<int, arra
         stdevs[k] += exp(w) * pow(sig[t-1] - means[k], 2.);
     }
     for(int k=0; k<K; k++){
+        // stdevs[k] = sqrt(stdevs[k]);
         stdevs[k] = sqrt(stdevs[k] / normFactorT[k]);
     }
 
-    delete[] normFactorT;
+    // delete[] normFactorT;
     return tuple<double*, double*>({means, stdevs});
 }
 
 void printTrainedTransitionParams(const double *sig, const int *kmer_seq, unordered_map<int, array<dproxy, NUMMAT>> &forAPSEI, unordered_map<int, array<dproxy, NUMMAT>> &backAPSEI, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, vector<int> &allowedKeys, const int &T, const int &N, const int &K, vector<tuple<double, double>> &model) {
 
-    auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, e5, i1, i2] = trainTransition(sig, kmer_seq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
+    auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmer_seq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
     cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p2:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e1:"<<e1<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<endl;
 
-    auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, N, K);
+    auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for (int k=0; k<K; k++){
-        // if (newMeans[k]!=0.0){
-        cout<<itoa(k)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
-        // }
+        if (newStdevs[k]!=0.0){
+            cout<<itoa(k)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
+        }
     }
     cout<<endl;
     delete[] newMeans;
@@ -913,7 +919,6 @@ int main(int argc, char* argv[]) {
     program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(0.20).scan<'g', double>(); // a1
     program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(0.20).scan<'g', double>(); // p2
     program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(0.19).scan<'g', double>(); // e4
-    program.add_argument("-e5", "--extendscore5").help("Transition parameter").default_value(0.01).scan<'g', double>(); // e4
     program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(0.20).scan<'g', double>(); // s2
     program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(0.20).scan<'g', double>(); // i1
 
