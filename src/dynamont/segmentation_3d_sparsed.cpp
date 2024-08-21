@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include "argparse.hpp"
 
-#include <chrono> // clock
+// #include <chrono> // clock
 
 using namespace std;
 
@@ -49,8 +49,9 @@ double a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2; // transition par
 // init model for unnormalised signals r9
 // const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 // init model for normalised signals r9
-// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev1.model";
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_5.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev1.model";
+// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_5.model";
+// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model";
 const string TERM_STRING = "$";
 
 // Asserts doubleing point compatibility at compile time
@@ -348,20 +349,22 @@ inline double logPlus(const double &x, const double &y) {
 void preProcTK(const double *sig, const int *kmer_seq, vector<int> &allowedKeys, const int &T, const int &K, const vector<tuple<double, double>> &model) {
     // int e = 0;
     // TODO make variable for user
-    const double THRESHOLD = log(0.15); // normalised
-    // const double THRESHOLD = log(0); // normalised
+    // const double THRESHOLD = log(0.15); // normalised
+    const double THRESHOLD = log(0); // normalised
     // init first column with all ks possible
     for(int k=0; k<K; k++){
         allowedKeys.push_back(k);
+        allowedKeys.push_back((T-1)*K+k);
     }
     tuple<double, double> kmerModel;
     for(int k=0; k<K; k++) {
         auto& [mean, stdev] = model[k];
-        for(int t=1; t<T; t++){
+        for(int t=1; t<T-1; t++){
             if(scoreSignalKmer(sig[t-1], mean, stdev) > THRESHOLD) { [[likely]]
                 allowedKeys.push_back(t*K+k);
                 for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
                     allowedKeys.push_back((t-1)*K+precessingKmer(k, prevK));
+                    allowedKeys.push_back((t+1)*K+successingKmer(k, prevK));
                 }
             }
                 // add a range to fix weird transitions
@@ -918,7 +921,7 @@ int main(int argc, char* argv[]) {
 
     program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(0.20).scan<'g', double>(); // a1
     program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(0.20).scan<'g', double>(); // p2
-    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(0.19).scan<'g', double>(); // e4
+    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(0.20).scan<'g', double>(); // e4
     program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(0.20).scan<'g', double>(); // s2
     program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(0.20).scan<'g', double>(); // i1
 
@@ -996,6 +999,7 @@ int main(int argc, char* argv[]) {
         }
         
         // process signal T: convert string to double array
+        // cerr<<signal.length()<<endl;
         int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
         double* sig = new double[T-1];
         fill_n(sig, T-1, -INFINITY);
@@ -1022,24 +1026,27 @@ int main(int argc, char* argv[]) {
         int* kmer_seq = seq2kmer(seq, N-1);
 
         // just for time measurement
-        typedef chrono::high_resolution_clock Clock;
-        typedef std::chrono::milliseconds milliseconds;
+        // typedef chrono::high_resolution_clock Clock;
+        // typedef std::chrono::milliseconds milliseconds;
 
-        cerr<<"inputsize: "<<T*N*K<<endl;
+        // cerr<<"T: "<<T<<endl;
+        // cerr<<"N: "<<N<<endl;
+        // cerr<<"K: "<<K<<endl;
+        // cerr<<"inputsize: "<<T*N*K<<endl;
 
         vector<int> allowedKeys;
         preProcTK(sig, kmer_seq, allowedKeys, T, K, model);
-        cerr<<"dense: "<<allowedKeys.size()/float(T*K)<<", sparse: "<<1-(allowedKeys.size()/float(T*K))<<endl;
+        // cerr<<"dense: "<<allowedKeys.size()/float(T*K)<<", sparse: "<<1-(allowedKeys.size()/float(T*K))<<endl;
         unordered_map<int, array<dproxy, NUMMAT>> forAPSEI;
         
-        Clock::time_point t0 = Clock::now();
+        // Clock::time_point t0 = Clock::now();
         logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
-        Clock::time_point t1 = Clock::now();
-        cerr<<"Done Forward! "<<std::chrono::duration_cast<milliseconds>(t1 - t0).count()<<endl;
+        // Clock::time_point t1 = Clock::now();
+        // cerr<<"Done Forward! "<<std::chrono::duration_cast<milliseconds>(t1 - t0).count()<<endl;
 
         unordered_map<int, array<dproxy, NUMMAT>> backAPSEI;
         logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
-        cerr<<"Done Backward! "<<std::chrono::duration_cast<milliseconds>(Clock::now() - t1).count()<<endl;
+        // cerr<<"Done Backward! "<<std::chrono::duration_cast<milliseconds>(Clock::now() - t1).count()<<endl;
 
         double Zf = -INFINITY;
         double Zb = -INFINITY;
@@ -1060,7 +1067,7 @@ int main(int argc, char* argv[]) {
             exit(11);
         }
 
-        cerr<<"forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/(T*N*K)<<" <! "<<EPSILON<<endl;
+        // cerr<<"forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/(T*N*K)<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<Zf<<"\n";
@@ -1071,9 +1078,9 @@ int main(int argc, char* argv[]) {
 
             // train both Transitions and Emissions
             if (train) {
-                t0 = Clock::now();
+                // t0 = Clock::now();
                 printTrainedTransitionParams(sig, kmer_seq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
-                cerr<<"Done Training! "<<std::chrono::duration_cast<milliseconds>(Clock::now() - t0).count()<<endl;
+                // cerr<<"Done Training! "<<std::chrono::duration_cast<milliseconds>(Clock::now() - t0).count()<<endl;
                 cout<<"Z:"<<Zf<<endl;
                 cout.flush();
 

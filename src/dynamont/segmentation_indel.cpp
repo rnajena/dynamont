@@ -101,7 +101,7 @@ string itoa(int value) {
         buf += ID2BASE.at('0');
     }
 
-    reverse( buf.begin(), buf.end() );
+    // reverse( buf.begin(), buf.end() );
     return buf;
 }
 
@@ -493,7 +493,9 @@ void readKmerModel(const string &file, vector<tuple<double, double>>* model) {
     while(getline(inputFile, line)) { // read line
         stringstream buffer(line); // parse line to stringstream for getline
         getline(buffer, kmer, '\t');
-        // reverse(kmer.begin(), kmer.end()); // 3-5 -> 5-3 orientation
+        // legacy models are stored from 3' - 5'
+        // all other (basically new) models are stored in 5' - 3'
+        reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
         getline(buffer, tmp, '\t'); // level_mean
         mean = atof(tmp.c_str());
         getline(buffer, tmp, '\t'); // level_stdv

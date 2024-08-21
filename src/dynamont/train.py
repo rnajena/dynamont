@@ -27,8 +27,8 @@ def parse() -> Namespace:
     parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--mode', type=str, choices=['basic', 'basic_sparsed', 'indel'], required=True, help='Segmentation algorithm used for segmentation')
-    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'template_median69pA_extended.model'), help='Which models to train')
+    parser.add_argument('--mode', type=str, choices=['basic', 'basic_sparsed', 'indel', '3d', '3d_sparsed'], required=True, help='Segmentation algorithm used for segmentation')
+    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev1.model'), help='Which models to train')
     parser.add_argument('--pore', type=int, choices=[9, 10], default=9, help='Pore generation used to sequence the data')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
@@ -63,18 +63,36 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     error_writer = open(errorfile, 'w')
     params_pickle_writer = open(params_pickle, 'wb')
     
-    CPP_SCRIPT = join(dirname(__file__), f'segmentation_{mode}')
-    if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
 
     if mode == 'indel':
         transitionParams = {'e1': 1.0, 'm1': 0.10319949594779426, 'd1': 0.10610745507008552, 'e2': 0.7884055549172662, 'e3': 0.00017942642216108796, 'i1': 0.002108069659237201, 'm2': 0.02937758310704649, 'i2': 0.08849246645562929, 'm3': 0.9115075346587537, 'd2': 0.9706224218081904}
     elif mode == 'basic' or mode == 'basic_sparsed':
         transitionParams = {'e1': 1.0, 'm1': 0.031232499993784957, 'e2': 0.968433326911128, 'e3': 0.00033417358727719085}
-    elif mode == 'extended':
-        # TODO
-        print('Extended mode not implemented')
+    elif mode == '3d' or mode == '3d_sparsed':
+        # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
+        transitionParams = {
+            'a1': 0.2,
+            'a2': 0.25,
+            'p1': 0.5,
+            'p2': 0.2,
+            'p3': 0.25,
+            's1': 0.5,
+            's2': 0.2,
+            's3': 0.25,
+            'e1': 1.0,
+            'e2': 0.5,
+            'e3': 0.5,
+            'e4': 0.2,
+            'i1': 0.2,
+            'i2': 0.25,
+            }
+    else:
+        print(f'Mode {mode} not implemented')
         exit(1)
+
+    CPP_SCRIPT = join(dirname(__file__), f'segmentation_{mode}')
+    if name == 'nt': # check for windows
+        CPP_SCRIPT+='.exe'
 
     paramCollector = {kmer:[[kmerModels[kmer][0]], [kmerModels[kmer][1]]] for kmer in kmerModels}
     paramCollector = paramCollector | {param : [] for param in transitionParams}
