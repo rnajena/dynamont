@@ -33,6 +33,8 @@ int ALPHABET_SIZE, numKmers, C, kmerSize; // our model works with this kmer size
 double EPSILON = pow(10, -2);
 bool train, calcZ; // atrain
 double m1, m2, m3, e1, e2, e3, d1, d2, i1, i2; // transition parameters
+int T, N;
+long S;
 
 const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 const string TERM_STRING = "$";
@@ -356,11 +358,11 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
  * @return matrix containing logarithmic probabilities for segment borders
  */
 double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int &N) {
-    double* LP = new double[T*N];
-    fill_n(LP, T*N, -INFINITY);
+    double* LP = new double[S];
+    fill_n(LP, S, -INFINITY);
     for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
-            int x = t*N+n;
+            long x = t*N+n;
             LP[x] = FOR[x] + BACK[x] - Z;
         }
     }
@@ -372,14 +374,14 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
  *
  */
 list<string> getBorders(double* LPM, double* LPE, double* LPD, double* LPI, const int &T, const int &N){
-    double* M = new double[T*N];
-    double* E = new double[T*N];
-    double* D = new double[T*N];
-    double* I = new double[T*N];
-    fill_n(M, T*N, -INFINITY);
-    fill_n(E, T*N, -INFINITY);
-    fill_n(D, T*N, -INFINITY);
-    fill_n(I, T*N, -INFINITY);
+    double* M = new double[S];
+    double* E = new double[S];
+    double* D = new double[S];
+    double* I = new double[S];
+    fill_n(M, S, -INFINITY);
+    fill_n(E, S, -INFINITY);
+    fill_n(D, S, -INFINITY);
+    fill_n(I, S, -INFINITY);
     double mat, ext, del, ins;
     for(int t=0; t<T; t++){
         for(int n=0; n<N; n++){
@@ -583,8 +585,8 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
-    double* G = new double[T*N];
-    fill_n(G, T*N, -INFINITY);
+    double* G = new double[S];
+    fill_n(G, S, -INFINITY);
 
     for(int t=0; t<T; t++){
         // calibrate with the sum of transitions
@@ -676,7 +678,7 @@ void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, doub
         }
     }
     cout<<endl;
-    cout<<"Z:"<<forE[T*N-1]<<endl;
+    cout<<"Z:"<<forE[S-1]<<endl;
     cout.flush();
 }
 
@@ -765,7 +767,7 @@ int main(int argc, char* argv[]) {
         }
         
         // process signal: convert string to double array
-        int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
+        T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
         double* sig = new double[T-1];
         fill_n(sig, T-1, -INFINITY);
         string value;
@@ -775,7 +777,7 @@ int main(int argc, char* argv[]) {
             sig[i++] = stod(value);
         }
         // process read: convert string to int array
-        int N = read.size() + 1; // operate on base transitions
+        N = read.size() + 1; // operate on base transitions
         int seq_size = read.size() + (kmerSize-1); 
         int* seq = new int[seq_size];
         fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
@@ -789,44 +791,45 @@ int main(int argc, char* argv[]) {
         seq[i+1] = 4;
 
         int* kmer_seq = seq2kmer(seq, N-1);
+        S = T*N;
 
         // initialize for matrices
-        double* forM = new double[T*N];
-        fill_n(forM, T*N, -INFINITY);
-        double* forE = new double[T*N];
-        fill_n(forE, T*N, -INFINITY);
-        double* forD = new double[T*N];
-        fill_n(forD, T*N, -INFINITY);
-        double* forI = new double[T*N];
-        fill_n(forI, T*N, -INFINITY);
+        double* forM = new double[S];
+        fill_n(forM, S, -INFINITY);
+        double* forE = new double[S];
+        fill_n(forE, S, -INFINITY);
+        double* forD = new double[S];
+        fill_n(forD, S, -INFINITY);
+        double* forI = new double[S];
+        fill_n(forI, S, -INFINITY);
         // calculate segmentation probabilities, fill forward matrices
         logF(sig, kmer_seq, forM, forE, forD, forI, T, N, &model);
 
         // initialize back matrices
-        double* backM = new double[T*N];
-        fill_n(backM, T*N, -INFINITY);
-        double* backE = new double[T*N];
-        fill_n(backE, T*N, -INFINITY);
-        double* backD = new double[T*N];
-        fill_n(backD, T*N, -INFINITY);
-        double* backI = new double[T*N];
-        fill_n(backI, T*N, -INFINITY);
+        double* backM = new double[S];
+        fill_n(backM, S, -INFINITY);
+        double* backE = new double[S];
+        fill_n(backE, S, -INFINITY);
+        double* backD = new double[S];
+        fill_n(backD, S, -INFINITY);
+        double* backI = new double[S];
+        fill_n(backI, S, -INFINITY);
         // calculate segmentation probabilities, fill backward matrices
         logB(sig, kmer_seq, backM, backE, backD, backI, T, N, &model);
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if ((abs(forE[T*N-1] - backE[0])/(T*N))>EPSILON || isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0])) {
+        if ((abs(forE[S-1] - backE[0])/(S))>EPSILON || isinf(forE[S-1]) || isinf(backE[0]) || isnan(forE[S-1]) || isnan(backE[0])) {
             cerr << fixed << showpoint;
             cerr << setprecision(20);
-            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[S-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
             cerr.flush();
             exit(11);
         }
 
-        // cerr<<"forZ: "<<forE[T*N-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+        // cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
 
         if (calcZ){
-            cout<<forE[T*N-1]<<"\n";
+            cout<<forE[S-1]<<"\n";
             cout.flush();
         } else {
             
@@ -834,10 +837,10 @@ int main(int argc, char* argv[]) {
             if (train) {
                 printTrainedTransitionParams(sig, kmer_seq, forM, forE, forD, forI, backM, backE, backD, backI, T, N, &model);
             } else {
-                double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
-                double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
-                double* LPD = logP(forD, backD, forE[T*N-1], T, N); // log probs
-                double* LPI = logP(forI, backI, forE[T*N-1], T, N); // log probs
+                double* LPM = logP(forM, backM, forE[S-1], T, N); // log probs
+                double* LPE = logP(forE, backE, forE[S-1], T, N); // log probs
+                double* LPD = logP(forD, backD, forE[S-1], T, N); // log probs
+                double* LPI = logP(forI, backI, forE[S-1], T, N); // log probs
                 list<string> segString = getBorders(LPM, LPE, LPD, LPI, T, N);
 
                 for (auto const& seg : segString) {

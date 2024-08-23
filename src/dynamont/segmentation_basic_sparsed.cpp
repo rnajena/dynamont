@@ -21,8 +21,8 @@
 
 using namespace std;
 
-void funcM(int i, int j, double* M, double* E, double* LPM, double* LPE, list<string>* segString, const int &N);
-void funcE(int i, int j, double* M, double* E, double* LPM, double* LPE, list<string>* segString, const int &N);
+void funcM(int t, int n, double* M, double* E, double* LPM, double* LPE, list<string>* segString, const int &N);
+void funcE(int t, int n, double* M, double* E, double* LPM, double* LPE, list<string>* segString, const int &N);
 
 map<char, int> BASE2ID;
 map<char, int> ID2BASE;
@@ -31,6 +31,8 @@ int ALPHABET_SIZE, numKmers, C, kmerSize; // our model works with this kmer size
 double EPSILON = pow(10, -2);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
+int N, T;
+long S;
 
 const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 const string TERM_STRING = "$";
@@ -226,8 +228,8 @@ inline double error(const double &signal_dp) {
  */
 void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const int &N, vector<tuple<double, double>>* model){
     double mat, ext, tmp;
-    for(int t=0; t<T; t++){
-        for(int n=0; n<N; n++){
+    for (int t=0; t<T; t++){
+        for (int n=0; n<N; n++){
             // speed up, due to rules no need to look at lower triangle of matrices
             if (n>t) {
                 continue;
@@ -269,8 +271,8 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
  */
 void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const int &N, vector<tuple<double, double>>* model) {
     double mat, ext, tmp;
-    for(int t=T-1; t>=0; t--){
-        for(int n=N-1; n>=0; n--){
+    for (int t=T-1; t>=0; t--){
+        for (int n=N-1; n>=0; n--){
             // speed up, due to rules no need to look at lower triangle of matrices
             if (n>t) {
                 continue;
@@ -312,11 +314,11 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
  * @return matrix containing logarithmic probabilities for segment borders
  */
 double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int &N) {
-    double* LP = new double[T*N];
-    fill_n(LP, T*N, -INFINITY);
-    for(int t=0; t<T; t++){
-        for(int n=0; n<N; n++){
-            int x = t*N+n;
+    double* LP = new double[S];
+    fill_n(LP, S, -INFINITY);
+    for (int t=0; t<T; t++){
+        for (int n=0; n<N; n++){
+            long x = t*N+n;
             LP[x] = FOR[x] + BACK[x] - Z;
         }
     }
@@ -328,13 +330,13 @@ double* logP(double* FOR, double* BACK, const double &Z, const int &T, const int
  *
  */
 list<string> getBorders(double* LPM, double* LPE, const int &T, const int &N){
-    double* M = new double[T*N];
-    double* E = new double[T*N];
-    fill_n(M, T*N, -INFINITY);
-    fill_n(E, T*N, -INFINITY);
+    double* M = new double[S];
+    double* E = new double[S];
+    fill_n(M, S, -INFINITY);
+    fill_n(E, S, -INFINITY);
     double mat, ext;
-    for(int t=0; t<T; t++){
-        for(int n=0; n<N; n++){
+    for (int t=0; t<T; t++){
+        for (int n=0; n<N; n++){
             // speed up, due to rules no need to look at lower triangle of matrices
             if (n>t) {
                 continue;
@@ -423,8 +425,8 @@ tuple<double, double, double, double> trainTransition(double* sig, int* kmer_seq
     double newE3 = -INFINITY;
     double tempM = -INFINITY;
 
-    for(int t=0; t<T; t++){
-        for(int n=0; n<N; n++){
+    for (int t=0; t<T; t++){
+        for (int n=0; n<N; n++){
             // speed up, due to rules no need to look at lower triangle of matrices
             if (n>t) {
                 continue;
@@ -469,13 +471,13 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
-    double* G = new double[T*N];
-    fill_n(G, T*N, -INFINITY);
+    double* G = new double[S];
+    fill_n(G, S, -INFINITY);
 
-    for(int t=0; t<T; t++){
+    for (int t=0; t<T; t++){
         // calibrate with the sum of transitions
         double s = -INFINITY;
-        for(int n=0; n<N; n++){
+        for (int n=0; n<N; n++){
             // speed up, due to rules no need to look at lower triangle of matrices
             if (n>t) {
                 continue;
@@ -483,7 +485,7 @@ tuple<double*, double*> trainEmission(double* sig, int* kmer_seq, double* forM, 
             G[t*N+n] = logPlus(forM[t*N+n] + backM[t*N+n], forE[t*N+n] + backE[t*N+n]);
             s = logPlus(s, G[t*N+n]);
         }
-        for(int n=0; n<N; n++){
+        for (int n=0; n<N; n++){
             if (!isinf(s)) {
                 G[t*N+n] -= s;
             }
@@ -571,8 +573,6 @@ void printTrainedTransitionParams(double* sig, int* kmer_seq, double* forM, doub
         }
     }
     cout<<endl;
-    cout<<"Z:"<<forE[T*N-1]<<endl;
-    cout.flush();
 }
 
 /**
@@ -646,9 +646,10 @@ int main(int argc, char* argv[]) {
             cout.flush();
             return 2;
         }
-        
+
+        cerr<<"DEBUG 1"<<endl;
         // process signal: convert string to double array
-        int T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
+        T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
         double* sig = new double[T-1];
         fill_n(sig, T-1, -INFINITY);
         string value;
@@ -658,7 +659,7 @@ int main(int argc, char* argv[]) {
             sig[i++] = stod(value);
         }
         // process read: convert string to int array
-        int N = read.size() + 1; // operate on base transitions
+        N = read.size() + 1; // operate on base transitions
         int seq_size = read.size() + (kmerSize-1); 
         int* seq = new int[seq_size];
         fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
@@ -672,45 +673,52 @@ int main(int argc, char* argv[]) {
         seq[i+1] = 4;
 
         int* kmer_seq = seq2kmer(seq, N-1);
+        S = T*N;
 
         // initialize for matrices
-        double* forM = new double[T*N];
-        fill_n(forM, T*N, -INFINITY);
-        double* forE = new double[T*N];
-        fill_n(forE, T*N, -INFINITY);
+        double* forM = new double[S];
+        fill_n(forM, S, -INFINITY);
+        double* forE = new double[S];
+        fill_n(forE, S, -INFINITY);
         // calculate segmentation probabilities, fill forward matrices
         logF(sig, kmer_seq, forM, forE, T, N, &model);
+        cerr<<"DEBUG 2"<<endl;
 
         // initialize back matrices
-        double* backM = new double[T*N];
-        fill_n(backM, T*N, -INFINITY);
-        double* backE = new double[T*N];
-        fill_n(backE, T*N, -INFINITY);
+        double* backM = new double[S];
+        fill_n(backM, S, -INFINITY);
+        double* backE = new double[S];
+        fill_n(backE, S, -INFINITY);
         // calculate segmentation probabilities, fill backward matrices
         logB(sig, kmer_seq, backM, backE, T, N, &model);
+        cerr<<"DEBUG 3"<<endl;
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if ((isinf(forE[T*N-1]) || isinf(backE[0]) || isnan(forE[T*N-1]) || isnan(backE[0]) || abs(forE[T*N-1] - backE[0])/(T*N)>EPSILON)) {
+        if ((isinf(forE[S-1]) || isinf(backE[0]) || isnan(forE[S-1]) || isnan(backE[0]) || abs(forE[S-1] - backE[0])/(S)>EPSILON)) {
             cerr << fixed << showpoint;
             cerr << setprecision(20);
-            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[T*N-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[S-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
             cerr.flush();
             exit(11);
         }
         
-        // cerr<<"forZ: "<<forE[T*N-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[T*N-1] - backE[0])/(T*N)<<" > "<<EPSILON<<endl;
+        double Z = forE[S-1];
+        cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
 
         if (calcZ){
-            cout<<forE[T*N-1]<<"\n";
+            cout<<forE[S-1]<<"\n";
             cout.flush();
         } else {
             
             // train both Transitions and Emissions
             if (train) {
                 printTrainedTransitionParams(sig, kmer_seq, forM, forE, backM, backE, T, N, &model);
+                cout<<"Z:"<<Z<<endl;
+                cout.flush();
+
             } else {
-                double* LPM = logP(forM, backM, forE[T*N-1], T, N); // log probs
-                double* LPE = logP(forE, backE, forE[T*N-1], T, N); // log probs
+                double* LPM = logP(forM, backM, Z, T, N); // log probs
+                double* LPE = logP(forE, backE, Z, T, N); // log probs
                 list<string> segString = getBorders(LPM, LPE, T, N);
 
                 for (auto const& seg : segString) {
@@ -722,11 +730,11 @@ int main(int argc, char* argv[]) {
                 // // calculate sum of segment probabilities
                 // double* LSP = new double[T]; // log segment probs
                 // fill_n(LSP, T, -INFINITY);
-                // int idx;
+                // long idx;
                 // double sum;
-                // for(int t=0;t<T;t++) {
+                // for (int t=0;t<T;t++) {
                 //     sum = -INFINITY;
-                //     for(int n=0; n<N; n++) {
+                //     for (int n=0; n<N; n++) {
                 //         idx = t*N+n;
                 //         sum = logPlus(sum, LPM[idx]);
                 //     }
