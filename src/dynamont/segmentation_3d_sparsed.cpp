@@ -1044,7 +1044,7 @@ int main(int argc, char* argv[]) {
         N = read.size() + 1; // operate on base transitions
         int seq_size = read.size() + (kmerSize-1); 
         int* seq = new int[seq_size];
-        fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
+        fill_n(seq, seq_size, 4); // default: fill with N add 2 Ns to 3' of read
         i = floor(kmerSize/2);
         for (const char &c: read) {
             seq[i] = BASE2ID.at(c);
@@ -1055,7 +1055,7 @@ int main(int argc, char* argv[]) {
         seq[i+1] = 4;
 
         int* kmer_seq = seq2kmer(seq, N-1);
-        S = S;
+        S = T*N*K;
         NK = N*K;
 
         // just for time measurement
@@ -1072,11 +1072,13 @@ int main(int argc, char* argv[]) {
         cerr<<"dense: "<<allowedKeys.size()/float(T*K)<<", sparse: "<<1-(allowedKeys.size()/float(T*K))<<endl;
         unordered_map<int, array<dproxy, NUMMAT>> forAPSEI;
         
+        cerr<<"forward"<<endl;
         // Clock::time_point t0 = Clock::now();
         logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
         // Clock::time_point t1 = Clock::now();
         // cerr<<"Done Forward! "<<std::chrono::duration_cast<milliseconds>(t1 - t0).count()<<endl;
-
+    
+        cerr<<"backward"<<endl;
         unordered_map<int, array<dproxy, NUMMAT>> backAPSEI;
         logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
         // cerr<<"Done Backward! "<<std::chrono::duration_cast<milliseconds>(Clock::now() - t1).count()<<endl;

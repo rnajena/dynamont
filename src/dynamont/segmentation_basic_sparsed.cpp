@@ -662,7 +662,7 @@ int main(int argc, char* argv[]) {
         N = read.size() + 1; // operate on base transitions
         int seq_size = read.size() + (kmerSize-1); 
         int* seq = new int[seq_size];
-        fill_n(seq, seq_size, 0); // default: fill with A add 2 As to 3' of read
+        fill_n(seq, seq_size, 4); // default: fill with N add 2 Ns to 3' of read
         i = floor(kmerSize/2);
         for (const char &c: read) {
             seq[i] = BASE2ID.at(c);
