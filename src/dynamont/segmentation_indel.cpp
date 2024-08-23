@@ -826,7 +826,7 @@ int main(int argc, char* argv[]) {
             exit(11);
         }
 
-        // cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
+        // cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<forE[S-1]<<"\n";

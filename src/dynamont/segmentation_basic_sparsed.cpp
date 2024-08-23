@@ -647,7 +647,7 @@ int main(int argc, char* argv[]) {
             return 2;
         }
 
-        cerr<<"DEBUG 1"<<endl;
+        // cerr<<"DEBUG 1"<<endl;
         // process signal: convert string to double array
         T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
         double* sig = new double[T-1];
@@ -682,7 +682,7 @@ int main(int argc, char* argv[]) {
         fill_n(forE, S, -INFINITY);
         // calculate segmentation probabilities, fill forward matrices
         logF(sig, kmer_seq, forM, forE, T, N, &model);
-        cerr<<"DEBUG 2"<<endl;
+        // cerr<<"DEBUG 2"<<endl;
 
         // initialize back matrices
         double* backM = new double[S];
@@ -691,7 +691,7 @@ int main(int argc, char* argv[]) {
         fill_n(backE, S, -INFINITY);
         // calculate segmentation probabilities, fill backward matrices
         logB(sig, kmer_seq, backM, backE, T, N, &model);
-        cerr<<"DEBUG 3"<<endl;
+        // cerr<<"DEBUG 3"<<endl;
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
         if ((isinf(forE[S-1]) || isinf(backE[0]) || isnan(forE[S-1]) || isnan(backE[0]) || abs(forE[S-1] - backE[0])/(S)>EPSILON)) {
@@ -703,7 +703,7 @@ int main(int argc, char* argv[]) {
         }
         
         double Z = forE[S-1];
-        cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
+        // cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<forE[S-1]<<"\n";
