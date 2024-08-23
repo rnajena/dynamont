@@ -28,7 +28,7 @@ def parse() -> Namespace:
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--mode', type=str, choices=['basic', 'basic_sparsed', 'indel', '3d', '3d_sparsed'], required=True, help='Segmentation algorithm used for segmentation')
-    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev1.model'), help='Which models to train')
+    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev0_5.model'), help='Which models to train')
     parser.add_argument('--pore', type=int, choices=[9, 10], default=9, help='Pore generation used to sequence the data')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
@@ -65,9 +65,9 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     
 
     if mode == 'indel':
-        transitionParams = {'e1': 1.0, 'm1': 0.10319949594779426, 'd1': 0.10610745507008552, 'e2': 0.7884055549172662, 'e3': 0.00017942642216108796, 'i1': 0.002108069659237201, 'm2': 0.02937758310704649, 'i2': 0.08849246645562929, 'm3': 0.9115075346587537, 'd2': 0.9706224218081904}
+        transitionParams = {'e1': 1.0, 'm1': 0.051181025103062994, 'd1': 0.07286867340780984, 'e2': 0.8719724341685163, 'e3': 0.0031402863953714005, 'i1': 0.0008375816236052419, 'm2': 0.007402241605780011, 'i2': 0.04170062231006518, 'm3': 0.9582993783730158, 'd2': 0.9925977630129692}
     elif mode == 'basic' or mode == 'basic_sparsed':
-        transitionParams = {'e1': 1.0, 'm1': 0.031232499993784957, 'e2': 0.968433326911128, 'e3': 0.00033417358727719085}
+        transitionParams = {'e1': 1.0, 'm1': 0.031955643798597305, 'e2': 0.9652378352109564, 'e3': 0.0028065210365067466}
     elif mode == '3d' or mode == '3d_sparsed':
         # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
         transitionParams = {
