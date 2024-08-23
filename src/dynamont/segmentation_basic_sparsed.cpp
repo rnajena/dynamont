@@ -675,6 +675,10 @@ int main(int argc, char* argv[]) {
         int* kmer_seq = seq2kmer(seq, N-1);
         S = T*N;
 
+        cerr<<"T: "<<T<<endl;
+        cerr<<"N: "<<N<<endl;
+        cerr<<"inputsize: "<<S<<endl;
+
         // initialize for matrices
         double* forM = new double[S];
         fill_n(forM, S, -INFINITY);
@@ -703,7 +707,7 @@ int main(int argc, char* argv[]) {
         }
         
         double Z = forE[S-1];
-        // cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" <! "<<EPSILON<<endl;
+        cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<forE[S-1]<<"\n";

@@ -1100,7 +1100,7 @@ int main(int argc, char* argv[]) {
             exit(11);
         }
 
-        // cerr<<"forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/(S)<<" <! "<<EPSILON<<endl;
+        cerr<<"forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/(S)<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<Zf<<"\n";
