@@ -51,9 +51,9 @@ long S, NK;
 // init model for unnormalised signals r9
 // const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
 // init model for normalised signals r9
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev1.model";
+// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev1.model";
 // const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_5.model";
-// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model";
 const string TERM_STRING = "$";
 
 // Asserts doubleing point compatibility at compile time
@@ -443,8 +443,8 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<int, array<dprox
                 e=logPlus(e, forAPSEI[tNK+nK+k][2] + e3 + extendScore);
                 e=logPlus(e, forAPSEI[tNK+nK+k][3] + e4 + extendScore);
                 
-                i=logPlus(i, forAPSEI[tNK-NK+nK-K+k][3] + i1 + openScore);
-                i=logPlus(i, forAPSEI[tNK-NK+nK-K+k][4] + i2 + openScore);
+                i=logPlus(i, forAPSEI[tNK+NK+nK-K+k][3] + i1 + openScore);
+                i=logPlus(i, forAPSEI[tNK+NK+nK-K+k][4] + i2 + openScore);
             }
             forAPSEI[tNK+NK+nK+k] = {a, p, s, e, i};
         }
