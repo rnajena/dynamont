@@ -673,7 +673,7 @@ int main(int argc, char* argv[]) {
         seq[i+1] = 4;
 
         int* kmer_seq = seq2kmer(seq, N-1);
-        S = T*N;
+        S = long(T)*N;
 
         cerr<<"T: "<<T<<endl;
         cerr<<"N: "<<N<<endl;
