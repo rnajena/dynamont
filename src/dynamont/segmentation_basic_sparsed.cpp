@@ -28,7 +28,7 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE, numKmers, C, kmerSize; // our model works with this kmer size
-double EPSILON = pow(10, -2);
+const double EPSILON = pow(10, -6);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int N, T;
@@ -240,15 +240,15 @@ void logF(double* sig, int* kmer_seq, double* M, double* E, const int &T, const 
                 ext = 0;
             }
 
-            if (t-C>0 && n>0){
-                tmp=E[(t-C-1)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1;
-                for(int l=1; l<=C; l++){
-                    tmp+=scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
-                }
-                mat=logPlus(mat, tmp);
-            }
-
             if (t>0 && n>0) {
+                if (t-C>0){
+                    tmp=E[(t-C-1)*N+(n-1)] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + m1;
+                    for(int l=1; l<=C; l++){
+                        tmp+=scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
+                    }
+                    mat=logPlus(mat, tmp);
+                }
+
                 ext=logPlus(ext, M[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e1); // e1 first extend
                 ext=logPlus(ext, E[(t-1)*N+n] + scoreKmer(sig[t-1], kmer_seq[n-1], model) + e2); // e2 extend further
                 ext=logPlus(ext, E[(t-1)*N+n] + error(sig[t-1]) + e3); // e3 error

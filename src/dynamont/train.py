@@ -64,10 +64,24 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     params_pickle_writer = open(params_pickle, 'wb')
     
 
-    if mode == 'indel':
-        transitionParams = {'e1': 1.0, 'm1': 0.051181025103062994, 'd1': 0.07286867340780984, 'e2': 0.8719724341685163, 'e3': 0.0031402863953714005, 'i1': 0.0008375816236052419, 'm2': 0.007402241605780011, 'i2': 0.04170062231006518, 'm3': 0.9582993783730158, 'd2': 0.9925977630129692}
-    elif mode == 'basic' or mode == 'basic_sparsed':
-        transitionParams = {'e1': 1.0, 'm1': 0.031955643798597305, 'e2': 0.9652378352109564, 'e3': 0.0028065210365067466}
+    if mode == 'basic' or mode == 'basic_sparsed':
+        transitionParams = {
+            'e1': 1.0,
+            'm1': 0.03189915859979101,
+            'e2': 0.9681008434763126
+            }
+    elif mode == 'indel':
+        transitionParams = {
+            'e1': 1.0,
+            'm1': 0.047923630044895006,
+            'd1': 0.0795918281369677,
+            'e2': 0.8719994721033932,
+            'i1': 0.00048506999577316453,
+            'm2': 0.006990024477599084,
+            'i2': 0.019397852195642322,
+            'm3': 0.9806021470164152,
+            'd2': 0.9930099746422482
+            }
     elif mode == '3d' or mode == '3d_sparsed':
         # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
         transitionParams = {

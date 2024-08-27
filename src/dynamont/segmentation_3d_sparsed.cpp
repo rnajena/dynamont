@@ -40,7 +40,7 @@ unordered_map<char, int> BASE2ID, ID2BASE;
 string modelpath;
 const int ALPHABET_SIZE = 5;
 const int NUMMAT = 5;
-const double EPSILON = pow(10, -2); // chose by eye just to distinguish real errors from numeric errors
+const double EPSILON = pow(10, -6); // chose by eye just to distinguish real errors from numeric errors
 const double TRAIN_THRESHOLD = pow(10, -6); // plotted one example as histogram and chose by eye
 int kmerSize, C; // size of acceptable base characters, kmer size, min segment length, number of kmers
 bool train, calcZ; // atrain
@@ -351,7 +351,8 @@ inline double logPlus(const double &x, const double &y) {
 void preProcTK(const double *sig, const int *kmer_seq, vector<int> &allowedKeys, const int &T, const int &K, const vector<tuple<double, double>> &model) {
     // int e = 0;
     // TODO make variable for user
-    const double THRESHOLD = log(0.15); // normalised
+    const double THRESHOLD = log(0.25); // normalised
+    // const double THRESHOLD = log(0.15); // normalised
     // const double THRESHOLD = log(0); // normalised
     // init first column with all ks possible
     for(int k=0; k<K; k++){
@@ -393,18 +394,15 @@ void preProcTK(const double *sig, const int *kmer_seq, vector<int> &allowedKeys,
 void logF(const double *sig, const int *kmer_seq, unordered_map<int, array<dproxy, NUMMAT>> &forAPSEI, vector<int> &allowedKeys, const int &T, const int &N, const int &K, const vector<tuple<double, double>> &model){
     double a, p, s, e, i, extendScore, openScore;
     int preKmer;
-    int t, k; // , n
+    int t, k;
     long tNK, nK;
-    // int idx, D1;
     //decleration of vector iterator
     for(vector<int>::iterator iter = allowedKeys.begin(); iter<allowedKeys.end(); iter++){
-        // t = *iter / N;
-        // n = *iter % N;
-        // for(int k=0; k<K; k++){
         t = *iter / K;
         k = *iter % K;
-        // for(int t=max(0, n*35-5000); t<min(T-1, n*35+5000); t++){ // banded preprocessing
-        for(int n=0; n<N; n++){
+        // for(int n=0; n<N; n++){
+        // further sparsify by using banded DP
+        for(int n=max(0, (t/82)-3000); n<min(T-1, (t/82)+3000); n++){
             // // further sparsify
             // if (extendScore < log(pow(10, -5))) {
             //     continue;
@@ -414,12 +412,12 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<int, array<dprox
             s=-INFINITY;
             e=-INFINITY;
             i=-INFINITY;
+            tNK = NK*(t-1);
+            nK = n*K;
             if(t==0 && n==0) { [[unlikely]]
                 e=0;
             }
-            tNK = NK*(t-1);
-            nK = n*K;
-            if(t>0 && n>0) { [[likely]]
+            else if(t>0 && n>0) { [[likely]]
                 // precalc expensive values
                 extendScore = score(sig[t-1], kmer_seq[n-1], k, model);
                 openScore = score(sig[t-1], kmer_seq[n-1], k, 0.05, model);
@@ -472,17 +470,18 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<int, array<dprox
         // for(int k=K-1; k>=0; k--){
         t = *iter / K;
         k = *iter % K;
-        for(int n=N-1; n>=0; n--){
+        for(int n=min(T-1, (t/82)+3000); n>=max(0, (t/82)-3000); n--){
+        // for(int n=N-1; n>=0; n--){
             a=-INFINITY;
             p=-INFINITY;
             s=-INFINITY;
             e=-INFINITY;
             i=-INFINITY;
+            // precalc expensive value    
+            tNKnK = NK*(t+1)+n*K;
             if(t==T-1 && n==N-1) { [[unlikely]]
                 e=0;
             }
-            // precalc expensive value    
-            tNKnK = NK*(t+1)+n*K;
             if (t<T-1) { [[likely]]
                 if (n>0) { [[likely]]
                     // precalc expensive value    
@@ -570,7 +569,7 @@ list<string> getBorders(unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, vec
     unordered_map<int, array<dproxy, NUMMAT>> APSEI;
     array<dproxy, NUMMAT> curIdx;
     double a, p, s, e, i;
-    int t, k;
+    int t, k, preKmer;
     long tNK, nK;
     for(vector<int>::iterator iter = allowedKeys.begin(); iter<allowedKeys.end(); iter++){
         t = *iter / K;
@@ -589,15 +588,16 @@ list<string> getBorders(unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, vec
             nK = n*K;
 
             // mostly addition left
-            if(t>0 && n>0) { [[likely]]
+            if(t>0 && n>0){ [[likely]]
                 curIdx = logAPSEI[tNK+NK+nK+k];
                 for (int prevK=0; prevK<ALPHABET_SIZE; prevK++) {
-                    a=max(a, APSEI[tNK+nK-K+precessingKmer(k, prevK)][3] + curIdx[0]);
-                    a=max(a, APSEI[tNK+nK-K+precessingKmer(k, prevK)][4] + curIdx[0]);
+                    preKmer = precessingKmer(k, prevK);
+                    a=max(a, APSEI[tNK+nK-K+preKmer][3] + curIdx[0]);
+                    a=max(a, APSEI[tNK+nK-K+preKmer][4] + curIdx[0]);
 
-                    p=max(p, APSEI[tNK+nK+precessingKmer(k, prevK)][2] + curIdx[1]);
-                    p=max(p, APSEI[tNK+nK+precessingKmer(k, prevK)][3] + curIdx[1]);
-                    p=max(p, APSEI[tNK+nK+precessingKmer(k, prevK)][4] + curIdx[1]);
+                    p=max(p, APSEI[tNK+nK+preKmer][2] + curIdx[1]);
+                    p=max(p, APSEI[tNK+nK+preKmer][3] + curIdx[1]);
+                    p=max(p, APSEI[tNK+nK+preKmer][4] + curIdx[1]);
                 }
                 s=max(s, APSEI[tNK+nK-K+k][1] + curIdx[2]);
                 s=max(s, APSEI[tNK+nK-K+k][3] + curIdx[2]);
@@ -614,8 +614,21 @@ list<string> getBorders(unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, vec
             APSEI[tNK+NK+nK+k] = {a, p, s, e, i};
         }
     }
+
+    // get highest k for last t and n?
+    double mv = -INFINITY;
+    int hk = -1;
+    long idx = (T-1)*NK + (N-1)*K;
+    for (int k=0; k<K; k++){
+        if (logAPSEI[idx+k][3] > mv) { 
+            mv = logAPSEI[idx+k][3];
+            hk = idx + k;
+        }
+    }
+
     list<string> segString;
-    funcE(T-1, N-1, K-1, APSEI, logAPSEI, &segString, N, K);
+    funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, N, K);
+    // funcE(T-1, N-1, K-1, APSEI, logAPSEI, &segString, N, K);
     return segString;
 }
 
@@ -635,6 +648,7 @@ void funcA(const int t, const int n, const int k, unordered_map<int, array<dprox
             return funcI(t-1, n-1, precessingKmer(k, prevK), APSEI, logAPSEI, segString, N, K);
         }
     }
+    cerr<<"Error in backtracing funcA!"<<endl;
 }
 
 void funcE(const int t, const int n, const int k, unordered_map<int, array<dproxy, NUMMAT>> &APSEI, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const int &N, const int &K){
@@ -651,6 +665,7 @@ void funcE(const int t, const int n, const int k, unordered_map<int, array<dprox
     if (t>0 && n>0 && score == APSEI[NK*(t-1)+n*K+k][4] + logAPSEI[NK*t+n*K+k][3]){
         return funcI(t-1, n, k, APSEI, logAPSEI, segString, N, K);
     }
+    cerr<<"Error in backtracing funcE!"<<endl;
 }
 
 void funcP(const int t, const int n, const int k, unordered_map<int, array<dproxy, NUMMAT>> &APSEI, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const int &N, const int &K){
@@ -669,6 +684,7 @@ void funcP(const int t, const int n, const int k, unordered_map<int, array<dprox
             return funcI(t-1, n, precessingKmer(k, prevK), APSEI, logAPSEI, segString, N, K);
         }
     }
+    cerr<<"Error in backtracing funcP!"<<endl;
 }
 
 void funcS(const int t, const int n, const int k, unordered_map<int, array<dproxy, NUMMAT>> &APSEI, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const int &N, const int &K){
@@ -685,6 +701,7 @@ void funcS(const int t, const int n, const int k, unordered_map<int, array<dprox
         segString->push_front("S"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
         return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, N, K);
     }
+    cerr<<"Error in backtracing funcS!"<<endl;
 }
 
 void funcI(const int t, const int n, const int k, unordered_map<int, array<dproxy, NUMMAT>> &APSEI, unordered_map<int, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const int &N, const int &K){
@@ -697,6 +714,7 @@ void funcI(const int t, const int n, const int k, unordered_map<int, array<dprox
         segString->push_front("I"+to_string(n-1)+","+to_string(t)+","+itoa(k)+";");
         return funcE(t, n-1, k, APSEI, logAPSEI, segString, N, K);
     }
+    cerr<<"Error in backtracing funcI!"<<endl;
 }
 
 /**

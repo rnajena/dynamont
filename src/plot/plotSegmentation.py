@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
-from dynamont.FileIO import getFiles, loadFastx, calcZ, readPolyAStartEnd, feedSegmentation, SegmentationError
+from dynamont.FileIO import getFiles, loadFastx, readPolyAStartEnd, feedSegmentation, SegmentationError
 from read5 import read
 from hampel import hampel
 import pickle
-from matplotlib import ticker
+# from matplotlib import ticker
 
 STANDARDONTMODEL = pd.read_csv("/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model", sep='\t', index_col = "kmer")
 
@@ -33,12 +33,12 @@ def parse() -> Namespace:
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
     parser.add_argument('--resquigglePickle', type=str, default=None, help='f5c resquiggle segmentation pickle file')
     parser.add_argument('--eventalignPickle', type=str, default=None, help='f5c eventalign segmentation pickle file')
-    parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
-    parser.add_argument('--model', type=str, default='/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model', help='Kmer model file')
+    parser.add_argument('--mode', choices=['basic', 'basic_sparsed', 'indel', '3d', '3d_sparsed'], required=True)
+    parser.add_argument('--model', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev0_5.model'), help='Kmer model file')
     parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     return parser.parse_args()
 
-def plotBorders(signal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame):
+def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame):
     '''
     Input
     -----
@@ -53,6 +53,18 @@ def plotBorders(signal : np.ndarray, polyAend : int, read : str, segments : np.n
     read : str
         in 3' -> 5' orientation
     '''
+    basecolors = {
+        'A':'#377eb8',
+        'a':'#377eb8',
+        'C':'#ff7f00',
+        'c':'#ff7f00',
+        'G':'#4daf4a',
+        'g':'#4daf4a',
+        'T':'#f781bf',
+        't':'#f781bf',
+        'U':'#f781bf',
+        'u':'#f781bf'
+        }
 
     # change orientation to 5' -> 3'
     read = read[::-1]
@@ -63,15 +75,18 @@ def plotBorders(signal : np.ndarray, polyAend : int, read : str, segments : np.n
     if eventalignBorders is not None:
         nPlots += 1
 
-    fig, ax = plt.subplots(nrows = nPlots, sharex=True, sharey=True, figsize=(110,12), dpi=300)
+    fig, ax = plt.subplots(nrows = nPlots, sharex=True, figsize=(130,10), dpi=450)
     if nPlots == 1:
         ax = [ax]
     fig.suptitle(f'{readid} segmentation in 3\' -> 5\' orientation')
     x=np.arange(-polyAend, len(signal) - polyAend, 1)
     for axis in range(nPlots):
-        ax[axis].plot(x, signal, alpha=0.4, color='black', label='signal', linewidth=1)
-        # ax[axis].plot(x, hampel_signal, color='purple', label='hampel(signal)', linewidth=0.5)
-        ax[axis].set_ylim((min(signal)-15, max(signal)))
+        if axis < nPlots-1:
+            ax[axis].plot(x, signal, color='black', label='polyA standardized Signal', linewidth=0.8)
+            ax[axis].set_ylim((20, 150))
+        else:
+            ax[axis].plot(x, normSignal, color='black', label='Z normalised Signal', linewidth=0.8)
+            ax[axis].set_ylim((-4, 3))
         ax[axis].set_ylabel('Signal pico Ampere')
         ax[axis].set_xticks(np.arange(0, len(signal), 2000))
         ax[axis].grid(True, 'both', 'both')
@@ -79,75 +94,82 @@ def plotBorders(signal : np.ndarray, polyAend : int, read : str, segments : np.n
     plotNumber = 0
     # F5C EVENTALIGN
     if eventalignBorders is not None:
-        ax[plotNumber].vlines(eventalignBorders[:, 0].astype(int), ymin=min(signal)-5, ymax=max(signal), colors='darkgreen', linestyles='--', label=f'f5c eventalign segmentation', linewidth=0.7)
-        for border in eventalignBorders:
-            # border indices are for read 5' 3' direction
-            base = border[2]
-            ax[plotNumber].text(int(border[0]) + np.abs(int(border[1]) - int(border[0]))/2 - 3, min(signal)-5, base, fontdict={'size' : 7, 'color':'darkgreen'})
+        # ax[plotNumber].vlines(eventalignBorders[:, 0].astype(int), ymin=20, ymax=150, colors='darkgreen', linestyles='--', label=f'f5c eventalign segmentation', linewidth=0.7)
+
         for i, segment in enumerate(eventalignBorders):
             motif = ''
             for j in range(i-2, i+3, 1):
                 if j < 0:
-                    motif += 'A'
+                    motif += 'N'
                 elif j >= len(eventalignBorders):
                     motif += 'N'
                 else:
                     base = eventalignBorders[j][2]
                     motif += base
+            # motif is stored in 3' - 5' direction
             motif = motif.replace('U', 'T')
+
+            # ax[plotNumber].text(int(border[0]) + (int(border[1]) - int(border[0]))/2 - 6, 30, base, fontdict={'size' : 7, 'color':'black'})
+            ax[plotNumber].text(int(segment[0]) + (int(segment[1]) - int(segment[0]))/2 - 6, 30, motif, fontdict={'size' : 7, 'color':'black'}, rotation=90)
+            ax[plotNumber].vlines([int(segment[0])], ymin=20, ymax=150, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7)
+            ax[plotNumber].add_patch(Rectangle((int(segment[0]), 20), int(segment[1]) - int(segment[0]), 130, alpha=0.4, facecolor=basecolors[read[segment[2]]]))
+
             x = int(segment[0])
             width = int(segment[1]) - int(segment[0])
-            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
-            height = 3.92*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="grey"))
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
             ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
             ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
         
+        ax[plotNumber].vlines([int(segment[0])], ymin=20, ymax=150, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7, label = "f5c eventalign segmentation")
         ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="ONT model mean")
-        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="ONT model mean+1.96*stdev")
+        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
         ax[plotNumber].legend()
         plotNumber += 1
 
     # F5C RESQUIGGLE
     if resquiggleBorders is not None:
-        ax[plotNumber].vlines(resquiggleBorders[:, 0].astype(int), ymin=min(signal)-5, ymax=max(signal), colors='darkgreen', linestyles='--', label=f'f5c resquiggle segmentation', linewidth=0.7)
-        for border in resquiggleBorders:
-            # border indices are for read 5' 3' direction
-            base = read[border[2]]
-            ax[plotNumber].text(int(border[0]) + np.abs(int(border[1]) - int(border[0]))/2 - 3, min(signal)-5, base, fontdict={'size' : 7, 'color':'darkgreen'})
+        # ax[plotNumber].vlines(resquiggleBorders[:, 0].astype(int), ymin=20, ymax=150, colors='darkgreen', linestyles='--', label=f'f5c resquiggle segmentation', linewidth=0.7)
+
         for i, segment in enumerate(resquiggleBorders):
             motif = ''
             for j in range(i-2, i+3, 1):
                 if j < 0:
-                    motif += 'A'
+                    motif += 'N'
                 elif j >= len(resquiggleBorders):
                     motif += 'N'
                 else:
                     base = resquiggleBorders[j][2]
                     motif += read[base]
+            # motif is stored in 3' - 5' direction
             motif = motif.replace('U', 'T')
+
+            # ax[plotNumber].text(int(border[0]) + (int(border[1]) - int(border[0]))/2 - 6, 30, base, fontdict={'size' : 7, 'color':'black'})
+            ax[plotNumber].text(int(segment[0]) + (int(segment[1]) - int(segment[0]))/2 - 6, 30, motif[::-1], fontdict={'size' : 7, 'color':'black'}, rotation=90)
+            ax[plotNumber].vlines([int(segment[0])], ymin=20, ymax=150, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7)
+            ax[plotNumber].add_patch(Rectangle((int(segment[0]), 20), int(segment[1]) - int(segment[0]), 130, alpha=0.4, facecolor=basecolors[read[segment[2]]]))
+
             x = segment[0]
             width = segment[1] - segment[0]
-            mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
-            height = 3.92*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
             mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
+            height = 3.92*stdev
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="grey"))
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
             ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
             ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
-        
+
+        ax[plotNumber].vlines([int(segment[0])], ymin=20, ymax=150, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7, label = "f5c resquiggle segmentation")
         ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="ONT model mean")
-        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="ONT model mean+1.96*stdev")
+        ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
         ax[plotNumber].legend()
         plotNumber += 1
 
     # OUR SEGMENTATION
-    ax[plotNumber].vlines(segments[:, 0], ymin=min(signal)-10, ymax=max(signal), colors='red', linestyles='--', label='our segmentation', linewidth=0.6)
+    # ax[plotNumber].vlines(segments[:, 0], ymin=-4, ymax=4, colors='red', linestyles='--', label='our segmentation', linewidth=0.6)
     # plot kmer model range
-    for segment in segments:
-        
+    for segment in segments:        
         # extract motif from read
         pos = segment[2]
         # add Ns to 5' end
@@ -155,53 +177,52 @@ def plotBorders(signal : np.ndarray, polyAend : int, read : str, segments : np.n
             motif = ('N' * abs(pos-2)) + read[0 : pos+3]
         # add As to 3' end
         elif pos+3 > len(read):
-            motif = read[pos-2 : pos+3] + ('A'*(pos+3-len(read)))
+            motif = read[pos-2 : pos+3] + ('N'*(pos+3-len(read)))
         else:
             motif = read[pos-2 : pos+3]
-        # plot motif in 3' - 5' direction
-        motif = motif.replace('U', 'T')[::-1]
+        # motif in 5' - 3' direction
+        motif = motif.replace('U', 'T')
         x = segment[0]
         width = segment[1] - segment[0]
 
-        if segment[3] == 'M':
+        ax[plotNumber].vlines([int(segment[0])], ymin=-4, ymax=3, colors=basecolors[read[pos]], linestyles='--', linewidth=0.7)
+        ax[plotNumber].add_patch(Rectangle((int(segment[0]), -4), width, 7, alpha=0.4, facecolor=basecolors[read[pos]]))
+
+        if segment[5] == 'M':
             mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+            # print(mean, stdev)
             height = 3.92*stdev
-            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="yellow"))
+            ax[plotNumber].add_patch(Rectangle((x, mean-1.96*stdev), width, height, alpha=0.4, facecolor="grey"))
             # write motif
-            ax[plotNumber].text(x + width/2 - 3, min(signal)-10, read[pos], fontdict={'size' : 7, 'color':'red'})
+            # ax[plotNumber].text(x + width/2 - 6, -3.5, read[pos], fontdict={'size' : 7, 'color':'black'})
+            ax[plotNumber].text(x + width/2 - 6, -3.5, motif, fontdict={'size' : 7, 'color':'black'}, rotation=90)
             # draw kmer range as rectangle
-            mean, stdev = STANDARDONTMODEL.loc[motif][['level_mean', 'level_stdv']]
             ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
             ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
             ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
-            # mean, stdev = hampel_signal[segment[0]+polyAend:segment[1]+polyAend].mean(), hampel_signal[segment[0]+polyAend:segment[1]+polyAend].std()
-            # ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='black', alpha=0.8)
-            # ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
-            # ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='black', linewidth=1, linestyle='--', alpha=0.8)
-        # elif segment[3] == 'D':
-        #     height = max(signal) - min(signal)
-        #     ax[plotNumber].add_patch(Rectangle((x, min(signal)), width, height, alpha=0.3, facecolor="grey"))
-        #     ax[plotNumber].text(x + width/2 - 3, min(signal)-14, 'Del', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
-        # elif segment[3] == 'I':
-        #     ax[plotNumber].text(x - 3, min(signal)-14, 'Ins', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
-        ax[plotNumber].legend()
+        elif segment[5] == 'D':
+            ax[plotNumber].add_patch(Rectangle((x, min(normSignal)), width, 7, alpha=0.3, facecolor="grey"))
+            ax[plotNumber].text(x + width/2 - 3, -3, 'Del', rotation=90, fontdict={'size' : 7, 'color' : 'grey'})
+        elif segment[5] == 'I':
+            ax[plotNumber].text(x - 3, -3, 'Ins', rotation=90, fontdict={'size' : 7, 'color' : 'grey'})
+    ax[plotNumber].vlines([int(segment[0])], ymin=20, ymax=150, colors=basecolors[read[pos]], linestyles='--', linewidth=0.7, label = "Dynamont segmentation")
+    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="model mean")
+    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
+    ax[plotNumber].legend()
 
-
-    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="ONT model mean")
-    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="ONT model mean+1.96*stdev")
     # plt.legend()
-    plt.savefig(join(outpath, readid + '.svg'))
-    plt.savefig(join(outpath, readid + '.pdf'))
+    plt.savefig(join(outpath, readid + '.svg'), dpi=450)
+    plt.savefig(join(outpath, readid + '.pdf'), dpi=450)
 
     # plt.figure(figsize=(12,8))
-    plt.gcf().set_size_inches(12, 8)
-    plt.xlim(18000, 18400)
-    plt.ylim(45, 110)
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(100))
-    plt.savefig(join(outpath, readid + '_ausschnitt.svg'), dpi=150)
+    # plt.gcf().set_size_inches(12, 8)
+    # plt.xlim(18000, 18400)
+    # plt.ylim(45, 110)
+    # plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(100))
+    # plt.savefig(join(outpath, readid + '_ausschnitt.svg'), dpi=300)
 
 
-def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int):
+def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -214,10 +235,27 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
     if mode == 'indel':
-        PARAMS = {'e1': 1.0, 'm2': 0.021304436000000003, 'd1': 0.00052215122, 'e2': 0.9321389999999997, 'e3': 0.044451505, 'i1': 0.00158291295, 'm3': 0.7157543000000001, 'i2': 0.2842457, 'm4': 0.48615565, 'd2': 0.5138443286000001}
-    elif mode == 'basic':
-        # PARAMS = {'e1': 1.0, 'm1': 0.049, 'e2': 0.951, 'e3': 0.0}
-        PARAMS = {'e1': 1.0, 'm1': 0.01848573125, 'e2': 0.9815143125000001, 'e3': 0.0}
+        PARAMS = {
+            'e1': 1.0,
+            'm1': 0.047923630044895006,
+            'd1': 0.0795918281369677,
+            'e2': 0.8719994721033932,
+            'i1': 0.00048506999577316453,
+            'm2': 0.006990024477599084,
+            'i2': 0.019397852195642322,
+            'm3': 0.9806021470164152,
+            'd2': 0.9930099746422482
+            }
+    elif mode == 'basic' or mode == 'basic_sparsed':
+        PARAMS = {
+            'e1': 1.0,
+            'm1': 0.03189915859979101,
+            'e2': 0.9681008434763126
+            }
+    elif mode == '3d' or mode == '3d_sparsed':
+        # TODO
+        print("3D mode not implemented yet")
+        exit(1)
     PARAMS['m'] = modelpath
     PARAMS['c'] = minSegLen
 
@@ -225,12 +263,13 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     # hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
     # hampel_raw_signal = hampel(rawSignal, 20, 2.).filtered_data
     # segments = feedSegmentation(hampel_std_signal[polyAstart:], read, CPP_SCRIPT, PARAMS)
-    segments = feedSegmentation(standardizedSignal, read, CPP_SCRIPT, PARAMS)
+
+    segments = feedSegmentation(normSignal, read, CPP_SCRIPT, PARAMS)
 
     if not len(segments):
         # print(segments)
-        print(str(list(standardizedSignal[-300:])).replace(" ", "")[1:-1], end=' ')
-        print(read[-30:])
+        # print(str(list(normSignal[-300:])).replace(" ", "")[1:-1], end=' ')
+        # print(read[-30:])
         raise SegmentationError(readid)
 
     segments[:, 0] = segments[:, 0] - polyAend
@@ -239,8 +278,8 @@ def segmentRead(standardizedSignal : np.ndarray, polyAend : int, read : str, rea
     with open(join(outdir, readid + '.txt'), 'w') as w:
         w.write('\n'.join(list(map(str, segments))))
 
-    plotBorders(standardizedSignal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels)
-    print(calcZ(standardizedSignal, read, PARAMS, CPP_SCRIPT))
+    plotBorders(signal, normSignal, polyAend, read, segments, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels)
+    # print(calcZ(normSignal, read, PARAMS, CPP_SCRIPT))
 
 def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, modelpath, minSegLen) -> tuple:
     for file in files:
@@ -285,19 +324,19 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                         eventalignBorders = None
                         print(f'WARNING: no border found in {handle}')
             
-
-            if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
-                signal = r5.getPolyAStandardizedSignal(targetID, polyAstart=polyA[targetID][0], polyAend=polyA[targetID][1])
-                polyAend = polyA[targetID][1]
+            # fill batch
+            polyAstart = polyA[targetID][0] if targetID in polyA else 0
+            polyAend = polyA[targetID][1] if targetID in polyA else 0
+            if polyAend - polyAstart > 30:
+                signal = r5.getPolyAStandardizedSignal(targetID, polyA[targetID][0]+5, polyA[targetID][1]-5)
             else:
-                print("WARNING: NO POLYA SEGMENT FOUND!")
-                if targetID in polyA:
-                    polyAend = polyA[targetID][1]
-                else:
-                    polyAend = 0
                 signal = r5.getpASignal(targetID)
+            # if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
+            normSignal = r5.getZNormSignal(targetID, "mean") #[polyA[targetID][1]:]
+            normSignal = hampel(normSignal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+
             # change read from 5'-3' to 3'-5'
-            segmentRead(signal, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen)
+            segmentRead(signal, normSignal, polyAstart, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen)
 
 def main() -> None:
     args = parse()
