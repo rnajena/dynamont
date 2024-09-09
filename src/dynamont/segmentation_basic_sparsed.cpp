@@ -253,7 +253,7 @@ void logF(const double* sig, const int* kmer_seq, double* M, double* E, const si
 void logB(const double* sig, const int* kmer_seq, double* M, double* E, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
     double mat, ext, tmp;
     for (size_t t=T; t-->0;){
-        for (size_t n=N; n-->t+1;){ // speed up, due to rules no need to look at lower triangle of matrices
+        for (size_t n=t; n-->0;){ // speed up, due to rules no need to look at lower triangle of matrices
             mat=-INFINITY;
             ext=-INFINITY;
             if(t==T-1 && n==N-1) {
