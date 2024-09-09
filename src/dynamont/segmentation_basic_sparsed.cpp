@@ -253,7 +253,7 @@ void logF(const double* sig, const int* kmer_seq, double* M, double* E, const si
 void logB(const double* sig, const int* kmer_seq, double* M, double* E, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
     double mat, ext, tmp;
     for (size_t t=T; t-->0;){
-        for (size_t n=t; n-->0;){ // speed up, due to rules no need to look at lower triangle of matrices
+        for (size_t n=min(N, t+1); n-->0;){ // speed up, due to rules no need to look at lower triangle of matrices
             mat=-INFINITY;
             ext=-INFINITY;
             if(t==T-1 && n==N-1) {
@@ -613,7 +613,7 @@ int main(int argc, char* argv[]) {
         int* kmer_seq = seq2kmer(seq, N-1);
         TN = T*N;
 
-        cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<endl;
+        // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<endl;
 
         // initialize matrices
         double* forM = new double[TN];
@@ -644,7 +644,7 @@ int main(int argc, char* argv[]) {
         }
         
         // double Z = forE[TN-1];
-        cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TN<<" <! "<<EPSILON<<endl;
+        // cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TN<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<Zf<<"\n";
