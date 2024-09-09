@@ -587,7 +587,7 @@ void preProcTN(const double *sig, const int *kmer_seq, unordered_map<size_t, uno
             }
         }
     }
-    cerr<<"TN dense: "<<c/double(TN)<<endl;
+    // cerr<<"TN dense: "<<c/double(TN)<<endl;
 }
 
 /**
@@ -641,7 +641,7 @@ void preProcTK(const double *sig, unordered_map<size_t, unordered_set<size_t>> &
             }
         }
     }
-    cerr<<"TK dense: "<<c/double(TK)<<endl;
+    // cerr<<"TK dense: "<<c/double(TK)<<endl;
 }
 
 void preProcTNK(const double *sig, const int *kmer_seq, vector<size_t> &allowedKeys, const size_t T, const size_t N, const size_t K, const vector<tuple<double, double>> &model) {
@@ -895,7 +895,6 @@ list<string> getBorders(unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, 
         }
     }
 
-    cerr<<"hk: "<<hk<<endl;
     list<string> segString;
     funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, K);
     return segString;
@@ -1074,7 +1073,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
     double newa1=-INFINITY, newa2=-INFINITY;
     double newp1=-INFINITY, newp2=-INFINITY, newp3=-INFINITY;
     double news1=-INFINITY, news2=-INFINITY, news3=-INFINITY;
-    double newe1=-INFINITY, newe2=-INFINITY, newe3=-INFINITY, newe4=-INFINITY;
+    double newe1=1, newe2=-INFINITY, newe3=-INFINITY, newe4=-INFINITY;
     double newi1=-INFINITY, newi2=-INFINITY;
     double sc, pv;
     size_t t, n, k;
@@ -1095,7 +1094,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
                 sc = score(sig[t], kmer_seq[n-1], k, model);
                 // (t+1)*NK+n*K+k
                 pv = backAPSEI[tnk+NK][3];
-                newe1 = logPlus(newe1, forAPSEI_tnk[0] + e1 + sc + pv);
+                // newe1 = logPlus(newe1, forAPSEI_tnk[0] + e1 + sc + pv);
                 newe2 = logPlus(newe2, forAPSEI_tnk[1] + e2 + sc + pv);
                 newe3 = logPlus(newe3, forAPSEI_tnk[2] + e3 + sc + pv);
                 newe4 = logPlus(newe4, forAPSEI_tnk[3] + e4 + sc + pv);
@@ -1138,7 +1137,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
     }
 
     // Final normalization and averaging of transition parameters
-    newe1=exp(newe1-newe1);
+    // newe1=exp(newe1-newe1);
     double Ae = logPlus(logPlus(logPlus(newa1, news2), logPlus(newe4, newi1)), newp2);
     newa1=exp(newa1-Ae);
     news2=exp(news2-Ae);
@@ -1151,7 +1150,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
     double Ap = logPlus(newe2, news1);
     newe2=exp(newe2-Ap);
     news1=exp(news1-Ap);
-    double Ai = logPlus(logPlus(a2, i2), logPlus(p3, s3));
+    double Ai = logPlus(logPlus(newa2, newi2), logPlus(newp3, news3));
     newa2=exp(newa2-Ai);
     newi2=exp(newi2-Ai);
     newp3=exp(newp3-Ai);
@@ -1172,7 +1171,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     double* stdevs = new double[K];
     double* normFactorT = new double[K];
     double w;
-    constexpr double TRAIN_THRESHOLD = 0.001; //pow(10, -3); // plotted one example as histogram and chose by eye
+    constexpr double TRAIN_THRESHOLD = 0.000001; //pow(10, -6); // plotted one example as histogram and chose by eye
 
     // First pass: Compute means and normalization factors
     for(size_t tnk : allowedKeys){
@@ -1194,9 +1193,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     // Normalize the means
     for(size_t k=0; k<K; ++k){
         means[k] = means[k] / normFactorT[k];
-        // cout<<normFactorT[k]<<",";
     }
-    cout<<endl;
 
     // Emission (stdev of kmers)
     for(size_t tnk : allowedKeys){
@@ -1226,8 +1223,9 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
 
 void trainParams(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dproxy, NUMMAT>> &forAPSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &backAPSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, vector<size_t> &allowedKeys, const size_t T, const size_t N, const size_t K, vector<tuple<double, double>> &model) {
 
+    // newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2
     auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmer_seq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
-    cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p2:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e1:"<<e1<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<endl;
+    cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p3:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e1:"<<e1<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<endl;
 
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(size_t k=0; k<K; ++k){
@@ -1275,7 +1273,9 @@ int main(int argc, char* argv[]) {
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value(MODELPATH);
     program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10);
-    // program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0).store_into(C);
+    // unused, just here to match the other modes
+    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0); //.store_into(C);
+    
 
     try {
         program.parse_args(argc, argv);
@@ -1367,16 +1367,16 @@ int main(int argc, char* argv[]) {
         NK = N*K;
         TNK = T*NK;
 
-        cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
+        // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
 
         vector<size_t> allowedKeys;
         preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
+        // cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> forAPSEI;
         
-        cerr<<"forward"<<endl;
+        // cerr<<"forward"<<endl;
         logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
-        cerr<<"backward"<<endl;
+        // cerr<<"backward"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> backAPSEI;
         logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
 
@@ -1394,10 +1394,10 @@ int main(int argc, char* argv[]) {
             exit(13);
         }
 
-        cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<endl;
+        // cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
-            cout<<Zf<<"\n";
+            cout<<Zf<<endl;
             cout.flush();
         } else {
             unordered_map<size_t, array<dproxy, NUMMAT>> logAPSEI;
