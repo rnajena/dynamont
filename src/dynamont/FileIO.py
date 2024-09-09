@@ -220,6 +220,8 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     -------
     result : str
     '''
+    # print("Debug", "Signal length", len(signal), "Read length", len(read))
+
     # prepare cookie for segmentation
     # signal = str(np.around(signal.tolist(), 5).tolist()).replace(' ', '').replace('[', '').replace(']', '')
     signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
@@ -253,9 +255,12 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     '''
     pipe = openCPPScriptTrain(script, params, model_file, minSegLen)
     try:
-        transitionParams, modelParams, Z, _ = feedPipe(signal, read, pipe).split('\n')
+        result = feedPipe(signal, read, pipe).split('\n')
+        transitionParams, modelParams, Z, _ = result
     except:
-        print(f"ERROR in {readid}", transitionParams)
+        print(f"ERROR in {readid}, {result}")
+        # with open("failed_input.txt", 'w') as w:
+        #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
         # raise SegmentationError(readid)
         return readid
     try:
@@ -427,9 +432,10 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
         # convert basepos to 5' -> 3' direction
         pos = len(read) - int(basepos) - 1
         segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state])
-        segments[-1] = list(map(str, segments[-1]))
+        # segments[-1] = list(map(str, segments[-1]))
 
     return np.array(segments, dtype=object)
+    # return segments
 
 def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     '''

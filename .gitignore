@@ -56,3 +56,6 @@ src/dynamont/segmentation_basic_sparsed
 src/dynamont/segmentation_indel
 src/dynamont/segmentation_3d
 src/dynamont/segmentation_3d_sparsed
+src/dynamont/.nfs*
+src/dynamont/core
+src/dynamont/test_*

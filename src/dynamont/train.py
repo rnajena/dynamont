@@ -28,7 +28,7 @@ def parse() -> Namespace:
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--mode', type=str, choices=['basic', 'basic_sparsed', 'indel', '3d', '3d_sparsed'], required=True, help='Segmentation algorithm used for segmentation')
-    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev0_5.model'), help='Which models to train')
+    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev0_25.model'), help='Which models to train')
     parser.add_argument('--pore', type=int, choices=[9, 10], default=9, help='Pore generation used to sequence the data')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
@@ -196,10 +196,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             # skip unseen models
                             if not len(modelBatchCollector[kmer]):
                                 continue
-                            # TODO what is better here, median oder mean?
-                            # kmerModels[kmer] = [np.median(modelBatchCollector[kmer][0]), np.sqrt(np.mean(np.square(modelBatchCollector[kmer][1])))]
                             kmerModels[kmer] = [np.median(paramCollector[kmer][0]), np.median(paramCollector[kmer][1])]
-                            # print(kmerModels[kmer])
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels, INITMODEL)

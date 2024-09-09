@@ -28,13 +28,13 @@ map<char, int> BASE2ID;
 map<char, int> ID2BASE;
 string modelpath;
 int ALPHABET_SIZE, numKmers, C, kmerSize; // our model works with this kmer size
-const double EPSILON = pow(10, -6);
+const double EPSILON = pow(10, -10);
 bool train, calcZ; // atrain
 double m1, e1, e2, e3; // transition parameters
 int N, T;
 long S;
 
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
+const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model";
 const string TERM_STRING = "$";
 
 // Asserts doubleing point compatibility at compile time
@@ -101,6 +101,7 @@ string itoa(int value) {
         buf += ID2BASE.at('0');
     }
 
+    // skip this so kmer is in 5' - 3' direction for output
     // reverse( buf.begin(), buf.end() );
     return buf;
 }
@@ -675,9 +676,7 @@ int main(int argc, char* argv[]) {
         int* kmer_seq = seq2kmer(seq, N-1);
         S = long(T)*N;
 
-        cerr<<"T: "<<T<<endl;
-        cerr<<"N: "<<N<<endl;
-        cerr<<"inputsize: "<<S<<endl;
+        cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<S<<endl;
 
         // initialize for matrices
         double* forM = new double[S];
@@ -698,16 +697,16 @@ int main(int argc, char* argv[]) {
         // cerr<<"DEBUG 3"<<endl;
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if ((isinf(forE[S-1]) || isinf(backE[0]) || isnan(forE[S-1]) || isnan(backE[0]) || abs(forE[S-1] - backE[0])/(S)>EPSILON)) {
+        if (abs(forE[S-1]-backE[0])/S > EPSILON) {
             cerr << fixed << showpoint;
             cerr << setprecision(20);
-            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[S-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" > "<<EPSILON<<endl;
+            cerr<<"Z values between matrices do not match! forE[T*N-1]: "<<forE[S-1]<<", backE[0]: "<<backE[0]<<", "<<abs(forE[S-1]-backE[0])/(S)<<" > "<<EPSILON<<endl;
             cerr.flush();
             exit(11);
         }
         
         double Z = forE[S-1];
-        cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1] - backE[0])/(S)<<" <! "<<EPSILON<<endl;
+        cerr<<"forZ: "<<forE[S-1]<<", backZ: "<<backE[0]<<", "<<abs(forE[S-1]-backE[0])/S<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
             cout<<forE[S-1]<<"\n";
