@@ -435,20 +435,27 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, do
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
     // Initialize memory
     double* G = new double[TN];
-    double* kmers = new double[N];  // Zero-initialized
-    double* d = new double[N];      // Zero-initialized
+    double* kmers = new double[N];
+    double* d = new double[N];
     double* means = new double[numKmers];
     double* stdevs = new double[numKmers];
     int* counts = new int[numKmers];
 
+    // init everything with zero
+    for (size_t i = 0; i < N; i++) {
+        kmers[i] = 0.0;
+        d[i] = 0.0;
+    }
+    for (int i = 0; i < numKmers; i++) {
+        means[i] = 0.0;
+        stdevs[i] = 0.0;
+        counts[i] = 0;
+    }
+
     for (size_t t=0; t<T; ++t){
         // calibrate with the sum of transitions
         double s = -INFINITY;
-        for (size_t n=0; n<=t && n<N; ++n){
-            // speed up, due to rules no need to look at lower triangle of matrices
-            if (n>t) {
-                continue;
-            }
+        for (size_t n=0; n<=t && n<N; ++n){ // speed up, due to rules no need to look at lower triangle of matrices
             G[t*N+n] = logPlus(forM[t*N+n] + backM[t*N+n], forE[t*N+n] + backE[t*N+n]);
             s = logPlus(s, G[t*N+n]);
         }
@@ -501,14 +508,14 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, do
     return tuple<double*, double*>({means, stdevs});
 }
 
-void printTrainedTransitionParams(const double* sig, const int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
+void trainParams(const double* sig, const int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
     auto [newM, newE1, newE2] = trainTransition(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
 
     cout<<"m1:"<<newM<<";e1:"<<newE1<<";e2:"<<newE2<<endl;
 
     auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
     for (int i=0; i<numKmers; i++){
-        if (newMeans[i]!=0.0){
+        if (newStdevs[i]!=0.0){
             cout<<itoa(i)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
         }
     }
@@ -542,14 +549,6 @@ int main(int argc, char* argv[]) {
     }
     
     int pore = program.get<int>("pore");
-    // modelpath = program.get<string>("model");
-    // atrain = program.get<bool>("atrain");
-    // train = program.get<bool>("train");
-    // calcZ = program.get<bool>("calcZ");
-    // prob = program.get<bool>("probability");
-    // m1 = log(program.get<double>("matchscore1"));
-    // e1 = log(program.get<double>("extendscore1"));
-    // e2 = log(program.get<double>("extendscore2"));
     
     if (pore == 9) {
         kmerSize = 5;
@@ -653,7 +652,7 @@ int main(int argc, char* argv[]) {
             
             // train both Transitions and Emissions
             if (train) {
-                printTrainedTransitionParams(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
+                trainParams(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
                 cout<<"Z:"<<Zb<<endl;
                 cout.flush();
 
