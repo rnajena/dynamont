@@ -26,10 +26,10 @@ void funcE(const size_t t, const size_t n, const double* M, const double* E, con
 void funcD(const size_t t, const size_t n, const double* M, const double* E, const double* D, const double* I, const double* LPM, const double* LPE, const double* LPD, const double* LPI, list<string>* segString, const size_t N);
 void funcI(const size_t t, const size_t n, const double* M, const double* E, const double* D, const double* I, const double* LPM, const double* LPE, const double* LPD, const double* LPI, list<string>* segString, const size_t N);
 
-int numKmers, C, kmerSize; // our model works with this kmer size
+int numKmers, kmerSize; // our model works with this kmer size
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 double m1, m2, m3, e1, e2, d1, d2, i1, i2; // transition parameters
-size_t T, N, TN;
+size_t T, N, TN, C;
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
@@ -68,17 +68,17 @@ void logF(const double* sig, const int* kmer_seq, double* M, double* E, double* 
             ins=-INFINITY;
             score = scoreKmer(sig[t-1], kmer_seq[n-1], model);
             
-            if (t-C>0) [[likely]] {
+            if (t>C) [[likely]] {
                 tmp=E[(t-C-1)*N+(n-1)] + score + m1;
-                for(int l=1; l<=C; ++l){
+                for(size_t l=1; l<=C; ++l){
                     tmp+=scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
                 }
                 mat=logPlus(mat, tmp);
             }
             mat=logPlus(mat, D[(t-1)*N+(n-1)] + score + m2);
             mat=logPlus(mat, I[(t-1)*N+(n-1)] + score + m3);
-            ext=logPlus(ext, M[(t-1)*N+n]     + score + e1); // e1 first extend
-            ext=logPlus(ext, E[(t-1)*N+n]     + score + e2); // e2 extend further
+            ext=logPlus(ext, M[(t-1)*N+n]     + score + e1);
+            ext=logPlus(ext, E[(t-1)*N+n]     + score + e2);
             ins=logPlus(ins, E[t*N+(n-1)]     + score + i1);
             ins=logPlus(ins, I[t*N+(n-1)]     + score + i2);
             if (n<N-1) [[likely]] {
@@ -122,7 +122,7 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
 
                 if (t+C+1<T) [[likely]] {
                     tmp=M[(t+1+C)*N+(n+1)] + score + m1;
-                    for (int l=1; l<=C; ++l){
+                    for (size_t l=1; l<=C; ++l){
                         tmp+=scoreKmer(sig[t+l], kmer_seq[n], model);
                     }
                     ext=logPlus(ext, tmp);
@@ -140,8 +140,8 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
 
             if (t+1<T && n>0) [[likely]] {
                 score = scoreKmer(sig[t], kmer_seq[n-1], model);
-                mat=logPlus(mat, E[(t+1)*N+n] + score + e1); // e1 first extend
-                ext=logPlus(ext, E[(t+1)*N+n] + score + e2); // e2 extend further
+                mat=logPlus(mat, E[(t+1)*N+n] + score + e1);
+                ext=logPlus(ext, E[(t+1)*N+n] + score + e2);
 
                 if (n+1<N) [[likely]] {
                     score = deletion(sig[t], kmer_seq[n-1], kmer_seq[n], model);
@@ -149,7 +149,6 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
                     del=logPlus(del, D[(t+1)*N+n] + score + d2);
                 }
             }
-            
             M[t*N+n] = mat;
             E[t*N+n] = ext;
             D[t*N+n] = del;
@@ -202,15 +201,15 @@ list<string> getBorders(double* LPM, double* LPE, double* LPD, double* LPI, cons
             del=-INFINITY;
             ins=-INFINITY;
             const size_t idx = t*N+n;
-            if (t-C>0){
+            if (t>C){
                 mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[idx]); // m1
             }
-            ext=max(ext, M[(t-1)*N+n] + LPE[idx]); // e1
-            ext=max(ext, E[(t-1)*N+n] + LPE[idx]); // e2
+            ext=max(ext, M[(t-1)*N+n]     + LPE[idx]); // e1
+            ext=max(ext, E[(t-1)*N+n]     + LPE[idx]); // e2
             mat=max(mat, D[(t-1)*N+(n-1)] + LPM[idx]); // m2
             mat=max(mat, I[(t-1)*N+(n-1)] + LPM[idx]); // m3
-            ins=max(ins, E[t*N+(n-1)] + LPI[idx]); // i1
-            ins=max(ins, I[t*N+(n-1)] + LPI[idx]); // i2
+            ins=max(ins, E[t*N+(n-1)]     + LPI[idx]); // i1
+            ins=max(ins, I[t*N+(n-1)]     + LPI[idx]); // i2
             if (n<N-1) {
                 del=max(del, E[(t-1)*N+n] + LPD[idx]); // d1
                 del=max(del, D[(t-1)*N+n] + LPD[idx]); // d2
@@ -239,7 +238,7 @@ void funcM(const size_t t, const size_t n, const double* M, const double* E, con
         return;
     }
     if (t>0 && n>0) {
-        if (score == E[(t-C-1)*N+(n-1)] + logscore){
+        if (t>C && score == E[(t-C-1)*N+(n-1)] + logscore){
             segString->push_front("M"+to_string(n-1)+","+to_string(t-C-1));
             return funcE(t-C-1, n-1, M, E, D, I, LPM, LPE, LPD, LPI, segString, N);
         }
@@ -314,14 +313,13 @@ tuple<double, double, double, double, double, double, double, double, double> tr
             if (t+1<T && n+1<N) {
                 score = scoreKmer(sig[t], kmer_seq[n], model);
                 if (t+C+1<T) {
-                    // m1:  forward(i)    a    e(i+1)                                  backward(i+1)
+                    // m1:  forward(i)    a    e(i+1)  backward(i+1)
                     tempM = forE[t*N+n] + m1 + score + backM[(t+C+1)*N+(n+1)];
-                    for(int l=1; l<=C; ++l){
+                    for(size_t l=1; l<=C; ++l){
                         tempM+=scoreKmer(sig[t+l], kmer_seq[n], model);
                     }
                     newM1 = logPlus(newM1, tempM);
                 }
-
                 newM2 = logPlus(newM2, forD[t*N+n] + m2 + score + backM[(t+1)*N+(n+1)]);
                 newM3 = logPlus(newM3, forI[t*N+n] + m3 + score + backM[(t+1)*N+(n+1)]);
             }
@@ -374,10 +372,8 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, co
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
 
-    // decimal space
     double* kmers = new double[N];
     double* normFactorT = new double[N];
-    // normal space
     double* means = new double[numKmers];
     double* stdevs = new double[numKmers];
     int* counts = new int[numKmers];
@@ -407,7 +403,7 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, co
     }
 
     // Emission (stdev of kmers)
-    fill_n(kmers, N, 0);
+    fill_n(kmers, N, 0.0);
     for (size_t n=1; n<N; ++n) {
         for (size_t t=1; t<T; ++t) {
             double diff = sig[t-1] - means[kmer_seq[n-1]];  // Compute difference from mean
@@ -469,7 +465,7 @@ int main(int argc, char* argv[]) {
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model").store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10).store_into(pore);
-    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0).store_into(C);
+    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0);
 
     try {
         program.parse_args(argc, argv);
@@ -479,6 +475,8 @@ int main(int argc, char* argv[]) {
         cerr << program;
         return 1;
     }
+    
+    C = program.get<size_t>("minSegLen");
     
     if (pore == 9) {
         kmerSize = 5;
