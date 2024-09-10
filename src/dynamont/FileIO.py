@@ -476,16 +476,23 @@ def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     return table
 
 def stopFeeding(pipe : Popen) -> None:
-    if pipe is None:
-        return None
-    if pipe.poll() == 0:
-        return None
-    else:
-        try:
-            pipe.communicate(input=f'{TERM_STRING}\n{TERM_STRING}\n')
-        except:
-            pipe.kill()
-            return None
+    try:
+        pipe.kill()
+    except:
+        pass
+    return None
+
+    # if pipe is None:
+    #     return None
+    # if pipe.poll() == 0:
+    #     return None
+    # else:
+    #     try:
+    #         pipe.communicate(input=f'{TERM_STRING}\n{TERM_STRING}\n')
+    #     except:
+    #         pass
+    #     pipe.kill()
+    #     return None
 
 def readPolyAEnd(file : str) -> dict:
     df = pd.read_csv(file, usecols=['readname', 'transcript_start'], sep='\t')
