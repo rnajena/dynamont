@@ -162,7 +162,7 @@ void logP(double* LP, const double* forM, const double* backM, const double* for
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void ppForTN(const double* sig, const int* kmer_seq, double* M, double* E, const size_t T, const size_t N, const vector<tuple<double, double>> &model){
-    constexpr double m = 0.032, e1 = 1.0, e2 = 0.968;
+    inline constexpr double m = 0.03189915859979101, e1 = 1.0, e2 = 0.9681008434763126;
     for(size_t t=0; t<T; ++t){
         const size_t tN = t*N;
         for(size_t n=0; n<N; ++n){
@@ -193,7 +193,7 @@ void ppForTN(const double* sig, const int* kmer_seq, double* M, double* E, const
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void ppBackTN(const double* sig, const int* kmer_seq, double* M, double* E, const size_t T, const size_t N, const vector<tuple<double, double>> &model) {
-    constexpr double m = 0.032, e1 = 1.0, e2 = 0.968;
+    inline constexpr double m = 0.03189915859979101, e1 = 1.0, e2 = 0.9681008434763126;
     for(size_t t=T; t-->0;){ // iterates from T-1 to 0, first evaluates t>0? then calculates t=t-1
         const size_t tN = t*N;
         for(size_t n=N; n-->0;){
@@ -227,7 +227,7 @@ void ppBackTN(const double* sig, const int* kmer_seq, double* M, double* E, cons
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void ppForTK(const double* sig, double* M, double* E, const size_t T, const size_t K, const vector<tuple<double, double>> &model){
-    constexpr double m = 0.03189915859979101, e1 = 1.0, e2 = 0.9681008434763126;
+    inline constexpr double m = 0.03189915859979101, e1 = 1.0, e2 = 0.9681008434763126;
     for(size_t t=0; t<T; ++t){
         const size_t tK = t*K;
         const size_t prevTK = tK-K; // (t-1)*K
@@ -262,7 +262,7 @@ void ppForTK(const double* sig, double* M, double* E, const size_t T, const size
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void ppBackTK(const double* sig, double* M, double* E, const size_t T, const size_t K, const vector<tuple<double, double>> &model) {
-    constexpr double m = 0.03189915859979101, e1 = 1.0, e2 = 0.9681008434763126;
+    inline constexpr double m = 0.03189915859979101, e1 = 1.0, e2 = 0.9681008434763126;
     for(size_t t=T; t-->0;){ // T-1, ..., 0
         const size_t tK = t*K;
         const size_t nexttK = tK+K; // (t+1)*K
