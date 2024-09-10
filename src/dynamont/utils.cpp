@@ -132,7 +132,7 @@ int* seq2kmer(const int *seq, const size_t N, const int kmerSize) {
  * @param file path to the TSV file containing the parameters
  * @param model kmer model to fill
  */
-void readKmerModel(const string &file, vector<tuple<double, double>>& model, const int kmerSize) {
+void readKmerModel(const string &file, vector<tuple<double, double>> &model, const int kmerSize) {
     ifstream inputFile(file);
     string line, kmer, tmp;
     double mean, stdev;
