@@ -464,8 +464,8 @@ int main(int argc, char* argv[]) {
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model").store_into(modelpath);
-    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10).store_into(pore);
-    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0);
+    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10).store_into(pore).scan<'i', int>();
+    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0).scan<'i', int>();
 
     try {
         program.parse_args(argc, argv);
@@ -476,8 +476,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    C = program.get<size_t>("minSegLen");
-    
+    C = program.get<int>("minSegLen");
+
     if (pore == 9) {
         kmerSize = 5;
     } else if (pore == 10) {

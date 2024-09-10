@@ -337,7 +337,7 @@ void preProcTN(const double *sig, const int *kmer_seq, unordered_map<size_t, uno
             }
         }
     }
-    cerr<<"TN dense: "<<c/double(TN)<<endl;
+    // cerr<<"TN dense: "<<c/double(TN)<<endl;
 }
 
 /**
@@ -391,7 +391,7 @@ void preProcTK(const double *sig, unordered_map<size_t, unordered_set<size_t>> &
             }
         }
     }
-    cerr<<"TK dense: "<<c/double(TK)<<endl;
+    // cerr<<"TK dense: "<<c/double(TK)<<endl;
 }
 
 void preProcTNK(const double *sig, const int *kmer_seq, vector<size_t> &allowedKeys, const size_t T, const size_t N, const size_t K, const vector<tuple<double, double>> &model) {
@@ -1081,9 +1081,9 @@ int main(int argc, char* argv[]) {
         cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> forAPSEI;
         
-        cerr<<"forward"<<endl;
+        // cerr<<"forward"<<endl;
         logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
-        cerr<<"backward"<<endl;
+        // cerr<<"backward"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> backAPSEI;
         logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
 
