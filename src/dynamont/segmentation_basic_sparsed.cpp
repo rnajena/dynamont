@@ -13,201 +13,25 @@
 #include <bits/stdc++.h> // reverse strings
 #include <vector>
 #include <cmath> // exp
-// #include <limits> // for inifinity
 #include <assert.h>
 #include <stdlib.h>
-#include "argparse.hpp"
 #include <algorithm>
+#include "argparse.hpp"
+#include "utils.hpp"
 
 using namespace std;
 
 void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N);
 void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N);
 
-map<char, int> BASE2ID;
-map<char, int> ID2BASE;
-string modelpath;
-int ALPHABET_SIZE, numKmers, C, kmerSize; // our model works with this kmer size
-const double EPSILON = pow(10, -10);
-bool train, calcZ, prob; // atrain
+int numKmers, C, kmerSize; // our model works with this kmer size
+inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 double m1, e1, e2; // transition parameters
 size_t N, T, TN;
-
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model";
-const string TERM_STRING = "$";
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
 static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");
-
-/**
- * Fill the BASE2ID map with the base and ID pairs.
- */
-void fillBASE2ID() {
-    ALPHABET_SIZE = 5;
-    BASE2ID.insert(pair<char, int>('A', 0));
-    BASE2ID.insert(pair<char, int>('C', 1));
-    BASE2ID.insert(pair<char, int>('G', 2));
-    BASE2ID.insert(pair<char, int>('T', 3));
-    BASE2ID.insert(pair<char, int>('U', 3));
-    BASE2ID.insert(pair<char, int>('N', 4));
-    BASE2ID.insert(pair<char, int>('a', 0));
-    BASE2ID.insert(pair<char, int>('c', 1));
-    BASE2ID.insert(pair<char, int>('g', 2));
-    BASE2ID.insert(pair<char, int>('t', 3));
-    BASE2ID.insert(pair<char, int>('u', 3));
-    BASE2ID.insert(pair<char, int>('n', 4));
-    ID2BASE.insert(pair<char, char>('0', 'A'));
-    ID2BASE.insert(pair<char, char>('1', 'C'));
-    ID2BASE.insert(pair<char, char>('2', 'G'));
-    ID2BASE.insert(pair<char, char>('3', 'T'));
-    ID2BASE.insert(pair<char, char>('4', 'N'));
-}
-
-/**
- *
- * C++ version 0.4 std::string style "itoa":
- * Contributions from Stuart Lowe, Ray-Yuan Sheu,
- * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
- * and Brian Hunt
- * 
- * Converts a decimal to number to a number of base ALPHABET_SIZE.
- * TODO Works for base between 2 and 16 (included)
- * 
- * @param value input number in decimal to convert to base
-*/
-string itoa(int value) {
-    string buf;
-    int base = kmerSize;
-
-    // check that the base if valid
-    if (base < 2 || base > 16) return to_string(value);
-
-    enum { kMaxDigits = 35 };
-    buf.reserve( kMaxDigits ); // Pre-allocate enough space.
-    int quotient = value;
-
-    // Translating number to string with base:
-    do {
-        buf += ID2BASE.at("0123456789abcdef"[ abs( quotient % base ) ]);
-        quotient /= base;
-    } while ( quotient );
-
-    // Append the negative sign
-    if ( value < 0) buf += '-';
-
-    while ((int) buf.length() < base) {
-        buf += ID2BASE.at('0');
-    }
-
-    // skip this so kmer is in 5' - 3' direction for output
-    // reverse( buf.begin(), buf.end() );
-    return buf;
-}
-
-/**
- * Converts a number of base ALPHABET_SIZE to a decimal number.
- * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
- * 
- * @param i input number in the given base as an array
-*/
-int toDeci(int *i) {
-    int ret = 0;
-    int m = 1;
-    for(int r = kmerSize - 1; r >= 0; r--) {
-        ret += m*i[r];
-        m *= ALPHABET_SIZE;
-    }
-    return ret;
-}
-
-/**
- * Converts the kmers of the model file to the integer representation using the BASE2ID map
- *
- * @param s kmer containing nucleotides 
- * @return integer representation of the given kmer
- */
-int kmer2int(const string &s) {
-    int ret = 0;
-    for (char const &c:s){
-        // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
-        ret*=kmerSize; // move the number in base to the left
-        ret+=BASE2ID.at(c);
-    }
-    return ret;
-}
-
-/**
- * Convert the read sequence to a kmer sequence which is represented by integers.
- * 
- * @param seq read sequence
- * @param N length of the read sequence, number of nucleotides
- * @return kmer sequence in integer representation
-*/
-int* seq2kmer(int* seq, const size_t N) {
-    int* kmer_seq = new int[N];
-    int* tempKmer = new int[kmerSize];
-    for (size_t n=0; n<N; ++n){ // extend loop to ad 2 Ns at start and end of read
-        copy(seq + n, seq + n+kmerSize, tempKmer);
-        kmer_seq[n] = toDeci(tempKmer);
-    }
-    delete[] tempKmer;
-    return kmer_seq;
-}
-
-// https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
-/**
- * Calculate log pdf for a given x, mean and standard deviation
- * 
- * @param x value
- * @param m mean
- * @param s standard deviation 
- * @return probabily density at position x for N~(m, s²)
-*/
-inline double log_normal_pdf(const double x, const double m, const double s) {
-    if (s == 0.0) {
-        return -INFINITY; // Handling edge case where standard deviation is 0
-    }
-    
-    const double variance = s * s;
-    const double diff = x - m;
-    constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI)
-    
-    return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
-}
-
-/**
- * Return log probability density for a given value and a given normal distribution
- *
- * @param signal point to calculate probability density
- * @param kmer key for the model kmer:(mean, stdev) map
- * @param model map containing kmers as keys and (mean, stdev) tuples as values
- * @return log probability density value for x in the given normal distribution
- */
-inline double scoreKmer(const double signal, const int kmer, vector<tuple<double, double>>& model) {
-    // Access elements of the model tuple directly to avoid redundant tuple creation and overhead
-    const auto &[mean, stddev] = model[kmer];
-    return log_normal_pdf(signal, mean, stddev);
-}
-
-// https://en.wikipedia.org/wiki/Log_probability
-/**
- * Calculate addition of a+b in log space as efficiently as possible
- *
- * @param a first value
- * @param b second value
- * @return log(exp(a) + exp(b))
- */
-double logPlus(const double &x, const double &y) {
-    // safety check
-    if (x==y && isinf(x) && isinf(y)) {
-        return x;
-    } 
-    if (x>=y){
-        return x + log1p(exp(y-x));
-    }
-    return y + log1p(exp(x-y));
-}
 
 /**
  * Calculate forward matrices using logarithmic values
@@ -360,32 +184,6 @@ void funcE(const size_t t, const size_t n, const double* M, const double* E, con
 }
 
 /**
- * Read the normal distribution parameters from a given TSV file
- *
- * @param file path to the TSV file containing the parameters
- * @param model kmer model to fill
- */
-void readKmerModel(const string &file, vector<tuple<double, double>>& model) {
-    ifstream inputFile(file);
-    string line, kmer, tmp;
-    double mean, stdev;
-    getline(inputFile, line);
-    while(getline(inputFile, line)) { // read line
-        stringstream buffer(line); // parse line to stringstream for getline
-        getline(buffer, kmer, '\t');
-        // legacy models are stored from 3' - 5'
-        // all other (basically new) models are stored in 5' - 3'
-        reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
-        getline(buffer, tmp, '\t'); // level_mean
-        mean = atof(tmp.c_str());
-        getline(buffer, tmp, '\t'); // level_stdv
-        stdev = atof(tmp.c_str());
-        model[kmer2int(kmer)]=make_tuple(mean, stdev);
-    }
-    inputFile.close();
-}
-
-/**
  * Train transition parameter with baum welch algorithm
 */
 tuple<double, double, double> trainTransition(const double* sig, const int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
@@ -473,9 +271,9 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, do
             kmers[n] += g * sig[t-1];       // Accumulate for kmers
             d[n] += g;                      // Accumulate for normalizer
         }
-        if (d[n] > 0) {
-            kmers[n] = kmers[n] / d[n];     // Normalize
-        }
+        // if (d[n] > 0) {
+        kmers[n] = kmers[n] / d[n];         // Normalize
+        // }
     }
 
     for (size_t n=1; n<N; ++n) {
@@ -486,13 +284,12 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, do
     fill_n(kmers, N, 0);
     for (size_t n=1; n<N; ++n) {
         for (size_t t=n; t<T; ++t) { // n<=t, speed up, due to rules no need to look at lower triangle of matrices
-            double g_exp = exp(G[t * N + n]);  // Cache the exp(G[t * N + n])
             double diff = sig[t-1] - means[kmer_seq[n-1]];  // Compute difference from mean
-            kmers[n] += g_exp * diff * diff;  // Accumulate for variance
+            kmers[n] += exp(G[t * N + n]) * diff * diff;  // Accumulate for variance
         }
-        if (d[n]>0) {
-            kmers[n] = kmers[n] / d[n];
-        }
+        // if (d[n]>0) {
+        kmers[n] = kmers[n] / d[n];
+        // }
         stdevs[kmer_seq[n-1]] += kmers[n] / counts[kmer_seq[n-1]];
     }
 
@@ -516,7 +313,7 @@ void trainParams(const double* sig, const int* kmer_seq, double* forM, double* f
     auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
     for (int i=0; i<numKmers; i++){
         if (newStdevs[i]!=0.0){
-            cout<<itoa(i)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
+            cout<<itoa(i, kmerSize)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
         }
     }
     cout<<endl;
@@ -526,6 +323,11 @@ void trainParams(const double* sig, const int* kmer_seq, double* forM, double* f
  * Read signal and read from stdin until the TERM_STRING is seen
 */
 int main(int argc, char* argv[]) {
+    int pore;
+    bool train, calcZ, prob;
+    string modelpath;
+    const string TERM_STRING = "$";
+
     // Argparser
     argparse::ArgumentParser program("dynamont basic", "0.1");
     // parameters for DP
@@ -534,8 +336,8 @@ int main(int argc, char* argv[]) {
     program.add_argument("-e2", "--extendscore2").help("Transition probability for extend rule 2").default_value(.9688).scan<'g', double>().store_into(e2); // e2
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
-    program.add_argument("-m", "--model").help("Path to kmer model table").default_value(MODELPATH).store_into(modelpath);
-    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10);
+    program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model").store_into(modelpath);
+    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10).store_into(pore);
     program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0).store_into(C);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob);
 
@@ -548,17 +350,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    int pore = program.get<int>("pore");
-    
     if (pore == 9) {
         kmerSize = 5;
     } else if (pore == 10) {
         kmerSize = 9;
     }
-    fillBASE2ID();
     numKmers = pow(ALPHABET_SIZE, kmerSize);
     vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
-    readKmerModel(modelpath, model);
+    readKmerModel(modelpath, model, kmerSize);
     string signal;
     string read;
     int truish = 1;
@@ -609,7 +408,7 @@ int main(int argc, char* argv[]) {
         seq[i] = 4;
         seq[i+1] = 4;
 
-        int* kmer_seq = seq2kmer(seq, N-1);
+        int* kmer_seq = seq2kmer(seq, N-1, kmerSize);
         TN = T*N;
 
         // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<endl;
@@ -657,8 +456,8 @@ int main(int argc, char* argv[]) {
                 cout.flush();
 
             } else {
-                const double* LPM = logP(forM, backM, Zf, T, N); // log probs
-                const double* LPE = logP(forE, backE, Zf, T, N); // log probs
+                const double* LPM = logP(forM, backM, Zf, T, N); // log probs for segmentation
+                const double* LPE = logP(forE, backE, Zf, T, N); // log probs for extension
                 list<string> segString = getBorders(LPM, LPE, T, N);
 
                 for (auto const& seg : segString) {
@@ -667,18 +466,18 @@ int main(int argc, char* argv[]) {
                 cout<<endl;
                 cout.flush();
 
+                // calculate sum of segment probabilities
                 if (prob) {
-                // // calculate sum of segment probabilities
-                double sum;
-                for (size_t t=0;t<T;++t) {
-                    sum = -INFINITY;
-                    for (size_t n=0; n<N; ++n) {
-                        sum = logPlus(sum, LPM[t*N+n]);
+                    double sum;
+                    for (size_t t=0; t<T; ++t) {
+                        sum = -INFINITY;
+                        for (size_t n=0; n<N; ++n) {
+                            sum = logPlus(sum, LPM[t*N+n]);
+                        }
+                        cout<<sum<<",";
                     }
-                    cout<<sum<<",";
-                }
-                cout<<endl;
-                cout.flush();
+                    cout<<endl;
+                    cout.flush();
                 }
 
                 // Clean up

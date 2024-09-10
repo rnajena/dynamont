@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "argparse.hpp"
+#include "utils.hpp"
 
 using namespace std;
 
@@ -33,24 +34,11 @@ public:
     operator double const () const { return value_; }
 };
 
-unordered_map<char, int> BASE2ID, ID2BASE;
-// unordered_map<char, int> ID2BASE;
-string modelpath;
-const int ALPHABET_SIZE = 5;
 const int NUMMAT = 5;
-constexpr double EPSILON = 0.00000001; //pow(10, -8); // chose by eye just to distinguish real errors from numeric errors
-bool train, calcZ; // atrain
+int kmerSize, stepSize;
+inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 double a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2; // transition parameters
-// stepSize = pow(ALPHABET_SIZE, kmerSize - 1)
-size_t kmerSize, stepSize, T, N, K, TNK, NK;
-
-// init model for unnormalised signals r9
-// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model";
-// init model for normalised signals r9
-// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev1.model";
-// const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_5.model";
-const string MODELPATH = "/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model";
-const string TERM_STRING = "$";
+size_t T, N, K, TNK, NK;
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
@@ -62,208 +50,11 @@ void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
 void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
 void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
 
-/**
- * Fill the BASE2ID map with the base and ID pairs.
- */
-void fillBASE2ID() {
-    BASE2ID.insert(pair<char, int>('A', 0));
-    BASE2ID.insert(pair<char, int>('C', 1));
-    BASE2ID.insert(pair<char, int>('G', 2));
-    BASE2ID.insert(pair<char, int>('T', 3));
-    BASE2ID.insert(pair<char, int>('U', 3));
-    BASE2ID.insert(pair<char, int>('N', 4));
-    BASE2ID.insert(pair<char, int>('a', 0));
-    BASE2ID.insert(pair<char, int>('c', 1));
-    BASE2ID.insert(pair<char, int>('g', 2));
-    BASE2ID.insert(pair<char, int>('t', 3));
-    BASE2ID.insert(pair<char, int>('u', 3));
-    BASE2ID.insert(pair<char, int>('n', 4));
-    ID2BASE.insert(pair<char, char>('0', 'A'));
-    ID2BASE.insert(pair<char, char>('1', 'C'));
-    ID2BASE.insert(pair<char, char>('2', 'G'));
-    ID2BASE.insert(pair<char, char>('3', 'T'));
-    ID2BASE.insert(pair<char, char>('4', 'N'));
-}
-
-// ===============================================================
-// ===============================================================
-// =========================== Utility ===========================
-// ===============================================================
-// ===============================================================
-
-/**
- * Sorts the column indices of a row-major-indexed double matrix.
- * Complexity is O(C * log(C)), see https://en.cppreference.com/w/cpp/algorithm/stable_sort.
- * 
- * @param matrix a double matrix in row major order
- * @param C column size
- * @param t the column to sort for
- * 
- * @return size_t vector with the sorted index of column in descending order
- */
-vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t t) {
-    // Initialize original index locations (indices correspond to C)
-    vector<size_t> idx(C);
-    iota(idx.begin(), idx.end(), 0);
-
-    // Sort indexes based on comparing values in the given column 'c'
-    stable_sort(idx.begin(), idx.end(),
-        [matrix, C, t](size_t i1, size_t i2) {
-            return matrix[t * C + i1] > matrix[t * C + i2];
-        });
-
-    return idx;
-}
-
-/**
- * C++ version 0.4 std::string style "itoa":
- * Contributions from Stuart Lowe, Ray-Yuan Sheu,
- * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
- * and Brian Hunt
- * 
- * Converts a decimal to number to a number of base ALPHABET_SIZE.
- * TODO Works for base between 2 and 16 (included)
- * 
- * Returns kmer in reversed direction!
- * 
- * @param value input number in decimal to convert to base
- * @returns kmer as reversed string, should be 5' - 3' direction
-*/
-string itoa(const int value) {
-    string buf;
-    int base = kmerSize;
-
-    // check that the base if valid
-    if (base < 2 || base > 16) return to_string(value);
-
-    enum { kMaxDigits = 35 };
-    buf.reserve( kMaxDigits ); // Pre-allocate enough space.
-    int quotient = value;
-
-    // Translating number to string with base:
-    do {
-        buf += ID2BASE.at("0123456789abcdef"[ abs( quotient % base ) ]);
-        quotient /= base;
-    } while ( quotient );
-
-    // Append the negative sign
-    if ( value < 0) buf += '-';
-
-    while ((int) buf.length() < base) {
-        buf += ID2BASE.at('0');
-    }
-
-    // skip this so kmer is in 5' - 3' direction for output
-    // reverse( buf.begin(), buf.end() );
-    return buf;
-}
-
-/**
- * Converts a number of base ALPHABET_SIZE to a decimal number.
- * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
- * 
- * @param i input number in the given base as an array
-*/
-int toDeci(const int* i) {
-    int ret = 0;
-    int m = 1;
-    for(int r = kmerSize - 1; r >= 0; r--) {
-        ret += m*i[r];
-        m *= ALPHABET_SIZE;
-    }
-    return ret;
-}
-
-/**
- * Converts the kmers of the model file to the integer representation using the BASE2ID map
- *
- * @param s kmer containing nucleotides 
- * @return integer representation of the given kmer
- */
-int kmer2int(const string &s) {
-    int ret = 0;
-    for(char const &c:s){
-        // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
-        ret*=kmerSize; // move the number in base to the left
-        ret+=BASE2ID.at(c);
-    }
-    return ret;
-}
-
-/**
- * Calculates the integer representation of the successing kmer given the current kmer and the upcoming nucleotide
- * k_i+1 = (k_i mod base^(kmerSize-1)) * base + value(nextNt, base)
- * 
- * @param currentKmer
- * @param nextNt
- * @return successing Kmer as integer representation in the current base
- */
-inline size_t successingKmer(const size_t currentKmer, const int nextNt) {
-    return (currentKmer % stepSize) * ALPHABET_SIZE + nextNt;
-}
-
-/**
- * Calculates the integer representation of the precessor kmer given the current kmer and the precessing nucleotide
- * k_i-1 = int(k_i/base) + value(priorNt, base) * base^(kmerSize-1)
- * 
- * @param currentKmer
- * @param priorNt
- * @return precessing Kmer as integer representation in the current base
- */
-inline size_t precessingKmer(const size_t currentKmer, const int priorNt) {
-    return (currentKmer/ALPHABET_SIZE) + (priorNt * stepSize);
-}
-
-/**
- * Convert the read sequence to a kmer sequence which is represented by integers.
- * 
- * @param seq read sequence
- * @param N length of the read sequence, number of nucleotides
- * @return kmer sequence in integer representation
-*/
-int* seq2kmer(const int *seq, const size_t N) {
-    int* kmer_seq = new int[N];
-    int* tempKmer = new int[kmerSize];
-    for(size_t n=0; n<N; n++){ // extend loop to ad 2 Ns at start and end of read
-        copy(seq+n, seq+n+kmerSize, tempKmer);
-        kmer_seq[n] = toDeci(tempKmer);
-    }
-    delete[] tempKmer;
-    return kmer_seq;
-}
-
 // ===============================================================
 // ===============================================================
 // ===================== Scoring calculations ====================
 // ===============================================================
 // ===============================================================
-
-// https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
-/**
- * Calculate log pdf for a given x, mean and standard deviation
- * 
- * @param x value
- * @param m mean
- * @param s standard deviation 
- * @return probabily density at position x for N~(m, s²)
-*/
-inline double log_normal_pdf(const double x, const double m, const double s) {
-    if (s == 0.0) {
-        return -INFINITY; // Handling edge case where standard deviation is 0
-    }
-    
-    double variance = s * s;
-    double diff = x - m;
-    constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI)
-    
-    return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
-}
-// inline double log_normal_pdf(const double x, const double m, const double s) {
-//     if(s==0) {
-//         return -INFINITY;
-//     }
-//     return -0.5*(log(2*M_PI*s*s)+((x - m)*(x - m)/(s*s)));
-// }
 
 /**
  * Calculates the Hamming-Distance between two given kmers in their integer base representation
@@ -272,34 +63,12 @@ inline int distanceSequenceKmer(const size_t kmer_N, const size_t kmer_K) {
     int acc = 0;
     div_t dv_N{}; dv_N.quot=kmer_N;
     div_t dv_K{}; dv_K.quot=kmer_K;
-    for(unsigned int i=0; i<kmerSize; i++){
+    for(int i=0; i<kmerSize; i++){
         dv_N = div(dv_N.quot, kmerSize);
         dv_K = div(dv_K.quot, kmerSize);
         acc += (dv_N.rem != dv_K.rem);
     }
     return acc;
-}
-
-/**
- * Return shifted & scaled log probability density for a given value and a given normal distribution
- */
-inline double scoreSignalKmer(const double signal_T, const double mean, const double stdev) {
-    // return 2*(log_normal_pdf(signal_T, mean, stdev) + 6);
-    return log_normal_pdf(signal_T, mean, stdev);
-}
-
-/**
- * Return log probability density for a given value and a given normal distribution
- *
- * @param signal point to calculate probability density
- * @param kmer key for the model kmer:(mean, stdev) map
- * @param model map containing kmers as keys and (mean, stdev) tuples as values
- * @return log probability density value for x in the given normal distribution
- */
-inline double scoreKmer(const double signal, const size_t kmer, const vector<tuple<double, double>> &model) {
-    // Access elements of the model tuple directly to avoid redundant tuple creation and overhead
-    const auto &[mean, stddev] = model[kmer];
-    return scoreSignalKmer(signal, mean, stddev);
 }
 
 /**
@@ -319,8 +88,8 @@ inline double score(const double signal_T, const size_t kmer_N, const size_t kme
     const auto &[mean_K, stdev_K] = model[kmer_K];
 
     // Precompute the scores for the individual kmers and their distance
-    const double scoreNT = scoreSignalKmer(signal_T, mean_N, stdev_N);
-    const double scoreKT = scoreSignalKmer(signal_T, mean_K, stdev_K);
+    const double scoreNT = log_normal_pdf(signal_T, mean_N, stdev_N);
+    const double scoreKT = log_normal_pdf(signal_T, mean_K, stdev_K);
     const double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K) * affineScale; // log(exp(-HD * affineCost)) = -HD * affineCost
 
     return scoreNT + scoreKT + scoreNK;
@@ -341,30 +110,11 @@ inline double score(const double signal_T, const size_t kmer_N, const size_t kme
     const auto &[mean_K, stdev_K] = model[kmer_K];
 
     // Precompute the scores for the individual kmers and their distance
-    double scoreNT = scoreSignalKmer(signal_T, mean_N, stdev_N);
-    double scoreKT = scoreSignalKmer(signal_T, mean_K, stdev_K);
+    double scoreNT = log_normal_pdf(signal_T, mean_N, stdev_N);
+    double scoreKT = log_normal_pdf(signal_T, mean_K, stdev_K);
     double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K); // log(exp(-HD)) = -HD
 
     return scoreNT + scoreKT + scoreNK;
-}
-
-// https://en.wikipedia.org/wiki/Log_probability
-/**
- * Calculate addition of a+b in log space as efficiently as possible
- * with x + log1p(exp(y-x)) : x>y
- * 
- * @param a first value
- * @param b second value
- * @return log(exp(a) + exp(b))
- */
-inline double logPlus(const double x, const double y) {
-    if (isinf(x) && isinf(y)) {
-        return x;
-    }
-    if (x>=y){
-        return x + log1p(exp(y-x));
-    }
-    return y + log1p(exp(x-y));
 }
 
 /**
@@ -489,7 +239,7 @@ void ppForTK(const double* sig, double* M, double* E, const size_t T, const size
             // t>0
             } else [[likely]] {
                 const double score = scoreKmer(sig[t-1], k, model);
-                for(size_t preKmer=precessingKmer(k, 0); preKmer<K; preKmer+=stepSize){
+                for(size_t preKmer=precessingKmer(k, 0, stepSize); preKmer<K; preKmer+=stepSize){
                     // mat=logPlus(mat, E[prevTK+preKmer] + scoreKmer(sig[t-1], preKmer, model) + m);
                     mat=logPlus(mat, E[prevTK+preKmer] + score + m);
                 }
@@ -523,7 +273,7 @@ void ppBackTK(const double* sig, double* M, double* E, const size_t T, const siz
                 ext = 0.0;
             // t<T-1
             } else [[likely]] {
-                const size_t startKmer = successingKmer(k, 0);
+                const size_t startKmer = successingKmer(k, 0, stepSize);
                 const size_t endKmer = startKmer + ALPHABET_SIZE;
                 for(size_t sucKmer = startKmer; sucKmer<endKmer; ++sucKmer){
                     ext=logPlus(ext, M[nexttK+sucKmer] + scoreKmer(sig[t], sucKmer, model) + m);
@@ -587,7 +337,7 @@ void preProcTN(const double *sig, const int *kmer_seq, unordered_map<size_t, uno
             }
         }
     }
-    // cerr<<"TN dense: "<<c/double(TN)<<endl;
+    cerr<<"TN dense: "<<c/double(TN)<<endl;
 }
 
 /**
@@ -641,7 +391,7 @@ void preProcTK(const double *sig, unordered_map<size_t, unordered_set<size_t>> &
             }
         }
     }
-    // cerr<<"TK dense: "<<c/double(TK)<<endl;
+    cerr<<"TK dense: "<<c/double(TK)<<endl;
 }
 
 void preProcTNK(const double *sig, const int *kmer_seq, vector<size_t> &allowedKeys, const size_t T, const size_t N, const size_t K, const vector<tuple<double, double>> &model) {
@@ -661,7 +411,6 @@ void preProcTNK(const double *sig, const int *kmer_seq, vector<size_t> &allowedK
 
     // erase duplicates
     sort(allowedKeys.begin(), allowedKeys.end());
-    // allowedKeys.erase(unique(allowedKeys.begin(), allowedKeys.end()), allowedKeys.end());
 }
 
 // ===============================================================
@@ -704,7 +453,7 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
             const size_t baseIdx5 = tnk - K;
 
             // non-consecutive, differs by 5^4
-            for(size_t preKmer = precessingKmer(k, 0); preKmer<K; preKmer += stepSize) {
+            for(size_t preKmer = precessingKmer(k, 0, stepSize); preKmer<K; preKmer+=stepSize) {
                 // (t-1)*NK+(n-1)*K+k'
                 forAPSEIRef = forAPSEI[baseIdx1+preKmer];
                 a=logPlus(a, forAPSEIRef[3] + a1 + openScore);
@@ -769,7 +518,7 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
             // (t+1)*NK+(n+1)*K+k
             const size_t next_tnk_n = next_tnk + K;
             // Cache results of successingKmer to avoid recomputation
-            const size_t sucKmerBase = successingKmer(k, 0);
+            const size_t sucKmerBase = successingKmer(k, 0, stepSize);
             const size_t sucKmerEnd = sucKmerBase + ALPHABET_SIZE;
 
             if (n>0) [[likely]] {
@@ -855,7 +604,7 @@ list<string> getBorders(unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, 
             const size_t baseIdx4 = tnk - NK;           // (t-1)*NK+ n   *K+k
             const size_t baseIdx5 = tnk - K;            //  t   *NK+(n-1)*K+k
             const array<dproxy, NUMMAT> logAPSEIRef = logAPSEI.at(tnk); // .at(idx) : index must exist
-            for(size_t preKmer = precessingKmer(k, 0); preKmer<K; preKmer+=stepSize) {
+            for(size_t preKmer = precessingKmer(k, 0, stepSize); preKmer<K; preKmer+=stepSize) {
                 // (t-1)*NK+(n-1)*K+k'
                 idx = baseIdx1+preKmer;
                 a=max(a, APSEI[idx][3] + logAPSEIRef[0]);
@@ -902,7 +651,7 @@ list<string> getBorders(unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, 
 
 void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K){
     if (t<=1 && n<=1){ // Start value
-        segString->push_front("M"+to_string(0)+","+to_string(0)+","+itoa(k)+";"); // n-1 because N is 1 larger than the sequences
+        segString->push_front("M"+to_string(0)+","+to_string(0)+","+itoa(k, kmerSize)+";"); // n-1 because N is 1 larger than the sequences
         return;
     }
     const size_t currentIdx = t*NK+n*K+k;
@@ -910,16 +659,16 @@ void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     // Cache the score value to avoid redundant lookups
     const double score = APSEI[currentIdx][0];
     const double logScore = logAPSEI[currentIdx][0];
-    for(size_t preKmer=precessingKmer(k, 0); preKmer<K; preKmer+=stepSize) {
+    for(size_t preKmer=precessingKmer(k, 0, stepSize); preKmer<K; preKmer+=stepSize) {
         if (t>1 && n>1) {
             // Check match with E state
             if (score == APSEI[prevIdx+preKmer][3] + logScore){
-                segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+                segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k, kmerSize)+";");
                 return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K);
             }
             // Check match with I state
             if (score == APSEI[prevIdx+preKmer][4] + logScore){
-                segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k)+";");
+                segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k, kmerSize)+";");
                 return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K);
             }
         }
@@ -966,21 +715,21 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     const double logScore = logAPSEI[currentIdx][1];
     const size_t prevBaseIdx = NK*(t-1)+n*K;  // Common base index for previous time step
     if (t>0 && n>0) {
-        for (size_t preKmer = precessingKmer(k, 0); preKmer < K; preKmer += stepSize) {
+        for (size_t preKmer = precessingKmer(k, 0, stepSize); preKmer<K; preKmer+=stepSize) {
             const size_t prevIdx = prevBaseIdx + preKmer;
             // Check match with E state
             if (score == APSEI[prevIdx][3] + logScore) {
-                segString->push_front("P" + to_string(n) + "," + to_string(t-1) + "," + itoa(k) + ";");
+                segString->push_front("P" + to_string(n) + "," + to_string(t-1) + "," + itoa(k, kmerSize) + ";");
                 return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
             }
             // Check match with S state
             if (score == APSEI[prevIdx][2] + logScore) {
-                segString->push_front("P" + to_string(n) + "," + to_string(t-1) + "," + itoa(k) + ";");
+                segString->push_front("P" + to_string(n) + "," + to_string(t-1) + "," + itoa(k, kmerSize) + ";");
                 return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
             }
             // Check match with I state
             if (score == APSEI[prevIdx][4] + logScore) {
-                segString->push_front("P" + to_string(n) + "," + to_string(t-1) + "," + itoa(k) + ";");
+                segString->push_front("P" + to_string(n) + "," + to_string(t-1) + "," + itoa(k, kmerSize) + ";");
                 return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
             }
         }
@@ -998,17 +747,17 @@ void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k) + ";");
+            segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, kmerSize) + ";");
             return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore) {
-            segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k) + ";");
+            segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, kmerSize) + ";");
             return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K);
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k) + ";");
+            segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, kmerSize) + ";");
             return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K);
         }
     }
@@ -1025,44 +774,17 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            segString->push_front("I" + to_string(n-1) + "," + to_string(t) + "," + itoa(k) + ";");
+            segString->push_front("I" + to_string(n-1) + "," + to_string(t) + "," + itoa(k, kmerSize) + ";");
             return funcI(t, n-1, k, APSEI, logAPSEI, segString, K);
         } 
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            segString->push_front("I" + to_string(n-1) + "," + to_string(t) + "," + itoa(k) + ";");
+            segString->push_front("I" + to_string(n-1) + "," + to_string(t) + "," + itoa(k, kmerSize) + ";");
             return funcE(t, n-1, k, APSEI, logAPSEI, segString, K);
         }
     }
     // If no match is found, output an error
     cerr << "Error in backtracing funcI!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
-}
-
-/**
- * Read the normal distribution parameters from a given TSV file
- *
- * @param file path to the TSV file containing the parameters
- * @param model kmer model to fill
- */
-void readKmerModel(const string &file, vector<tuple<double, double>>& model) {
-    ifstream inputFile(file);
-    string line, kmer, tmp;
-    double mean, stdev;
-    getline(inputFile, line);
-    while(getline(inputFile, line)) { // read line
-        stringstream buffer(line); // parse line to stringstream for getline
-        getline(buffer, kmer, '\t');
-        // legacy models are stored from 3' - 5'
-        // https://github.com/nanoporetech/kmer_models
-        // new models are stored in 5' - 3'
-        reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
-        getline(buffer, tmp, '\t'); // level_mean
-        mean = atof(tmp.c_str());
-        getline(buffer, tmp, '\t'); // level_stdv
-        stdev = atof(tmp.c_str());
-        model[kmer2int(kmer)]=make_tuple(mean, stdev);
-    }
-    inputFile.close();
 }
 
 /**
@@ -1087,7 +809,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
         auto &forAPSEI_tnk = forAPSEI[tnk];
 
         if (t<T-1) [[likely]] {
-            const size_t sucKmerBase = successingKmer(k, 0);
+            const size_t sucKmerBase = successingKmer(k, 0, stepSize);
             const size_t sucKmerEnd = sucKmerBase + ALPHABET_SIZE;
 
             if (n>0) [[likely]] {
@@ -1171,7 +893,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     double* stdevs = new double[K];
     double* normFactorT = new double[K];
     double w;
-    constexpr double TRAIN_THRESHOLD = 0.000001; //pow(10, -6); // plotted one example as histogram and chose by eye
+    constexpr double TRAIN_THRESHOLD = 1e-9; // arbitrarily set
 
     // First pass: Compute means and normalization factors
     for(size_t tnk : allowedKeys){
@@ -1200,7 +922,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
         // tnk = t*NK+n*K+k
         k = tnk % K;
         // Skip kmers with low weight or if t == 0
-        if(normFactorT[k]/T < TRAIN_THRESHOLD || tnk<NK) {
+        if(normFactorT[k]/T < TRAIN_THRESHOLD || tnk<NK) [[likely]] {
             continue;
         }
         t = tnk/NK;
@@ -1230,7 +952,7 @@ void trainParams(const double *sig, const int *kmer_seq, unordered_map<size_t, a
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(size_t k=0; k<K; ++k){
         if (newStdevs[k]!=0.0){
-            cout<<itoa(k)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
+            cout<<itoa(k, kmerSize)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
         }
     }
     cout<<endl;
@@ -1242,6 +964,11 @@ void trainParams(const double *sig, const int *kmer_seq, unordered_map<size_t, a
  * Read signal and read from stdin until the TERM_STRING is seen
 */
 int main(int argc, char* argv[]) {
+    int pore;
+    bool train, calcZ; // atrain
+    string modelpath;
+    const string TERM_STRING = "$";
+
     cerr << fixed << showpoint;
     cerr << setprecision(20);
 
@@ -1250,32 +977,32 @@ int main(int argc, char* argv[]) {
     // parameters for DP
 
     // double a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2; // transition parameters
-    program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(1.00).scan<'g', double>(); // e1
+    program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(1.00).scan<'g', double>().store_into(e1); // e1
 
-    program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(0.50).scan<'g', double>(); // e2
-    program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(0.50).scan<'g', double>(); // s1
+    program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(0.944).scan<'g', double>().store_into(e2); // e2
+    program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(0.056).scan<'g', double>().store_into(s1); // s1
 
-    program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(0.50).scan<'g', double>(); // e3
-    program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(0.50).scan<'g', double>(); // p1
+    program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(0.086).scan<'g', double>().store_into(e3); // e3
+    program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(0.914).scan<'g', double>().store_into(p1); // p1
 
-    program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(0.20).scan<'g', double>(); // a1
-    program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(0.20).scan<'g', double>(); // p2
-    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(0.20).scan<'g', double>(); // e4
-    program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(0.20).scan<'g', double>(); // s2
-    program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(0.20).scan<'g', double>(); // i1
+    program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(0.007).scan<'g', double>().store_into(a1); // a1
+    program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(0.758).scan<'g', double>().store_into(p2); // p2
+    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(0.231).scan<'g', double>().store_into(e4); // e4
+    program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(0.003).scan<'g', double>().store_into(s2); // s2
+    program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(0.001).scan<'g', double>().store_into(i1); // i1
 
-    program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(0.25).scan<'g', double>(); // a2
-    program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(0.25).scan<'g', double>(); // p3
-    program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(0.25).scan<'g', double>(); // s3
-    program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(0.25).scan<'g', double>(); // i2
+    program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(0.022).scan<'g', double>().store_into(a2); // a2
+    program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(0.031).scan<'g', double>().store_into(p3); // p3
+    program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(0.654).scan<'g', double>().store_into(s3); // s3
+    program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(0.293).scan<'g', double>().store_into(i2); // i2
 
-    program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true);
-    program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true);
-    program.add_argument("-m", "--model").help("Path to kmer model table").default_value(MODELPATH);
-    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10);
+    program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
+    program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
+    program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model").store_into(modelpath);
+    program.add_argument("-r", "--pore").help("Pore generation used to sequence the data").default_value(9).choices(9, 10).store_into(pore);
     // unused, just here to match the other modes
     program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0); //.store_into(C);
-    
+    program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true); //.store_into(prob);
 
     try {
         program.parse_args(argc, argv);
@@ -1286,37 +1013,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    int pore = program.get<int>("pore");
-    modelpath = program.get<string>("model");
-    train = program.get<bool>("train");
-    calcZ = program.get<bool>("calcZ");
-
-    a1 = log(program.get<double>("alignscore1"));
-    a2 = log(program.get<double>("alignscore2"));
-    p1 = log(program.get<double>("polishscore1"));
-    p2 = log(program.get<double>("polishscore2"));
-    p3 = log(program.get<double>("polishscore3"));
-    s1 = log(program.get<double>("sequencescore1"));
-    s2 = log(program.get<double>("sequencescore2"));
-    s3 = log(program.get<double>("sequencescore3"));
-    e1 = log(program.get<double>("extendscore1"));
-    e2 = log(program.get<double>("extendscore2"));
-    e3 = log(program.get<double>("extendscore3"));
-    e4 = log(program.get<double>("extendscore4"));
-    i1 = log(program.get<double>("insertionscore1"));
-    i2 = log(program.get<double>("insertionscore2"));
-    
     if (pore == 9) {
         kmerSize = 5;
     } else if (pore == 10) {
         kmerSize = 9;
     }
-    fillBASE2ID();
+
     // polishing dimension K = number of possible kmers
     K = pow(ALPHABET_SIZE, kmerSize); // currently acceptable A, C, G, T, N
     stepSize = pow(ALPHABET_SIZE, kmerSize-1);
     vector<tuple<double, double>> model(K, make_tuple(-INFINITY, -INFINITY));
-    readKmerModel(modelpath, model);
+    readKmerModel(modelpath, model, kmerSize);
     string signal, read;
 
     while(1) {
@@ -1363,20 +1070,20 @@ int main(int argc, char* argv[]) {
         seq[i] = 4;
         seq[i+1] = 4;
 
-        int* kmer_seq = seq2kmer(seq, N-1);
+        int* kmer_seq = seq2kmer(seq, N-1, kmerSize);
         NK = N*K;
         TNK = T*NK;
 
-        // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
+        cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
 
         vector<size_t> allowedKeys;
         preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        // cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
+        cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> forAPSEI;
         
-        // cerr<<"forward"<<endl;
+        cerr<<"forward"<<endl;
         logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
-        // cerr<<"backward"<<endl;
+        cerr<<"backward"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> backAPSEI;
         logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
 
@@ -1409,6 +1116,7 @@ int main(int argc, char* argv[]) {
                 cout<<"Z:"<<Zf<<endl;
                 cout.flush();
 
+            // print out segmentation string
             } else {
                 list<string> segString = getBorders(logAPSEI, allowedKeys, T, N, K);
 

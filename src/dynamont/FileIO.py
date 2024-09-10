@@ -169,7 +169,10 @@ def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
     '''
     script = [cpp_script]
     for param in params:
-        script.extend([f"-{param}", str(params[param])])
+        if param == 'p':
+            script.extend(['-p'])
+        else:
+            script.extend([f"-{param}", str(params[param])])
     return openCPPScript(script)
 
 def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None, minSegLen : int = None) -> Popen:
@@ -276,7 +279,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dict = None) -> np.ndarray:
+def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dict = None) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Opens and closes a pipe to the given script.
@@ -308,10 +311,8 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
             start : signal idx
             end : signal idx
             readpos : base position within 5' - 3' read
-            state: {'M', 'I', 'D'}
-                'M' : match
-                'I' : insertion of a base
-                'D' : deletion of a base
+            state: states of the HMM used
+            polish: if available a polish of the motif
     '''
     # probabilities : np.ndarray
     #     in 3' -> 5' orientation
@@ -321,7 +322,15 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
         pipe = openCPPScript(script)
     else:
         pipe = openCPPScriptParams(script, params)
-    output = feedPipe(signal, read, pipe)
+    result = feedPipe(signal, read, pipe)
+
+    try:
+        output, probs, _ = result.split('\n')
+        probs = np.array(list(map(float, probs.split(',')[:-1])))[1:]
+    except:
+        output, _  = result.split('\n')
+        probs = None
+
     # receive segmentation result
     # format output into np.ndarray
     try:
@@ -329,16 +338,9 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
     except:
         # some error during segmentation - no proper output
         return np.array([])
-    return segments #, probs
-
-
-# def feedSegmentationAsynchronousDummy(signal : np.ndarray, read : str, readid : str, queue : Queue) -> None:
-#     print(readid)
+    return segments , probs
 
 globalPipe : Popen = None
-
-# def openGlobalPipe(script : str, params : dict) -> None:
-#     PIPE = openCPPScriptParams(script, params)
 
 def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, readid : str, queue : Queue) -> None:
     '''
@@ -423,15 +425,29 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
                 'I' : insertion of a base
                 'D' : deletion of a base
     '''
-    output = re.findall('\D[\d,]+', output)
+    pattern =  r"\w\d+,\d+(?:,[A-Z]+)?"
+    # \w\d+ — Matches the first part (a letter followed by digits, e.g., M5, I6).
+    # ,\d+ — Matches the second part (a comma followed by digits, e.g., ,123, ,125).
+    # (?:,[A-Z]+)? — Optionally matches the third part (a comma followed by uppercase letters, e.g., ,GNGNT), made optional by ?.
+    output = re.findall(pattern, output)
     segments = []
-    for i in range(len(output)):
-        state = output[i][0]
-        basepos, start = output[i][1:].split(',')
+    for i, segment in enumerate(output):
+        # split segment state
+        state = segment[0]
+        segment = segment[1:]
+
+        # get basepos, signal start and polish if existing
+        try:
+            basepos, start, polish = segment.split(',')
+        except ValueError:
+            basepos, start = segment.split(',')
+            polish = 'NA'
+
         end = output[i+1][1:].split(',')[1] if i < len(output)-1 else sigLen
+
         # convert basepos to 5' -> 3' direction
         pos = len(read) - int(basepos) - 1
-        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state])
+        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, polish])
         # segments[-1] = list(map(str, segments[-1]))
 
     return np.array(segments, dtype=object)

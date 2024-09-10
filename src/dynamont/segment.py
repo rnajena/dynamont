@@ -4,8 +4,6 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-# TODO make this asynchroneous
-
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name
@@ -29,13 +27,13 @@ def parse() -> Namespace:
     parser.add_argument('--batch_size', type=int, default=None, help='Number of reads to train before updating')
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
-    parser.add_argument('--normalised', action="store_true", help="Use Z normalised signal in training. Make sure, that the model is also normalised.")
+    parser.add_argument('--unnormalised', action="store_true", help="Use unnormalised signal. Make sure the model matches this mode!")
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str):
     '''listens for messages on the q, writes to file. '''
     with open(outfile, 'w') as f:
-        f.write('readid,start,end,basepos,base,motif,state\n')
+        f.write('readid,start,end,basepos,base,motif,state,polish\n')
         i = 0
         while 1:
             m = q.get()
@@ -48,7 +46,7 @@ def listener(q : mp.Queue, outfile : str):
             f.flush()
 
 # def segment(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, mode : str, outfile : str, modelpath : str) -> None:
-def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, outfile : str, modelpath : str, normalised : bool) -> None:
+def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, outfile : str, modelpath : str, unnormalised : bool) -> None:
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
     basecalls = loadFastx(fastxpath)
@@ -59,7 +57,11 @@ def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, ou
         if name == 'nt': # check for windows
             CPP_SCRIPT+='.exe'
     elif mode == 'basic':
-        CPP_SCRIPT = join(dirname(__file__), 'segmentation_basic')
+        CPP_SCRIPT = join(dirname(__file__), 'segmentation_basic_sparsed')
+        if name == 'nt': # check for windows
+            CPP_SCRIPT+='.exe'
+    elif mode == '3d':
+        CPP_SCRIPT = join(dirname(__file__), 'segmentation_3d_sparsed')
         if name == 'nt': # check for windows
             CPP_SCRIPT+='.exe'
 
@@ -76,7 +78,7 @@ def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, ou
         for readid in r5:
             if not readid in basecalls: # or (readid not in polyAIndex)
                 continue
-            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath}, getSignal(r5, readid, normalised), basecalls[readid][::-1], readid, queue)))
+            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath}, getSignal(r5, readid, unnormalised), basecalls[readid][::-1], readid, queue)))
     
     # wait for all jobs to finish
     for job in jobs:
@@ -98,10 +100,10 @@ def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, ou
     pool.join()
     print("Done segmenting signals")
 
-def getSignal(r5 : read5.AbstractFileReader.AbstractFileReader, readid : str, normalised : bool):
-    if normalised:
-        return r5.getZNormSignal(readid, "mean")
-    return r5.getpASignal(readid)
+def getSignal(r5 : read5.AbstractFileReader.AbstractFileReader, readid : str, unnormalised : bool):
+    if unnormalised:
+        return r5.getpASignal(readid)
+    return r5.getZNormSignal(readid, "median")
 
 def main() -> None:
     args = parse()
@@ -110,7 +112,7 @@ def main() -> None:
         makedirs(dirname(outfile))
     # polya=readPolyAStartEnd(args.polya)
     # segment(args.raw, args.fastx, polya, args.batch_size, args.mode, join(outdir, "dynamont.csv"), args.model_path)
-    segment(args.raw, args.fastx, args.batch_size, args.mode, outfile, args.model_path, args.normalised)
+    segment(args.raw, args.fastx, args.batch_size, args.mode, outfile, args.model_path, args.unnormalised)
 
 if __name__ == '__main__':
     main()
