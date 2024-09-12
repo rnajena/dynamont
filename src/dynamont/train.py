@@ -14,7 +14,6 @@ import multiprocessing as mp
 from hampel import hampel
 import random
 from datetime import datetime
-from Outlierlist import OutlierList
 
 INITMODEL = None
 
@@ -100,8 +99,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         CPP_SCRIPT+='.exe'
 
     # collect all trained parameters to get an ensemble training in the end
-    paramCollector = {kmer:[OutlierList([kmerModels[kmer][0]]), OutlierList([kmerModels[kmer][1]])] for kmer in kmerModels}
-    paramCollector = paramCollector | {param : OutlierList() for param in transitionParams}
+    paramCollector = {kmer:([kmerModels[kmer][0]], [kmerModels[kmer][1]]) for kmer in kmerModels}
+    paramCollector = paramCollector | {param : [transitionParams[param]] for param in transitionParams}
     kmerSeen = set()
     param_writer.write("epoch,batch,read,")
     for param in transitionParams:
@@ -137,7 +136,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         if unnormalised:
                             signal = r5.getPolyAStandardizedSignal(readid, polya[readid][0], polya[readid][1])[polya[readid][1]:]
                         else:
-                            signal = r5.getZNormSignal(readid, "median")[polya[readid][1]:]
+                            # signal = r5.getZNormSignal(readid, "median")[polya[readid][1]:]
+                            signal = r5.getZNormSignal(readid, "mean")[polya[readid][1]:] # saw more consistency for short reads when using the mean
                         signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         mp_items.append([signal, basecalls[readid][::-1], transitionParams, CPP_SCRIPT, trainedModels, minSegLen, readid])
                         training_readids.append(readid)
@@ -161,7 +161,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             i += 1
                             Zs.append(Z)
 
-                            for j, param in enumerate(trainedParams):
+                            for param in trainedParams:
                                 paramCollector[param].append(trainedParams[param])
 
                             for kmer in newModels:
@@ -174,11 +174,15 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         # update parameters
                         param_writer.write(f'{e},{batch_num},{i},') # log
                         for param in transitionParams:
-                            transitionParams[param] = paramCollector[param].mean()
+                            try:
+                                transitionParams[param] = np.mean(paramCollector[param])
+                            except:
+                                print(param, paramCollector[param])
+                                exit(1)
                             param_writer.write(f'{transitionParams[param]},') # log
 
                         for kmer in kmerSeen:
-                            kmerModels[kmer] = [paramCollector[kmer][0].mean(), paramCollector[kmer][1].mean()]
+                            kmerModels[kmer] = [np.mean(paramCollector[kmer][0]), np.mean(paramCollector[kmer][1])]
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels, INITMODEL)

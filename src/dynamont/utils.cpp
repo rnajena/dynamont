@@ -44,6 +44,49 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * @param value input number in decimal to convert to base
  * @returns kmer as reversed string, should be 5' - 3' direction
 */
+string itoa(const size_t value, const int kmerSize) {
+    string buf;
+    int base = kmerSize;
+
+    // check that the base if valid
+    if (base < 2 || base > 16) return to_string(value);
+
+    enum { kMaxDigits = 35 };
+    buf.reserve( kMaxDigits ); // Pre-allocate enough space.
+    int quotient = value;
+
+    // Translating number to string with base:
+    do {
+        buf += ID2BASE.at("0123456789abcdef"[ abs( quotient % base ) ]);
+        quotient /= base;
+    } while ( quotient );
+
+    // Append the negative sign
+    // if ( value < 0) buf += '-';
+
+    while ((int) buf.length() < base) {
+        buf += ID2BASE.at('0');
+    }
+
+    // skip this so kmer is in 5' - 3' direction for output
+    // reverse( buf.begin(), buf.end() );
+    return buf;
+}
+
+/**
+ * C++ version 0.4 std::string style "itoa":
+ * Contributions from Stuart Lowe, Ray-Yuan Sheu,
+ * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
+ * and Brian Hunt
+ * 
+ * Converts a decimal to number to a number of base ALPHABET_SIZE.
+ * TODO Works for base between 2 and 16 (included)
+ * 
+ * Returns kmer in reversed direction!
+ * 
+ * @param value input number in decimal to convert to base
+ * @returns kmer as reversed string, should be 5' - 3' direction
+*/
 string itoa(const int value, const int kmerSize) {
     string buf;
     int base = kmerSize;
@@ -115,7 +158,7 @@ int kmer2int(const string &s, const int kmerSize) {
  * @param kmerSize kmer size 
  * @return kmer sequence in integer representation
 */
-int* seq2kmer(const int *seq, const size_t N, const int kmerSize) {
+int* seq2kmer(const int* seq, const size_t N, const int kmerSize) {
     int* kmer_seq = new int[N];
     int* tempKmer = new int[kmerSize];
     for(size_t n=0; n<N; n++){ // extend loop to ad 2 Ns at start and end of read

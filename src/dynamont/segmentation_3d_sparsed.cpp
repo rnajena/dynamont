@@ -34,8 +34,9 @@ public:
     operator double const () const { return value_; }
 };
 
-// inline constexpr double SPARSE_THRESHOLD = -0.04575749056; // log(0.9)
-inline constexpr double SPARSE_THRESHOLD = -0.1249387366; // log(0.75)
+inline constexpr double SPARSE_THRESHOLD = -0.04575749056; // log(0.9)
+// inline constexpr double SPARSE_THRESHOLD = -0.07058107428; // log(0.85)
+// inline constexpr double SPARSE_THRESHOLD = -0.1249387366; // log(0.75)
 // inline constexpr double TRAIN_THRESHOLD = 1e-9; // arbitrarily set
 const int NUMMAT = 5;
 int kmerSize, stepSize;
@@ -517,7 +518,7 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
 void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dproxy, NUMMAT>> &backAPSEI, vector<size_t> &allowedKeys, const size_t T, const size_t N, const size_t K, const vector<tuple<double, double>> &model){
     double a, p, s, e, i, pv, sc;
     size_t t, n, k;
-    for(size_t tnk : allowedKeys){
+    for(auto tnk = allowedKeys.rbegin(); tnk != allowedKeys.rend(); ++tnk){
         t = *tnk/NK;
         n = (*tnk % NK) / K;
         k = *tnk % K;
@@ -911,6 +912,12 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     double* normFactorT = new double[K];
     double w;
 
+    for (size_t k=0; k<K; ++k) {
+        means[k] = 0;
+        stdevs[k] = 0;
+        normFactorT[k] = 0.0;
+    }
+
     // First pass: Compute means and normalization factors
     for(size_t tnk : allowedKeys){
         // Skip if t == 0 (equivalent to tnk < NK)
@@ -930,13 +937,16 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
 
     // Normalize the means
     for(size_t k=0; k<K; ++k){
-        means[k] = means[k] / normFactorT[k];
+        if (normFactorT[k] != 0) {
+            means[k] = means[k] / normFactorT[k];
+        }
     }
 
     // Emission (stdev of kmers)
     // assuming a flat prior and integrating over N, every cell (in T x K) has on avg a prob. of 1/K, integrating over T results in T/K
     // used kmers should exceed the threshold easily
-    size_t avgFlatProb = T/K; 
+    // double avgFlatProb = T/K; // too restrictive
+    double avgFlatProb = 1e-5; // set by eye
     for(size_t tnk : allowedKeys){
         // tnk = t*NK+n*K+k
         k = tnk % K;
@@ -1094,11 +1104,11 @@ int main(int argc, char* argv[]) {
         NK = N*K;
         TNK = T*NK;
 
-        cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
+        // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
 
         vector<size_t> allowedKeys;
         preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
+        // cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> forAPSEI;
         
         // cerr<<"forward"<<endl;

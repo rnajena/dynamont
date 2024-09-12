@@ -34,19 +34,20 @@ size_t T, N, TN, C;
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
 static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");
-inline double deletion(const double &signal_dp, const int &kmer, const int &sucKmer, vector<tuple<double, double>>& model) {
-    const auto &[mean, stddev] = model[kmer];
-    const auto &[mean_s, stddev_s] = model[sucKmer];
-    const bool aboveCurDist = (signal_dp > mean + 2*stddev);
-    const bool belowCurDist = (signal_dp < mean - 2*stddev);
-    const bool aboveNextDist = (signal_dp > mean_s + 2*stddev_s);
-    const bool belowNextDist = (signal_dp < mean_s - 2*stddev_s);
+
+// inline double deletion(const double &signal_dp, const int &kmer, const int &sucKmer, vector<tuple<double, double>>& model) {
+//     const auto &[mean, stddev] = model[kmer];
+//     const auto &[mean_s, stddev_s] = model[sucKmer];
+//     const bool aboveCurDist = (signal_dp > mean + 2*stddev);
+//     const bool belowCurDist = (signal_dp < mean - 2*stddev);
+//     const bool aboveNextDist = (signal_dp > mean_s + 2*stddev_s);
+//     const bool belowNextDist = (signal_dp < mean_s - 2*stddev_s);
     
-    if ((aboveCurDist && aboveNextDist) || (belowCurDist || belowNextDist)) {
-        return min(scoreKmer(mean, kmer, model), scoreKmer(mean_s, sucKmer, model));
-    }
-    return -INFINITY;
-}
+//     if ((aboveCurDist && aboveNextDist) || (belowCurDist || belowNextDist)) {
+//         return min(scoreKmer(mean, kmer, model), scoreKmer(mean_s, sucKmer, model));
+//     }
+//     return -INFINITY;
+// }
 
 /**
  * Calculate forward matrices using logarithmic values
@@ -75,18 +76,17 @@ void logF(const double* sig, const int* kmer_seq, double* M, double* E, double* 
                 }
                 mat=logPlus(mat, tmp);
             }
-            mat=logPlus(mat, D[(t-1)*N+(n-1)] + score + m2);
+            // mat=logPlus(mat, D[(t-1)*N+(n-1)] + score + m2);
             mat=logPlus(mat, I[(t-1)*N+(n-1)] + score + m3);
             ext=logPlus(ext, M[(t-1)*N+n]     + score + e1);
             ext=logPlus(ext, E[(t-1)*N+n]     + score + e2);
             ins=logPlus(ins, E[t*N+(n-1)]     + score + i1);
             ins=logPlus(ins, I[t*N+(n-1)]     + score + i2);
-            if (n<N-1) [[likely]] {
-                score = deletion(sig[t-1], kmer_seq[n-1], kmer_seq[n], model);
-                del=logPlus(del, E[(t-1)*N+n] + score + d1);
-                del=logPlus(del, D[(t-1)*N+n] + score + d2);
-            }
-
+            // if (n<N-1) [[likely]] {
+            //     score = deletion(sig[t-1], kmer_seq[n-1], kmer_seq[n], model);
+            //     del=logPlus(del, E[(t-1)*N+n] + score + d1);
+            //     del=logPlus(del, D[(t-1)*N+n] + score + d2);
+            // }
             M[t*N+n]=mat;
             E[t*N+n]=ext;
             D[t*N+n]=del;
@@ -128,7 +128,7 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
                     ext=logPlus(ext, tmp);
                 }
 
-                del=logPlus(del, M[(t+1)*N+(n+1)] + score + m2);
+                // del=logPlus(del, M[(t+1)*N+(n+1)] + score + m2);
                 ins=logPlus(ins, M[(t+1)*N+(n+1)] + score + m3);
 
                 if (t>0) [[likely]] {
@@ -143,11 +143,11 @@ void logB(double* sig, int* kmer_seq, double* M, double* E, double* D, double* I
                 mat=logPlus(mat, E[(t+1)*N+n] + score + e1);
                 ext=logPlus(ext, E[(t+1)*N+n] + score + e2);
 
-                if (n+1<N) [[likely]] {
-                    score = deletion(sig[t], kmer_seq[n-1], kmer_seq[n], model);
-                    ext=logPlus(ext, D[(t+1)*N+n] + score + d1);
-                    del=logPlus(del, D[(t+1)*N+n] + score + d2);
-                }
+                // if (n+1<N) [[likely]] {
+                    // score = deletion(sig[t], kmer_seq[n-1], kmer_seq[n], model);
+                    // ext=logPlus(ext, D[(t+1)*N+n] + score + d1);
+                    // del=logPlus(del, D[(t+1)*N+n] + score + d2);
+                // }
             }
             M[t*N+n] = mat;
             E[t*N+n] = ext;
@@ -201,16 +201,16 @@ list<string> getBorders(double* LPM, double* LPE, double* LPD, double* LPI, cons
             del=-INFINITY;
             ins=-INFINITY;
             const size_t idx = t*N+n;
-            if (t>C){
+            if (t>C) [[likely]] {
                 mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[idx]); // m1
             }
-            ext=max(ext, M[(t-1)*N+n]     + LPE[idx]); // e1
-            ext=max(ext, E[(t-1)*N+n]     + LPE[idx]); // e2
             mat=max(mat, D[(t-1)*N+(n-1)] + LPM[idx]); // m2
             mat=max(mat, I[(t-1)*N+(n-1)] + LPM[idx]); // m3
+            ext=max(ext, M[(t-1)*N+n]     + LPE[idx]); // e1
+            ext=max(ext, E[(t-1)*N+n]     + LPE[idx]); // e2
             ins=max(ins, E[t*N+(n-1)]     + LPI[idx]); // i1
             ins=max(ins, I[t*N+(n-1)]     + LPI[idx]); // i2
-            if (n<N-1) {
+            if (n<N-1) [[likely]] {
                 del=max(del, E[(t-1)*N+n] + LPD[idx]); // d1
                 del=max(del, D[(t-1)*N+n] + LPD[idx]); // d2
             }
@@ -336,27 +336,27 @@ tuple<double, double, double, double, double, double, double, double, double> tr
                 newI2 = logPlus(newI2, forI[t*N+n] + i2 + score + backI[t*N+(n+1)]);
             }
 
-            if (t+1<T && n>0 && n+1<N) {
-                score = deletion(sig[t], kmer_seq[n-1], kmer_seq[n], model);
-                newD1 = logPlus(newD1, forE[t*N+n] + d1 + score + backD[(t+1)*N+n]);
-                newD2 = logPlus(newD2, forD[t*N+n] + d2 + score + backD[(t+1)*N+n]);
-            }
+            // if (t+1<T && n>0 && n+1<N) {
+            //     score = deletion(sig[t], kmer_seq[n-1], kmer_seq[n], model);
+            //     newD1 = logPlus(newD1, forE[t*N+n] + d1 + score + backD[(t+1)*N+n]);
+            //     newD2 = logPlus(newD2, forD[t*N+n] + d2 + score + backD[(t+1)*N+n]);
+            // }
         }
     }
     // average over the number of transitions
     double Am = newE1;
-    newE1 -= Am;
+    newE1 = newE1 - Am;
     double Ae = logPlus(newI1, logPlus(newD1, logPlus(newE2, newM1)));
-    newM1 -= Ae;
-    newE2 -= Ae;
-    newI1 -= Ae;
-    newD1 -= Ae;
+    newM1 = newM1 - Ae;
+    newE2 = newE2 - Ae;
+    newI1 = newI1 - Ae;
+    newD1 = newD1 - Ae;
     double Ad = logPlus(newD2, newM2);
-    newD2 -= Ad;
-    newM2 -= Ad;
+    newD2 = newD2 - Ad;
+    newM2 = newM2 - Ad;
     double Ai = logPlus(newI2, newM3);
-    newI2 -= Ai;
-    newM3 -= Ai;
+    newI2 = newI2 - Ai;
+    newM3 = newM3 - Ai;
 
     return tuple<double, double, double, double, double, double, double, double, double>({exp(newM1), exp(newE1), exp(newE2), exp(newI1), exp(newD1), exp(newD2), exp(newM2), exp(newI2), exp(newM3)});
 }
@@ -372,6 +372,7 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, co
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
 
+    double* G = new double[TN];
     double* kmers = new double[N];
     double* normFactorT = new double[N];
     double* means = new double[numKmers];
@@ -388,10 +389,24 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, co
         counts[i] = 0;
     }
 
+    for (size_t t=0; t<T; ++t){
+        // calibrate with the sum of transitions
+        double s = -INFINITY;
+        for (size_t n=0; n<N; ++n){
+            G[t*N+n] = logPlus(logPlus(LPM[t*N+n], LPE[t*N+n]), LPI[t*N+n]);
+            s = logPlus(s, G[t*N+n]);
+        }
+        for (size_t n=0; n<=t && n<N; ++n){
+            if (!isinf(s)) {
+                G[t*N+n] -= s;
+            }
+        }
+    }
+
     for (size_t n=1; n<N; ++n) {
         counts[kmer_seq[n-1]]++;
         for (size_t t=1; t<T; ++t) {
-            double g = exp(logPlus(logPlus(LPM[t*N+n], LPE[t*N+n]), LPI[t*N+n]));
+            double g = exp(G[t * N + n]);   // Cache the exp(G[t * N + n])
             kmers[n] += g * sig[t-1];
             normFactorT[n] += g;
         }
@@ -407,7 +422,7 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, co
     for (size_t n=1; n<N; ++n) {
         for (size_t t=1; t<T; ++t) {
             double diff = sig[t-1] - means[kmer_seq[n-1]];  // Compute difference from mean
-            kmers[n] += exp(logPlus(logPlus(LPM[t*N+n], LPE[t*N+n]), LPI[t*N+n])) * diff * diff;
+            kmers[n] += exp(G[t * N + n]) * diff * diff;
         }
         kmers[n] = kmers[n] / normFactorT[n];
         stdevs[kmer_seq[n-1]] += kmers[n] / counts[kmer_seq[n-1]];
@@ -418,6 +433,7 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, co
         stdevs[kmer_seq[n-1]] = sqrt(stdevs[kmer_seq[n-1]]);
     }
 
+    delete[] G;
     delete[] kmers;
     delete[] counts;
     delete[] normFactorT;

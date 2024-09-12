@@ -66,6 +66,23 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * @param kmerSize kmer size
  * @returns kmer as reversed string, should be 5' - 3' direction
 */
+string itoa(const size_t value, const int kmerSize);
+
+/**
+ * C++ version 0.4 std::string style "itoa":
+ * Contributions from Stuart Lowe, Ray-Yuan Sheu,
+ * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
+ * and Brian Hunt
+ * 
+ * Converts a decimal to number to a number of base ALPHABET_SIZE.
+ * TODO Works for base between 2 and 16 (included)
+ * 
+ * Returns kmer in reversed direction!
+ * 
+ * @param value input number in decimal to convert to base
+ * @param kmerSize kmer size
+ * @returns kmer as reversed string, should be 5' - 3' direction
+*/
 string itoa(const int value, const int kmerSize);
 
 /**
@@ -96,7 +113,7 @@ int kmer2int(const string &s, const int kmerSize);
  * @param kmerSize kmer size 
  * @return kmer sequence in integer representation
 */
-int* seq2kmer(const int *seq, const size_t N, const int kmerSize);
+int* seq2kmer(const int* seq, const size_t N, const int kmerSize);
 
 /**
  * Read the normal distribution parameters from a given TSV file
