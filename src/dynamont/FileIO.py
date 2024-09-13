@@ -50,9 +50,9 @@ def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
             # happens in indel model, when kmer is deleted in all paths
-            mean = kmerModels[kmer][0] if not np.isnan(kmerModels[kmer][0]) else backUpModel[kmer][0]
+            mean = kmerModels[kmer][0] # if not np.isnan(kmerModels[kmer][0]) else backUpModel[kmer][0]
             # safety to very small stdev TODO find another way to fix this? happens in real data, when segment very small - nucleotides do not match signal
-            stdev = kmerModels[kmer][1] if kmerModels[kmer][1] > 0 else backUpModel[kmer][1]
+            stdev = kmerModels[kmer][1] # if kmerModels[kmer][1] > 0 else backUpModel[kmer][1]
 
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 

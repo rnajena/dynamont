@@ -41,6 +41,7 @@ inline constexpr double SPARSE_THRESHOLD = -0.04575749056; // log(0.9)
 const int NUMMAT = 5;
 int kmerSize, stepSize;
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
+inline constexpr double AFFINE_COST = log(0.05);
 double a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2; // transition parameters
 size_t T, N, K, TNK, NK;
 
@@ -62,12 +63,16 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
 
 /**
  * Calculates the Hamming-Distance between two given kmers in their integer base representation
+ * 
+ * @param kmer_N
+ * @param kmer_K
+ * @returns log(HD)
  */
 inline int distanceSequenceKmer(const size_t kmer_N, const size_t kmer_K) {
     int acc = 0;
     div_t dv_N{}; dv_N.quot=kmer_N;
     div_t dv_K{}; dv_K.quot=kmer_K;
-    for(int i=0; i<kmerSize; i++){
+    for(int i=0; i<kmerSize; ++i){
         dv_N = div(dv_N.quot, kmerSize);
         dv_K = div(dv_K.quot, kmerSize);
         acc += (dv_N.rem != dv_K.rem);
@@ -94,7 +99,7 @@ inline double score(const double signal_T, const size_t kmer_N, const size_t kme
     // Precompute the scores for the individual kmers and their distance
     const double scoreNT = log_normal_pdf(signal_T, mean_N, stdev_N);
     const double scoreKT = log_normal_pdf(signal_T, mean_K, stdev_K);
-    const double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K) * affineScale; // log(exp(-HD * affineCost)) = -HD * affineCost
+    const double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K) + affineScale; // -HD * affineCost
 
     return scoreNT + scoreKT + scoreNK;
 }
@@ -116,7 +121,7 @@ inline double score(const double signal_T, const size_t kmer_N, const size_t kme
     // Precompute the scores for the individual kmers and their distance
     double scoreNT = log_normal_pdf(signal_T, mean_N, stdev_N);
     double scoreKT = log_normal_pdf(signal_T, mean_K, stdev_K);
-    double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K); // log(exp(-HD)) = -HD
+    double scoreNK = -distanceSequenceKmer(kmer_N, kmer_K);
 
     return scoreNT + scoreKT + scoreNK;
 }
@@ -323,6 +328,7 @@ void preProcTN(const double *sig, const int *kmer_seq, unordered_map<size_t, uno
 
     logP(LP.data(), forM.data(), backM.data(), forE.data(), backE.data(), N, Zf);
 
+    // TODO if too sparse: check MAP, if -inf (no path), increase SPARSE_THRESHOLD
     // extract indices with highest probability per column, until SPARSE_THRESHOLD is reached
     size_t c = 0;
     for(size_t t=0; t<T; ++t){
@@ -463,7 +469,7 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
         } else if(t>0 && n>0) [[likely]] {
             // Precompute expensive values
             const double extendScore = score(sig[t-1], kmer_seq[n-1], k, model);
-            const double openScore = score(sig[t-1], kmer_seq[n-1], k, 0.05, model);
+            const double openScore = score(sig[t-1], kmer_seq[n-1], k, AFFINE_COST, model);
             const size_t baseIdx1 = tnk - NK - K - k;
             const size_t baseIdx2 = tnk - NK - k;
             const size_t baseIdx3 = tnk - NK - K;
@@ -552,7 +558,7 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
                 
                 // kmer int representation is consecutive
                 for(size_t sucKmer = sucKmerBase; sucKmer<sucKmerEnd; ++sucKmer){
-                    sc=score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model);
+                    sc=score(sig[t], kmer_seq[n-1], sucKmer, AFFINE_COST, model);
                     // (t+1)*NK+n*K+sucKmer
                     pv=backAPSEI[next_tnk-k+sucKmer][1];
                     s=logPlus(s, pv + p1 + sc);
@@ -562,7 +568,7 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
             }
 
             if (n<N-1) [[likely]] {
-                sc=score(sig[t], kmer_seq[n], k, 0.05, model);
+                sc=score(sig[t], kmer_seq[n], k, AFFINE_COST, model);
                 // (t+1)*(NK)+(n+1)*K+k
                 pv=backAPSEI[next_tnk_n][2];
                 p=logPlus(p, pv + s1 + sc);
@@ -571,7 +577,7 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
 
                 // kmer int representation is consecutive
                 for(size_t sucKmer=sucKmerBase; sucKmer<sucKmerEnd; ++sucKmer){
-                    sc=score(sig[t], kmer_seq[n], sucKmer, 0.05, model);
+                    sc=score(sig[t], kmer_seq[n], sucKmer, AFFINE_COST, model);
                     // (t+1)*NK+(n+1)*K+sucKmer
                     pv=backAPSEI[next_tnk_n-k+sucKmer][0];
                     e=logPlus(e, pv + a1 + sc);
@@ -581,7 +587,7 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
         }
 
         if (t>0 && n<N-1) [[likely]] {
-            sc=score(sig[t-1], kmer_seq[n], k, 0.05, model);
+            sc=score(sig[t-1], kmer_seq[n], k, AFFINE_COST, model);
             // t*NK+(n+1)*K+k
             pv=backAPSEI[*tnk+K][4];
             e=logPlus(e, pv + i1 + sc);
@@ -840,7 +846,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
                 newe4 = logPlus(newe4, forAPSEI_tnk[3] + e4 + sc + pv);
 
                 for(size_t sucKmer=sucKmerBase; sucKmer<sucKmerEnd; ++sucKmer){
-                    sc = score(sig[t], kmer_seq[n-1], sucKmer, 0.05, model);
+                    sc = score(sig[t], kmer_seq[n-1], sucKmer, AFFINE_COST, model);
                     // (t+1)*NK+n*K+sucKmer
                     pv = backAPSEI[tnk+NK-k+sucKmer][1];
                     newp1 = logPlus(newp1, forAPSEI_tnk[2] + p1 + sc + pv);
@@ -850,7 +856,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
             }
 
             if (n<N-1) [[likely]] {
-                sc = score(sig[t], kmer_seq[n], k, 0.05, model);
+                sc = score(sig[t], kmer_seq[n], k, AFFINE_COST, model);
                 // (t+1)*(NK)+(n+1)*K+k
                 pv = backAPSEI[tnk+NK+K][2];
                 news1 = logPlus(news1, forAPSEI_tnk[1] + s1 + sc + pv);
@@ -858,7 +864,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
                 news3 = logPlus(news3, forAPSEI_tnk[4] + s3 + sc + pv);
                 
                 for(size_t sucKmer=sucKmerBase; sucKmer<sucKmerEnd; ++sucKmer){
-                    sc = score(sig[t], kmer_seq[n], sucKmer, 0.05, model);
+                    sc = score(sig[t], kmer_seq[n], sucKmer, AFFINE_COST, model);
                     // (t+1)*NK+(n+1)*K+sucKmer
                     pv = backAPSEI[tnk+NK+K-k+sucKmer][0];
                     newa1 = logPlus(newa1, forAPSEI_tnk[3] + a1 + sc + pv);
@@ -868,7 +874,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
         }
 
         if (t>0 && n<N-1) [[likely]] {
-            sc = score(sig[t-1], kmer_seq[n], k, 0.05, model);
+            sc = score(sig[t-1], kmer_seq[n], k, AFFINE_COST, model);
             // t*NK+(n+1)*K+k
             pv = backAPSEI[tnk+K][4];
             newi1 = logPlus(newi1, forAPSEI_tnk[3] + i1 + sc + pv);
@@ -913,8 +919,8 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     double w;
 
     for (size_t k=0; k<K; ++k) {
-        means[k] = 0;
-        stdevs[k] = 0;
+        means[k] = 0.0;
+        stdevs[k] = 0.0;
         normFactorT[k] = 0.0;
     }
 
@@ -937,7 +943,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
 
     // Normalize the means
     for(size_t k=0; k<K; ++k){
-        if (normFactorT[k] != 0) {
+        if (normFactorT[k] != 0.0) {
             means[k] = means[k] / normFactorT[k];
         }
     }
@@ -945,7 +951,7 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     // Emission (stdev of kmers)
     // assuming a flat prior and integrating over N, every cell (in T x K) has on avg a prob. of 1/K, integrating over T results in T/K
     // used kmers should exceed the threshold easily
-    // double avgFlatProb = T/K; // too restrictive
+    // double avgFlatProb = T/K; // too restrictive, multiply with 0.1 or 0.01
     double avgFlatProb = 1e-5; // set by eye
     for(size_t tnk : allowedKeys){
         // tnk = t*NK+n*K+k
@@ -960,12 +966,15 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
         const auto& logValues = logAPSEI.at(tnk);
         w = logPlus(logPlus(logPlus(logValues[0], logValues[1]), logPlus(logValues[2], logValues[3])), logValues[4]);
         // Update standard deviation
-        double diff = sig[t - 1] - means[k];
+        double diff = sig[t-1] - means[k];
         stdevs[k] += exp(w) * diff * diff;
     }
 
     // Normalize the standard deviations
     for(size_t k=0; k<K; ++k){
+        if(normFactorT[k] < avgFlatProb) [[likely]] {
+            continue;
+        }
         stdevs[k] = sqrt(stdevs[k] / normFactorT[k]);
     }
 
@@ -981,7 +990,7 @@ void trainParams(const double *sig, const int *kmer_seq, unordered_map<size_t, a
 
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(size_t k=0; k<K; ++k){
-        if (newStdevs[k]!=0.0){
+        if ((newStdevs[k]!=0.0) & (!isnan(newStdevs[k]))){
             cout<<itoa(k, kmerSize)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
         }
     }
@@ -1055,8 +1064,9 @@ int main(int argc, char* argv[]) {
     vector<tuple<double, double>> model(K, make_tuple(-INFINITY, -INFINITY));
     readKmerModel(modelpath, model, kmerSize);
     string signal, read;
+    bool truish = 1;
 
-    while(1) {
+    while(truish) {
         // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
         // read input, signal and read whitespace separated in single line
         getline(cin, signal);
@@ -1104,11 +1114,11 @@ int main(int argc, char* argv[]) {
         NK = N*K;
         TNK = T*NK;
 
-        // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
+        cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<endl;
 
         vector<size_t> allowedKeys;
         preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        // cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
+        cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<")"<<", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> forAPSEI;
         
         // cerr<<"forward"<<endl;
@@ -1140,6 +1150,7 @@ int main(int argc, char* argv[]) {
             unordered_map<size_t, array<dproxy, NUMMAT>> logAPSEI;
             logP(logAPSEI, forAPSEI, backAPSEI, Zf, allowedKeys, N, K);
 
+
             // train both Transitions and Emissions
             if (train) {
                 trainParams(sig, kmer_seq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
@@ -1148,6 +1159,14 @@ int main(int argc, char* argv[]) {
 
             // print out segmentation string
             } else {
+                // TODO output probability for polishing
+                // for each n, sum over K==n & T, output probability: how much probability supports this n?
+                // for each k, sum over K==N & T, output probability: how much probability support this k
+                // output 
+
+                // Alignment output
+                // N string, K string alignment, for each position how confident is the tool (3 lines)?
+                // (N, K) tuple spans Ts = segment, output avg of probs over this segment as third line for confidence                // number 0-9 and * for percent intervals, 0-5%, 5-15%, ..., 95%-100% 
                 list<string> segString = getBorders(logAPSEI, allowedKeys, T, N, K);
 
                 for(auto const& seg : segString) {

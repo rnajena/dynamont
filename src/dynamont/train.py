@@ -14,6 +14,7 @@ import multiprocessing as mp
 from hampel import hampel
 import random
 from datetime import datetime
+from copy import deepcopy
 
 INITMODEL = None
 
@@ -182,10 +183,14 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             param_writer.write(f'{transitionParams[param]},') # log
 
                         for kmer in kmerSeen:
+                            prevModel = deepcopy(kmerModels)
                             kmerModels[kmer] = [np.mean(paramCollector[kmer][0]), np.mean(paramCollector[kmer][1])]
+                            # if any(np.isnan(kmerModels[kmer])):
+                            #     print(kmer, kmerModels[kmer])
+                            #     exit(1)
                         
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
-                        writeKmerModels(trainedModels, kmerModels, INITMODEL)
+                        writeKmerModels(trainedModels, kmerModels, prevModel)
                         param_writer.flush()
 
                         # rerun with new parameters to compare Zs
