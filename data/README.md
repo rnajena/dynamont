@@ -1,3 +1,0 @@
-- kmer signal distributions (Gaussians) for RNA 5mers
-- 5mers are stored in 3' - 5' orientation
-- downloaded from https://github.com/nanoporetech/kmer_models/blob/master/legacy/legacy_r9.4_180mv_70bps_5mer_RNA/template_median69pA.model
