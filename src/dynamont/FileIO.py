@@ -35,14 +35,14 @@ def readKmerModels(filepath : str) -> dict:
         format: {kmer : (mean, stdev)}
     '''
     df = pd.read_csv(filepath, sep='\t')
-    try:
-        models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
-    except AttributeError:
-        df['level_stdv'] = 1.0
-        models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
+    # try:
+    models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
+    # except AttributeError:
+    #     df['level_stdv'] = 1.0
+    #     models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
     return models
 
-def writeKmerModels(filepath : str, kmerModels : dict, backUpModel : dict = None) -> dict:
+def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
     '''
     Writes kmer models to a file
     '''
@@ -328,13 +328,23 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
         output, probs, _ = result.split('\n')
         probs = np.array(list(map(float, probs.split(',')[:-1])))[1:]
     except:
-        output, _  = result.split('\n')
-        probs = None
+        try:
+            output, _  = result.split('\n')
+            probs = None
+        except:
+            print(signal)
+            print(read)
+            with open("failed_input.txt", "w") as w:
+                w.write(signal)
+                w.write('\n')
+                w.write(read)
+                w.write('\n')
+            exit(1)
 
     # receive segmentation result
     # format output into np.ndarray
     try:
-        segments = formatSegmentationOutput(output, len(signal), read)
+        segments = formatSegmentationOutput(output, len(signal), read[::-1])
     except:
         # some error during segmentation - no proper output
         return np.array([])
@@ -397,7 +407,8 @@ def feedPipeAsynchronous(signal : np.ndarray, read : str, pipe : Popen) -> str:
     #     w.write(cookie)
     pipe.stdin.write(cookie)
     pipe.stdin.flush()
-    return pipe.stdout.readline()
+    result = pipe.stdout.readline()
+    return result
 
 def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarray:
     '''
@@ -407,10 +418,10 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
     ----------
     output : str
         Segmentation output from CPP script
-    signalLength : int
+    sigLen : int
         Length of the read signal
-    readLength : int
-        Length of the read or number of nucleotides
+    read : str
+        5' -> 3' direction
 
     Returns
     -------
@@ -472,7 +483,7 @@ def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     # segmentation = feedSegmentation(signal, read, script, params)
     table = ''
     for segment in segmentation:
-        table += readid + ',' + ','.join(segment) + '\n'
+        table += readid + ',' + ','.join(list(map(str, segment))) + '\n'
     return table
 
 def stopFeeding(pipe : Popen) -> None:

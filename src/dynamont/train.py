@@ -14,9 +14,95 @@ import multiprocessing as mp
 from hampel import hampel
 import random
 from datetime import datetime
-from copy import deepcopy
+from collections import deque
 
-INITMODEL = None
+
+class ManagedList:
+    def __init__(self, values, max_size=100, oldest_slice_size=10):
+        self.max_size : int = max_size
+        self.oldest_slice_size : int = oldest_slice_size  # The size of the slice of the oldest values to check for outliers
+        self.values = deque(values)  # Deque to efficiently store values
+
+    def _iqr(self):
+        """Helper method to calculate IQR (Interquartile Range) and determine outliers."""
+        if len(self.values) < 4:
+            return None, None, None  # Not enough data for IQR
+        q1 = np.percentile(self.values, 25)
+        q3 = np.percentile(self.values, 75)
+        iqr = q3 - q1
+        return q1, q3, iqr
+
+    def _is_outlier(self, value, q1, q3, iqr):
+        """Determines if a value is an outlier based on the current IQR."""
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        return value < lower_bound or value > upper_bound
+
+    def _find_strongest_outlier_in_slice(self):
+        """Finds the strongest outlier in the oldest slice of values with respect to the entire list."""
+        if len(self.values) < 4:
+            return None  # Not enough values to calculate outliers
+        
+        # Calculate IQR for the entire list
+        q1, q3, iqr = self._iqr()
+
+        # Take a slice of the oldest values
+        oldest_slice = list(self.values)[:self.oldest_slice_size]
+
+        # Find outliers in the oldest slice
+        outliers = [(value, i) for i, value in enumerate(oldest_slice) if self._is_outlier(value, q1, q3, iqr)]
+        
+        if not outliers:
+            return None  # No outliers in the slice
+        
+        # Find the strongest outlier (farthest from the nearest bound)
+        def outlier_strength(value):
+            return max(abs(value - (q1 - 1.5 * iqr)), abs(value - (q3 + 1.5 * iqr)))
+
+        # Sort by strength of the outlier and return the index of the strongest outlier
+        strongest_outlier = max(outliers, key=lambda x: outlier_strength(x[0]))
+        return strongest_outlier[1]  # Return the index within the slice
+
+    def _remove_oldest_or_outlier(self):
+        """Removes the strongest outlier from the oldest slice, or the oldest value if no outliers exist."""
+        outlier_index = self._find_strongest_outlier_in_slice()
+        
+        if outlier_index is not None:
+            # Remove the strongest outlier from the oldest slice
+            del self.values[outlier_index]
+        else:
+            # If no outliers, remove the oldest value
+            self.values.popleft()
+
+    def mean(self):
+        """Returns the mean of the values in the managed list."""
+        if len(self.values) == 0:
+            return None  # Handle the case where the list is empty
+        return np.mean(self.values)
+
+    def median(self):
+        """Returns the median of the values in the managed list."""
+        if len(self.values) == 0:
+            return None  # Handle the case where the list is empty
+        return np.median(self.values)
+
+    def add(self, value):
+        """Add a new value to the list, managing overflow and outliers."""
+        # If the list is full
+        if len(self.values) >= self.max_size:
+            # First, remove the strongest outlier from the oldest slice, or just the oldest
+            self._remove_oldest_or_outlier()
+
+        # Add the new value to the list
+        self.values.append(value)
+
+    def get_list(self):
+        """Returns the current managed list."""
+        return list(self.values)
+    
+    def clear(self):
+        """Removes all elements of the managed list."""
+        self.values = deque()
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -26,7 +112,7 @@ def parse() -> Namespace:
     parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
     parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--mode', type=str, choices=['basic', 'indel', '3d'], required=True, help='Segmentation algorithm used for segmentation')
+    parser.add_argument('--mode', type=str, choices=['basic', 'indel', '3d', '3d_reduced'], required=True, help='Segmentation algorithm used for segmentation')
     parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev0_25.model'), help='Which models to train')
     parser.add_argument('--pore', type=int, choices=[9, 10], default=9, help='Pore generation used to sequence the data')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
@@ -47,8 +133,7 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     # write first model file with initialized models
     baseName = trainedModels.split('.')[0]
     trainedModels = baseName + '_0_0.model'
-    global INITMODEL
-    writeKmerModels(trainedModels, kmerModels, INITMODEL)
+    writeKmerModels(trainedModels, kmerModels)
     
     param_writer = open(param_file, 'w')
     error_writer = open(errorfile, 'w')    
@@ -72,25 +157,10 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
             'm3': 0.9806021470164152,
             'd2': 0.9930099746422482
             }
-    elif mode == '3d':
-        mode = '3d_sparsed'
+    elif mode == '3d' or mode == '3d_reduced':
+        mode = '3d_sparsed_reduced' if 'reduced' in mode else '3d_sparsed'
         # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
-        transitionParams = {
-            'a1': 0.007025917258946322,
-            'a2': 0.02163382898644135,
-            'p1': 0.9136072624254473,
-            'p2': 0.7577089930417495,
-            'p3': 0.031412750592942344,
-            's1': 0.05633093742544732,
-            's2': 0.003601331413021869,
-            's3': 0.6537826547572912,
-            'e1': 1.0,
-            'e2': 0.9436690661033798,
-            'e3': 0.08639273593439363,
-            'e4': 0.23098202335984094,
-            'i1': 0.0006817432661033797,
-            'i2': 0.2931707726206201,
-            }
+        transitionParams = {'a1': 0.030570760232128354, 'a2': 0.6101330423858251, 'p1': 0.0383208584222504, 'p2': 0.08685413259505585, 'p3': 0.015545502978626788, 's1': 0.0010061921517067177, 's2': 0.001534865889565432, 's3': 0.13149698483529376, 'e1': 1.0, 'e2': 0.9989938127816652, 'e3': 0.9616791335752949, 'e4': 0.8801771554834845, 'i1': 0.0008630902783022252, 'i2': 0.24282445342753348}
     else:
         print(f'Mode {mode} not implemented')
         exit(1)
@@ -100,21 +170,23 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
         CPP_SCRIPT+='.exe'
 
     # collect all trained parameters to get an ensemble training in the end
-    paramCollector = {kmer:([kmerModels[kmer][0]], [kmerModels[kmer][1]]) for kmer in kmerModels}
-    paramCollector = paramCollector | {param : [transitionParams[param]] for param in transitionParams}
+    # paramCollector = {kmer:([kmerModels[kmer][0]], [kmerModels[kmer][1]]) for kmer in kmerModels}
+    # paramCollector = paramCollector | {param : [transitionParams[param]] for param in transitionParams}
+    paramCollector = {kmer:(ManagedList([kmerModels[kmer][0]]), ManagedList([kmerModels[kmer][1]])) for kmer in kmerModels}
+    paramCollector = paramCollector | {param : ManagedList([transitionParams[param]]) for param in transitionParams}
     kmerSeen = set()
     param_writer.write("epoch,batch,read,")
     for param in transitionParams:
         param_writer.write(param+',')
     param_writer.write("Zchange\n")
     i = 0
-    batch_num = 0
 
     with mp.Pool(batch_size) as p:
 
         for e in range(epochs):
             mp_items = []
             training_readids = []
+            batch_num = 0
 
             for file in files:
                 r5 = read(file)
@@ -163,12 +235,15 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                             Zs.append(Z)
 
                             for param in trainedParams:
-                                paramCollector[param].append(trainedParams[param])
+                                # paramCollector[param].append(trainedParams[param])
+                                paramCollector[param].add(trainedParams[param])
 
                             for kmer in newModels:
                                 kmerSeen.add(kmer)
-                                paramCollector[kmer][0].append(newModels[kmer][0])
-                                paramCollector[kmer][1].append(newModels[kmer][1])
+                                # paramCollector[kmer][0].append(newModels[kmer][0])
+                                # paramCollector[kmer][1].append(newModels[kmer][1])
+                                paramCollector[kmer][0].add(newModels[kmer][0])
+                                paramCollector[kmer][1].add(newModels[kmer][1])
 
                         print(f"Zs: {Zs}")
 
@@ -176,21 +251,20 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         param_writer.write(f'{e},{batch_num},{i},') # log
                         for param in transitionParams:
                             try:
-                                transitionParams[param] = np.mean(paramCollector[param])
+                                # transitionParams[param] = np.mean(paramCollector[param])
+                                transitionParams[param] = paramCollector[param].mean()
                             except:
-                                print(param, paramCollector[param])
+                                # print(param, paramCollector[param])
+                                print(param, paramCollector[param].get_list())
                                 exit(1)
                             param_writer.write(f'{transitionParams[param]},') # log
 
                         for kmer in kmerSeen:
-                            prevModel = deepcopy(kmerModels)
-                            kmerModels[kmer] = [np.mean(paramCollector[kmer][0]), np.mean(paramCollector[kmer][1])]
-                            # if any(np.isnan(kmerModels[kmer])):
-                            #     print(kmer, kmerModels[kmer])
-                            #     exit(1)
-                        
+                            # kmerModels[kmer] = [np.mean(paramCollector[kmer][0]), np.mean(paramCollector[kmer][1])]
+                            kmerModels[kmer] = [paramCollector[kmer][0].mean(), paramCollector[kmer][1].mean()]
+
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
-                        writeKmerModels(trainedModels, kmerModels, prevModel)
+                        writeKmerModels(trainedModels, kmerModels)
                         param_writer.flush()
 
                         # rerun with new parameters to compare Zs
@@ -235,11 +309,9 @@ def main() -> None:
     polya = readPolyAStartEnd(args.polya)
     # polyAEnd= readPolyAEnd(args.polya)
     # omvKmerModels = getTrainableModels(readKmerModels(args.model_path))
-    global INITMODEL
-    INITMODEL = readKmerModels(args.model_path)
     assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, INITMODEL.copy(), trainedModels, args.minSegLen - 1, errorfile, args.unnormalised)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, readKmerModels(args.model_path), trainedModels, args.minSegLen - 1, errorfile, args.unnormalised)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':

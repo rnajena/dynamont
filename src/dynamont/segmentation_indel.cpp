@@ -26,6 +26,7 @@ void funcE(const size_t t, const size_t n, const double* M, const double* E, con
 void funcD(const size_t t, const size_t n, const double* M, const double* E, const double* D, const double* I, const double* LPM, const double* LPE, const double* LPD, const double* LPI, list<string>* segString, const size_t N);
 void funcI(const size_t t, const size_t n, const double* M, const double* E, const double* D, const double* I, const double* LPM, const double* LPE, const double* LPD, const double* LPI, list<string>* segString, const size_t N);
 
+inline constexpr int ALPHABET_SIZE = 5;
 int numKmers, kmerSize; // our model works with this kmer size
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 double m1, m2, m3, e1, e2, d1, d2, i1, i2; // transition parameters
@@ -449,7 +450,7 @@ void trainParams(const double* sig, const int* kmer_seq, const double* forM, con
     auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, LPM, LPE, LPI, T, N, model);
     for (int i=0; i<numKmers; i++){
         if (newStdevs[i]!=0.0){
-            cout<<itoa(i, kmerSize)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
+            cout<<itoa(i, ALPHABET_SIZE, kmerSize)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
         }
     }
     cout<<endl;
@@ -501,7 +502,7 @@ int main(int argc, char* argv[]) {
     }
     numKmers = pow(ALPHABET_SIZE, kmerSize);
     vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
-    readKmerModel(modelpath, model, kmerSize);
+    readKmerModel(modelpath, model, ALPHABET_SIZE);
     string signal;
     string read;
     int truish = 1;
@@ -539,19 +540,11 @@ int main(int argc, char* argv[]) {
         }
         // process read: convert string to int array
         N = read.size() + 1; // operate on base transitions
-        int seq_size = read.size() + (kmerSize-1); 
-        int* seq = new int[seq_size];
-        fill_n(seq, seq_size, 4); // default: fill with N add 2 Ns to 3' of read
-        i = floor(kmerSize/2);
-        for (const char &c: read) {
-            seq[i] = BASE2ID.at(c);
-            i++;
+        read = "NN" + read + "NN";
+        int* kmer_seq = new int[N-1];
+        for (size_t n=0; n<N-1; ++n) {
+            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), ALPHABET_SIZE);
         }
-        // add NN to end of sequence
-        seq[i] = 4;
-        seq[i+1] = 4;
-
-        int* kmer_seq = seq2kmer(seq, N-1, kmerSize);
         TN = T*N;
 
         // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<endl;
@@ -634,7 +627,6 @@ int main(int argc, char* argv[]) {
         delete[] backD;
         delete[] backI;
         delete[] sig;
-        delete[] seq;
         delete[] kmer_seq;
     }
     return 0;

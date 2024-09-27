@@ -16,19 +16,18 @@
 
 using namespace std;
 
-inline constexpr int ALPHABET_SIZE = 5;
 const unordered_map<char, int> BASE2ID = {
     {'A', 0},
-    {'C', 1},
-    {'G', 2},
-    {'T', 3},
-    {'U', 3},
-    {'N', 4},
     {'a', 0},
+    {'C', 1},
     {'c', 1},
+    {'G', 2},
     {'g', 2},
+    {'T', 3},
     {'t', 3},
+    {'U', 3},
     {'u', 3},
+    {'N', 4},
     {'n', 4}
 }; // Nucleotide : Token map
 const unordered_map<int, char> ID2BASE = {
@@ -63,65 +62,30 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * Returns kmer in reversed direction!
  * 
  * @param value input number in decimal to convert to base
- * @param kmerSize kmer size
+ * @param ALPHABET_SIZE number of allowed characters in alphabet
+ * @param kmerSize length of kmer
  * @returns kmer as reversed string, should be 5' - 3' direction
 */
-string itoa(const size_t value, const int kmerSize);
-
-/**
- * C++ version 0.4 std::string style "itoa":
- * Contributions from Stuart Lowe, Ray-Yuan Sheu,
- * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
- * and Brian Hunt
- * 
- * Converts a decimal to number to a number of base ALPHABET_SIZE.
- * TODO Works for base between 2 and 16 (included)
- * 
- * Returns kmer in reversed direction!
- * 
- * @param value input number in decimal to convert to base
- * @param kmerSize kmer size
- * @returns kmer as reversed string, should be 5' - 3' direction
-*/
-string itoa(const int value, const int kmerSize);
-
-/**
- * Converts a number of base ALPHABET_SIZE to a decimal number.
- * Works ONLY if ALPHABET_SIZE is smaller or equal to 10!
- * 
- * @param i input number in the given base as an array
- * @param kmerSize kmer size
- * @returns Decimal number representation of given token array
-*/
-int toDeci(const int* i, const int kmerSize);
+string itoa(const size_t value, const int ALPHABET_SIZE, const int kmerSize);
 
 /**
  * Converts the kmers of the model file to the integer representation using the BASE2ID map
  *
  * @param s kmer containing nucleotides 
  * @param BASE2ID base to id map 
- * @param kmerSize kmer size 
+ * @param ALPHABET_SIZE
  * @returns integer representation of the given kmer
  */
-int kmer2int(const string &s, const int kmerSize);
-
-/**
- * Convert the read sequence to a kmer sequence which is represented by integers.
- * 
- * @param seq read sequence
- * @param N length of the read sequence, number of nucleotides
- * @param kmerSize kmer size 
- * @return kmer sequence in integer representation
-*/
-int* seq2kmer(const int* seq, const size_t N, const int kmerSize);
+int kmer2int(const string &s, const int ALPHABET_SIZE);
 
 /**
  * Read the normal distribution parameters from a given TSV file
  *
  * @param file path to the TSV file containing the parameters
  * @param model kmer model to fill
+ * @param ALPHABET_SIZE
  */
-void readKmerModel(const string &file, vector<tuple<double, double>> &model, const int kmerSize);
+void readKmerModel(const string &file, vector<tuple<double, double>> &model, const int ALPHABET_SIZE);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**
@@ -152,7 +116,7 @@ inline double logPlus(const double x, const double y) {
  * @param stepSize equals ALPHABET_SIZE ^ (kmerSize - 1)
  * @return successing Kmer as integer representation in the current base
  */
-inline size_t successingKmer(const size_t currentKmer, const int nextNt, const int stepSize) {
+inline size_t successingKmer(const size_t currentKmer, const int nextNt, const int stepSize, const int ALPHABET_SIZE) {
     return (currentKmer % stepSize) * ALPHABET_SIZE + nextNt;
 }
 
@@ -166,7 +130,7 @@ inline size_t successingKmer(const size_t currentKmer, const int nextNt, const i
  * @param stepSize equals ALPHABET_SIZE ^ (kmerSize - 1)
  * @return precessing Kmer as integer representation in the current base
  */
-inline size_t precessingKmer(const size_t currentKmer, const int priorNt, const int stepSize) {
+inline size_t precessingKmer(const size_t currentKmer, const int priorNt, const int stepSize, const int ALPHABET_SIZE) {
     return (currentKmer/ALPHABET_SIZE) + (priorNt * stepSize);
 }
 

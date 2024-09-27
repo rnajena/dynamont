@@ -26,7 +26,7 @@ def parse() -> Namespace:
     parser.add_argument('--outfile', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--batch_size', type=int, default=None, help='Number of reads to train before updating')
     parser.add_argument('--model_path', type=str, default=None)
-    parser.add_argument('--mode', choices=['basic', 'indel'], required=True)
+    parser.add_argument('--mode', choices=['basic', 'indel', '3d'], required=True)
     parser.add_argument('--unnormalised', action="store_true", help="Use unnormalised signal. Make sure the model matches this mode!")
     return parser.parse_args()
 
@@ -52,21 +52,21 @@ def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, ou
     basecalls = loadFastx(fastxpath)
     print(f'{len(basecalls)} reads found')
     
-    if mode == 'indel':
-        CPP_SCRIPT = join(dirname(__file__), 'segmentation_indel')
+    if mode == '3d':
+        CPP_SCRIPT = join(dirname(__file__), 'segmentation_3d_sparsed')
         if name == 'nt': # check for windows
             CPP_SCRIPT+='.exe'
     elif mode == 'basic':
         CPP_SCRIPT = join(dirname(__file__), 'segmentation_basic_sparsed')
         if name == 'nt': # check for windows
             CPP_SCRIPT+='.exe'
-    elif mode == '3d':
-        CPP_SCRIPT = join(dirname(__file__), 'segmentation_3d_sparsed')
+    elif mode == 'indel':
+        CPP_SCRIPT = join(dirname(__file__), 'segmentation_indel')
         if name == 'nt': # check for windows
             CPP_SCRIPT+='.exe'
 
     if batch_size is None:
-        batch_size = mp.cpu_count()-1 or 1
+        batch_size = 2 # mp.cpu_count()-1
     print(f"Using {batch_size} processes in segmentation.")
     pool = mp.Pool(batch_size)
     queue = mp.Manager().Queue()
@@ -75,7 +75,7 @@ def segment(rawdatapath : str, fastxpath : str, batch_size : int, mode : str, ou
     jobs = []
     for file in files:
         r5 = read5.read(file)
-        for readid in r5:
+        for readid in r5.getReads():
             if not readid in basecalls: # or (readid not in polyAIndex)
                 continue
             jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath}, getSignal(r5, readid, unnormalised), basecalls[readid][::-1], readid, queue)))

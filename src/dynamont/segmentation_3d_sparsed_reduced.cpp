@@ -34,10 +34,9 @@ public:
     operator double const () const { return value_; }
 };
 
-inline constexpr int ALPHABET_SIZE = 5;
+inline constexpr int ALPHABET_SIZE = 4;
 inline constexpr double preprocM = 0.03, preprocE1 = 1.0, preprocE2 = 0.97;
-inline constexpr double SPARSE_THRESHOLD = log(0.9999); // on avg. 300-600 dense cells per t
-// inline constexpr double SPARSE_THRESHOLD = log(0.999); // on avg. 209 dense cells per t
+inline constexpr double SPARSE_THRESHOLD = log(0.9999);
 // inline constexpr double SPARSE_THRESHOLD = -0.04575749056; // log(0.9)
 // inline constexpr double SPARSE_THRESHOLD = -0.07058107428; // log(0.85)
 // inline constexpr double SPARSE_THRESHOLD = -0.1249387366; // log(0.75)
@@ -75,13 +74,13 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
  */
 inline int scoreHD(const size_t kmer_N, const size_t kmer_K) {
     int acc = 0;
+    // bool N = 0;
     div_t dv_N{}; dv_N.quot=kmer_N;
     div_t dv_K{}; dv_K.quot=kmer_K;
     for(int i=0; i<kmerSize; ++i){
         dv_N = div(dv_N.quot, kmerSize);
         dv_K = div(dv_K.quot, kmerSize);
         acc += (dv_N.rem != dv_K.rem);
-        acc += (dv_K.rem == BASE2ID.at('N')); // add extra penalty if polish wants to use N
     }
     return -2*acc; // log(e^(−k×HD))
 }
@@ -426,17 +425,13 @@ void preProcTNK(const double *sig, const int *kmer_seq, vector<size_t> &allowedK
     preProcTK(sig, tkMap, T, K, model);
 
     // combine both preprocessings using AND
-    double cellnum = 0;
     for (size_t t=0; t<T; t++) {
         for(size_t n : tnMap[t]) {
             for(size_t k: tkMap[t]) {
-                ++cellnum;
                 allowedKeys.push_back(t * NK + n * K + k);
             }
         }
     }
-
-    cerr << "Avg dense cells per t: " << cellnum/T << endl;
 
     // combine both preprocessings using OR
     // for (size_t t=0; t<T; t++) {
@@ -710,12 +705,12 @@ void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
         if (t>1 && n>1) {
             // Check match with E state
             if (score == APSEI[prevIdx+preKmer][3] + logScore){
-                segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";");
+                segString->push_front("M"+to_string(n-1+kmerSize/2)+","+to_string(t-1)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";");
                 return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K);
             }
             // Check match with I state
             if (score == APSEI[prevIdx+preKmer][4] + logScore){
-                segString->push_front("M"+to_string(n-1)+","+to_string(t-1)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";");
+                segString->push_front("M"+to_string(n-1+kmerSize/2)+","+to_string(t-1)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";");
                 return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K);
             }
         }
@@ -766,17 +761,17 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
             const size_t prevIdx = prevBaseIdx + preKmer;
             // Check match with E state
             if (score == APSEI[prevIdx][3] + logScore) {
-                segString->push_front("P" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
                 return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
             }
             // Check match with S state
             if (score == APSEI[prevIdx][2] + logScore) {
-                segString->push_front("P" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
                 return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
             }
             // Check match with I state
             if (score == APSEI[prevIdx][4] + logScore) {
-                segString->push_front("P" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
                 return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
             }
         }
@@ -794,17 +789,17 @@ void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            // segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
             return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore) {
-            // segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
             return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K);
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            // segString->push_front("S" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
             return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K);
         }
     }
@@ -821,12 +816,12 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            segString->push_front("I" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
             return funcI(t, n-1, k, APSEI, logAPSEI, segString, K);
         } 
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            segString->push_front("I" + to_string(n-1) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
             return funcE(t, n-1, k, APSEI, logAPSEI, segString, K);
         }
     }
@@ -1039,20 +1034,41 @@ int main(int argc, char* argv[]) {
     // parameters for DP
 
     // # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
+    // PARAMS = {
+    //     'a1': 0.029304646362105145,
+    //     'a2': 0.4589929809984935,
+    //     'p1': 0.44631725138060524,
+    //     'p2': 0.22329377700463882,
+    //     'p3': 0.14091038339921583,
+    //     's1': 0.010868603047271925,
+    //     's2': 0.0019430768236690966,
+    //     's3': 0.24016500608414348,
+    //     'e1': 1.0,
+    //     'e2': 0.9891315629003756,
+    //     'e3': 0.5536827484371548,
+    //     'e4': 0.7449262248177602,
+    //     'i1': 0.0005322041406781533,
+    //     'i2': 0.15993149851340224
+    //     }
     program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(1.00).scan<'g', double>().store_into(e1); // e1
+
     program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(0.944).scan<'g', double>().store_into(e2); // e2
     program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(0.056).scan<'g', double>().store_into(s1); // s1
+
     program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(0.086).scan<'g', double>().store_into(e3); // e3
     program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(0.914).scan<'g', double>().store_into(p1); // p1
+
     program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(0.007).scan<'g', double>().store_into(a1); // a1
     program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(0.758).scan<'g', double>().store_into(p2); // p2
     program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(0.231).scan<'g', double>().store_into(e4); // e4
     program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(0.003).scan<'g', double>().store_into(s2); // s2
     program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(0.001).scan<'g', double>().store_into(i1); // i1
+
     program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(0.022).scan<'g', double>().store_into(a2); // a2
     program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(0.031).scan<'g', double>().store_into(p3); // p3
     program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(0.654).scan<'g', double>().store_into(s3); // s3
     program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(0.293).scan<'g', double>().store_into(i2); // i2
+
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps_extended_stdev0_25.model").store_into(modelpath);
@@ -1115,8 +1131,7 @@ int main(int argc, char* argv[]) {
             sig[i++] = stod(value);
         }
         // process read N: convert string to int array
-        N = read.size() + 1; // operate on base transitions
-        read = "NN" + read + "NN";
+        N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
         int* kmer_seq = new int[N-1];
         for (size_t n=0; n<N-1; ++n) {
             kmer_seq[n] = kmer2int(read.substr(n, kmerSize), ALPHABET_SIZE);
@@ -1188,7 +1203,6 @@ int main(int argc, char* argv[]) {
             logAPSEI.clear();
         }
         delete[] sig;
-        // delete[] seq;
         delete[] kmer_seq;
         forAPSEI.clear();
         backAPSEI.clear();
