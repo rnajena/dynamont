@@ -33,10 +33,11 @@ def parse() -> Namespace:
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
     parser.add_argument('--resquigglePickle', type=str, default=None, help='f5c resquiggle segmentation pickle file')
     parser.add_argument('--eventalignPickle', type=str, default=None, help='f5c eventalign segmentation pickle file')
-    parser.add_argument('--mode', choices=['basic', 'basic_sparsed', 'indel', '3d', '3d_sparsed', '3d_reduced'], required=True)
-    parser.add_argument('--model', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps_extended_stdev0_5.model'), help='Kmer model file')
+    parser.add_argument('--mode', choices=['basic', 'banded', 'resquiggle'], required=True)
+    parser.add_argument('--model', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps.model'), help='Kmer model file')
     parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
+    parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
     return parser.parse_args()
 
 def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame, probability : bool):
@@ -92,7 +93,8 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
                 ax2 = ax[axis].twinx()
                 ax2.plot(x, probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
                 # ax2.plot(probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
-                ax2.set_ylim((-4, 14))
+                ax2.set_ylim((-8, 28))
+                ax2.set_xticks(np.arange(-8, 29, 4))
                 ax2.set_ylabel('log(Border Probability)')
         ax[axis].set_ylabel('Signal pico Ampere')
         ax[axis].set_xticks(np.arange(-((polyAend//1000)*1000), len(signal), 1000))
@@ -188,10 +190,13 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
             motif = segment[4]
             # add Ns to 5' end
             if pos-2 < 0:
-                motif = ('N' * abs(pos-2)) + motif
+                continue
+                # motif = ('N' * abs(pos-2)) + motif
             # add As to 3' end
             elif pos+3 > len(read):
-                motif = motif + ('N'*(pos+3-len(read)))
+                continue
+                # print(segment)
+                # motif = motif + ('N'*(pos+3-len(read)))
         base = motif[len(motif)//2]
 
         # motif in 5' - 3' direction
@@ -251,7 +256,7 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
     # plt.savefig(join(outpath, readid + '_ausschnitt.svg'), dpi=300)
 
 
-def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int, probability : bool):
+def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int, probability : bool, pore : str):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -261,71 +266,41 @@ def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, 
 
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
-    if mode == 'indel':
+    if mode == 'basic' or mode == 'banded':
+        mode = 'dynamont_NT' if mode == 'basic' else 'dynamont_NT_banded'
         PARAMS = {
             'e1': 1.0,
-            'm1': 0.047923630044895006,
-            'd1': 0.0795918281369677,
-            'e2': 0.8719994721033932,
-            'i1': 0.00048506999577316453,
-            'm2': 0.006990024477599084,
-            'i2': 0.019397852195642322,
-            'm3': 0.9806021470164152,
-            'd2': 0.9930099746422482
+            'm1': 0.030387177,
+            'e2': 0.969612823
             }
-    elif mode == 'basic':
-        mode = 'basic_sparsed'
+    elif mode == 'resquiggle':
+        mode = 'dynamont_NTK'
         PARAMS = {
+            'a1': 0.015537006200000003,
+            'a2': 0.34805735,
+            'p1': 0.008918512069999999,
+            'p2': 0.06678974900000001,
+            'p3': 0.047764121937800004,
+            's1': 0.0031768724926999996,
+            's2': 0.013912044499999998,
+            's3': 0.49361836,
             'e1': 1.0,
-            'm1': 0.03189915859979101,
-            'e2': 0.9681008434763126
+            'e2': 0.9968231100000001,
+            'e3': 0.9910815099999999,
+            'e4': 0.9020646600000001,
+            'i1': 0.0016965344,
+            'i2': 0.11056013505290001
             }
-    elif mode == '3d':
-        mode = '3d_sparsed'
-        # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
-        # PARAMS = {
-        #     'a1': 0.029304646362105145,
-        #     'a2': 0.4589929809984935,
-        #     'p1': 0.44631725138060524,
-        #     'p2': 0.22329377700463882,
-        #     'p3': 0.14091038339921583,
-        #     's1': 0.010868603047271925,
-        #     's2': 0.0019430768236690966,
-        #     's3': 0.24016500608414348,
-        #     'e1': 1.0,
-        #     'e2': 0.9891315629003756,
-        #     'e3': 0.5536827484371548,
-        #     'e4': 0.7449262248177602,
-        #     'i1': 0.0005322041406781533,
-        #     'i2': 0.15993149851340224
-        #     }
-        PARAMS = {'a1': 0.030570760232128354, 'a2': 0.6101330423858251, 'p1': 0.0383208584222504, 'p2': 0.08685413259505585, 'p3': 0.015545502978626788, 's1': 0.0010061921517067177, 's2': 0.001534865889565432, 's3': 0.13149698483529376, 'e1': 1.0, 'e2': 0.9989938127816652, 'e3': 0.9616791335752949, 'e4': 0.8801771554834845, 'i1': 0.0008630902783022252, 'i2': 0.24282445342753348}
-    elif mode == '3d_reduced':
-        mode = '3d_sparsed_reduced'
-        # a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2
-        PARAMS = {'a1': 0.030570760232128354, 'a2': 0.6101330423858251, 'p1': 0.0383208584222504, 'p2': 0.08685413259505585, 'p3': 0.015545502978626788, 's1': 0.0010061921517067177, 's2': 0.001534865889565432, 's3': 0.13149698483529376, 'e1': 1.0, 'e2': 0.9989938127816652, 'e3': 0.9616791335752949, 'e4': 0.8801771554834845, 'i1': 0.0008630902783022252, 'i2': 0.24282445342753348}
-        # PARAMS = {
-        #     'a1': 0.030582340361124723,
-        #     'a2': 0.5519926024794314,
-        #     'p1': 0.0760246390600083,
-        #     'p2': 0.05755050242472108,
-        #     'p3': 0.013846319526016653,
-        #     's1': 0.0011123625979078346,
-        #     's2': 0.0005556412414201246,
-        #     's3': 0.0901126314806047,
-        #     'e1': 1.0,
-        #     'e2': 0.9988876515465803,
-        #     'e3': 0.9239753253210568,
-        #     'e4': 0.9105210852714761,
-        #     'i1': 0.0007904494265846322,
-        #     'i2': 0.3440484496408686
-        # }
+    else:
+        print(f'Mode {mode} not implemented')
+        exit(1)
     
-    CPP_SCRIPT = join(dirname(__file__), '..', 'dynamont', f'segmentation_{mode}')
+    CPP_SCRIPT = join(dirname(__file__), f'{mode}')
 
     PARAMS['m'] = modelpath
     PARAMS['c'] = minSegLen
     PARAMS['p'] = probability
+    PARAMS['r'] = pore
 
     # filter outliers
     # hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
@@ -334,6 +309,9 @@ def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, 
 
     # feedSignal = normSignal[polyAend:]
     segments, probs = feedSegmentation(normSignal, read, CPP_SCRIPT, PARAMS)
+
+    # check for resquiggle how many new segments were inserted
+    print('Read bases: ', len(read), 'Segments: ', len(segments))
 
     if not len(segments):
         # print(segments)
@@ -350,7 +328,7 @@ def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, 
     plotBorders(signal, normSignal, polyAend, read[::-1], segments, probs, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels, probability)
     # print(calcZ(normSignal, read, PARAMS, CPP_SCRIPT))
 
-def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, modelpath, minSegLen, probability) -> tuple:
+def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, modelpath, minSegLen, probability, pore) -> tuple:
     for file in files:
         r5 = read(file)
         if targetID in r5.getReads():
@@ -405,7 +383,7 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
             normSignal = hampel(normSignal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
-            segmentRead(signal, normSignal, polyAstart, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen, probability)
+            segmentRead(signal, normSignal, polyAstart, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen, probability, pore)
 
 def main() -> None:
     args = parse()
@@ -418,7 +396,7 @@ def main() -> None:
     basecalls = loadFastx(args.fastx)
     # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
     # print(f'Segmenting {len(basecalls)} reads')
-    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, args.model, args.minSegLen - 1, args.probability)
+    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, args.model, args.minSegLen - 1, args.probability, args.pore)
 
 if __name__ == '__main__':
     main()

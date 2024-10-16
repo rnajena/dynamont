@@ -16,6 +16,115 @@
 
 using namespace std;
 
+// default params for NTK
+const unordered_map<string, double> NTK_rna_r9_transitions = {
+    {"a1", 0.030570760232128354},
+    {"a2", 0.6101330423858251},
+    {"p1", 0.0383208584222504},
+    {"p2", 0.08685413259505585},
+    {"p3", 0.015545502978626788},
+    {"s1", 0.0010061921517067177},
+    {"s2", 0.001534865889565432},
+    {"s3", 0.13149698483529376},
+    {"e1", 1.0},
+    {"e2", 0.9989938127816652},
+    {"e3", 0.9616791335752949},
+    {"e4", 0.8801771554834845},
+    {"i1", 0.0008630902783022252},
+    {"i2", 0.24282445342753348}
+};
+const unordered_map<string, double> NTK_rna_rp4_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}
+};
+const unordered_map<string, double> NTK_dna_r9_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}
+};
+const unordered_map<string, double> NTK_dna_r10_260bps_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}
+};
+const unordered_map<string, double> NTK_dna_r10_400bps_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}
+};
+
+// default params for NT
+const unordered_map<string, double> NT_rna_r9_transitions = {
+    {"m1", 0.030387},
+    {"e1", 1.0},
+    {"e2", 0.969613}
+};
+const unordered_map<string, double> NT_rna_rp4_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}
+};
+const unordered_map<string, double> NT_dna_r9_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}
+};
+const unordered_map<string, double> NT_dna_r10_260bps_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}
+};
+const unordered_map<string, double> NT_dna_r10_400bps_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}
+};
+
 const unordered_map<char, int> BASE2ID = {
     {'A', 0},
     {'a', 0},
@@ -175,3 +284,17 @@ inline double scoreKmer(const double signal, const size_t kmer, const vector<tup
     const auto &[mean, stddev] = model[kmer];
     return log_normal_pdf(signal, mean, stddev);
 }
+
+/**
+ * @brief Updates the transition probabilities by applying logarithmic values.
+ *
+ * This function checks each transition in the `transitions` map. If a transition value is `-1`, it updates
+ * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
+ * Otherwise, it applies the logarithm directly to the existing transition value.
+ * 
+ * @param default_transitions_vals A map containing default transition values (string keys and double values).
+ *                                 These default values are used when a transition value is set to `-1`.
+ * @param transitions A map containing current transition values (string keys and double values).
+ *                    This map is updated with logarithmic values during the function execution.
+ */
+void updateTransitions(const unordered_map<string, double>& default_transitions_vals, unordered_map<string, double>& transitions);

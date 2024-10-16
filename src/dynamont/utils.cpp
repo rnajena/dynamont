@@ -119,3 +119,28 @@ void readKmerModel(const string &file, vector<tuple<double, double>> &model, con
     }
     inputFile.close();
 }
+
+/**
+ * @brief Updates the transition probabilities by applying logarithmic values.
+ *
+ * This function checks each transition in the `transitions` map. If a transition value is `-1`, it updates
+ * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
+ * Otherwise, it applies the logarithm directly to the existing transition value.
+ * 
+ * @param default_transitions_vals A map containing default transition values (string keys and double values).
+ *                                 These default values are used when a transition value is set to `-1`.
+ * @param transitions A map containing current transition values (string keys and double values).
+ *                    This map is updated with logarithmic values during the function execution.
+ */
+void updateTransitions(const unordered_map<string, double>& default_transitions_vals, unordered_map<string, double>& transitions) {
+    // Iterate over each transition in the 'transitions' unordered_map
+    for (const auto& transition : transitions) {
+        // Check if the transition value is -1, which indicates it should use the default value
+        if (transition.second == -1.0) {
+            // Fetch the default value for this key, and store the value in the transition map
+            transitions[transition.first] = default_transitions_vals.at(transition.first);
+        }
+        // Apply the logarithmic value to the current transition value
+        transitions[transition.first] = log(transition.second);
+    }
+}

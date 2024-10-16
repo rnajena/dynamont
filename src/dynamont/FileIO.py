@@ -261,7 +261,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
         result = feedPipe(signal, read, pipe).split('\n')
         transitionParams, modelParams, Z, _ = result
     except:
-        print(f"ERROR in {readid}, {result}")
+        print(f"ERROR while extracting result in {readid}, {result}")
         # with open("failed_input.txt", 'w') as w:
         #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
         # raise SegmentationError(readid)
@@ -269,7 +269,9 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in transitionParams.split(";")}
     except:
-        print(f"ERROR in {readid}", transitionParams)
+        print(f"ERROR while extracting transitions params in {readid}", transitionParams)
+        # with open("failed_input.txt", 'w') as w:
+        #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
         # raise SegmentationError(readid)
         return readid
     # then updated emission updated
@@ -335,7 +337,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
             print(signal)
             print(read)
             with open("failed_input.txt", "w") as w:
-                w.write(signal)
+                w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', ''))
                 w.write('\n')
                 w.write(read)
                 w.write('\n')
@@ -525,13 +527,16 @@ def readPolyAStartEnd(file : str) -> dict:
     return pd.Series([[a,b] for a,b in zip(df.polya_start.values, df.transcript_start.values)], index=df.readname).to_dict()
 
 def plotParameters(param_file : str, outdir : str) -> None:
+    import matplotlib
+    matplotlib.use('Agg') # Use non-interactive backend (no GUI)
     df = pd.read_csv(param_file, sep=',')
     for column in df:
         if column in ['epoch', 'batch']:
             continue
-        sns.set_theme()
+        sns.set_theme()        
         sns.lineplot(data=df, x="batch", y=column, hue='epoch')
         plt.title(f"{column} parameter change during training")
+        plt.ylabel("Parameter Value")
+        print("Savefig: ", join(outdir, f"{column}.pdf"))
         plt.savefig(join(outdir, f"{column}.pdf"))
-        plt.cla()
         plt.close()

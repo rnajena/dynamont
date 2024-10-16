@@ -108,30 +108,24 @@ def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    # required
-    parser.add_argument('--raw',   type=str, required=True, help='Raw ONT training data')
+    parser.add_argument('--raw', type=str, required=True, help='Raw ONT training data')
     parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
     parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
-    parser.add_argument('--out',   type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
-    parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'banded', 'resquiggle'], help='Segmentation algorithm used for segmentation')
-    # optional
-    parser.add_argument('--model_path', type=str, help='Which initial kmer models to use for training')
+    parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
+    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps.model'), help='Which models to train')
+    parser.add_argument('--pore', type=int, choices=[9, 10], default=9, help='Pore generation used to sequence the data')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
-    parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('--epochs', type=int, default=1, help='Number of training epochs')
     parser.add_argument('--same_batch', action='store_true', help='Always train on first batch of signals in the file')
     parser.add_argument('--random_batch', type=int, metavar='seed', default=None, help='Randomizes the batches of each file with a given seed')
-    # parser.add_argument('--stdev', type=float, default=None, help='Set a stdev value instead of using the calculated one for the models')
-    parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     return parser.parse_args()
 
-def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, mode : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, minSegLen : int, errorfile : str, max_batches : int, pore : str) -> None:
+def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, epochs :int, param_file : str, same_batch : bool, random_batch : bool, kmerModels : dict, trainedModels : str, errorfile : str) -> None:
     # print("minSegLen", minSegLen)
     files = getFiles(rawdatapath, True)
     print(f'ONT Files: {len(files)}')
-    basecalls = loadFastx(fastxpath)
-    print(f'Training segmentation parameters with {len(basecalls)} reads')
+    # basecalls = loadFastx(fastxpath)
+    # print(f'Training segmentation parameters with {len(basecalls)} reads')
     # write first model file with initialized models
     baseName = trainedModels.split('.')[0]
     trainedModels = baseName + '_0_0.model'
@@ -139,54 +133,22 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
     
     param_writer = open(param_file, 'w')
     error_writer = open(errorfile, 'w')    
+    mode = 'TK'
+    transitionParams = {
+        # 'e1': 1.0,
+        'm1': 0.03,
+        # 'e2': 0.97
+        }
 
-    if mode == 'basic':
-        mode = 'dynamont_NT'
-        transitionParams = {
-            'e1': 1.0,
-            'm1': 0.030387177,
-            'e2': 0.969612823
-            }
-    elif mode == 'banded':
-        mode = 'dynamont_NT_banded'
-        transitionParams = {
-            'e1': 1.0,
-            'm1': 0.030387177,
-            'e2': 0.969612823
-            }
-    elif mode == 'resquiggle':
-        mode = 'dynamont_NTK'
-        transitionParams = {
-            'a1': 0.030570760232128354,
-            'a2': 0.6101330423858251,
-            'p1': 0.0383208584222504,
-            'p2': 0.08685413259505585,
-            'p3': 0.015545502978626788,
-            's1': 0.0010061921517067177,
-            's2': 0.001534865889565432,
-            's3': 0.13149698483529376,
-            'e1': 1.0,
-            'e2': 0.9989938127816652,
-            'e3': 0.9616791335752949,
-            'e4': 0.8801771554834845,
-            'i1': 0.0008630902783022252,
-            'i2': 0.24282445342753348
-            }
-    else:
-        print(f'Mode {mode} not implemented')
-        exit(1)
-
-    CPP_SCRIPT = join(dirname(__file__), f'{mode}')
+    CPP_SCRIPT = join(dirname(__file__), f'segmentation_{mode}')
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
 
     # collect all trained parameters to get an ensemble training in the end
     # paramCollector = {kmer:([kmerModels[kmer][0]], [kmerModels[kmer][1]]) for kmer in kmerModels}
     # paramCollector = paramCollector | {param : [transitionParams[param]] for param in transitionParams}
-    paramCollector = {kmer:(ManagedList([kmerModels[kmer][0]]), ManagedList([kmerModels[kmer][1]])) for kmer in kmerModels}
-    # paramCollector = paramCollector | {param : ManagedList([transitionParams[param]]) for param in transitionParams}
-    paramCollector = paramCollector | {param : transitionParams[param] for param in transitionParams}
-    kmerSeen = set()
+    # paramCollector = {kmer:(ManagedList([kmerModels[kmer][0]]), ManagedList([kmerModels[kmer][1]])) for kmer in kmerModels}
+    paramCollector = {param : ManagedList([transitionParams[param]]) for param in transitionParams}
     param_writer.write("epoch,batch,read,")
     for param in transitionParams:
         param_writer.write(param+',')
@@ -208,8 +170,8 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                     random_batch+=1 # to avoid that every file is shuffled in the same way
 
                 for readid in readids:
-                    if not readid in basecalls: # or (readid not in polyAIndex)
-                        continue
+                    # if not readid in basecalls: # or (readid not in polyAIndex)
+                    #     continue
                     # skip reads with undetermined transcript start, only take really good reads for training
                     if not readid in polya or polya[readid][1] == -1:
                         continue
@@ -218,9 +180,10 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
 
                     # fill batch
                     if len(mp_items) < batch_size:
-                        signal = r5.getZNormSignal(readid, "mean")[polya[readid][1]:] # saw more consistency for short reads when using the mean
+                        # signal = r5.getZNormSignal(readid, "median")[polya[readid][1]:]
+                        signal = r5.getZNormSignal(readid, "mean")[polya[readid][1]:] # .astype(np.float32) saw more consistency for short reads when using the mean
                         signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
-                        mp_items.append([signal, basecalls[readid][::-1], transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, minSegLen, readid])
+                        mp_items.append([signal, 'This is a placeholder', transitionParams, CPP_SCRIPT, trainedModels, 0, readid])
                         training_readids.append(readid)
 
                     if len(mp_items) == batch_size:
@@ -238,23 +201,13 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                                 del mp_items[rid]
                                 continue
 
-                            trainedParams, newModels, Z = result
+                            trainedParams, _, Z = result
                             i += 1
                             Zs.append(Z)
 
                             for param in trainedParams:
                                 # paramCollector[param].append(trainedParams[param])
-                                try:
-                                    paramCollector[param].add(trainedParams[param])
-                                except AttributeError: # AttributeError: 'float' object has no attribute 'add'
-                                    transitionParams[param] = trainedParams[param]
-
-                            for kmer in newModels:
-                                kmerSeen.add(kmer)
-                                # paramCollector[kmer][0].append(newModels[kmer][0])
-                                # paramCollector[kmer][1].append(newModels[kmer][1])
-                                paramCollector[kmer][0].add(newModels[kmer][0])
-                                paramCollector[kmer][1].add(newModels[kmer][1])
+                                transitionParams[param] = trainedParams[param]
 
                         # exit(1)
                         print(f"Zs: {Zs}")
@@ -263,17 +216,13 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         param_writer.write(f'{e},{batch_num},{i},') # log
                         for param in transitionParams:
                             # try:
-                                # transitionParams[param] = np.mean(paramCollector[param])
-                                # transitionParams[param] = paramCollector[param] #.mean()
+                            #     # transitionParams[param] = np.mean(paramCollector[param])
+                            #     transitionParams[param] = paramCollector[param].mean()
                             # except:
-                                # print(param, paramCollector[param])
-                                # print(param, paramCollector[param].get_list())
-                                # exit(1)
+                            #     # print(param, paramCollector[param])
+                            #     print(param, paramCollector[param].get_list())
+                            #     exit(1)
                             param_writer.write(f'{transitionParams[param]},') # log
-
-                        for kmer in kmerSeen:
-                            # kmerModels[kmer] = [np.mean(paramCollector[kmer][0]), np.mean(paramCollector[kmer][1])]
-                            kmerModels[kmer] = [paramCollector[kmer][0].mean(), paramCollector[kmer][1].mean()]
 
                         trainedModels = baseName + f"_{e}_{batch_num}.model"
                         writeKmerModels(trainedModels, kmerModels)
@@ -300,13 +249,12 @@ def train(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, ep
                         param_writer.write(f'{deltaZ}\n') # log
                         param_writer.flush() # log
                         # initialize new batch
-                        kmerSeen = set()
 
                         if not same_batch:
                             mp_items = []
                             training_readids = []
 
-                        if max_batches is not None and batch_num >= max_batches:
+                        if batch_num >= 20:
                             break
                         
         error_writer.close()
@@ -324,9 +272,9 @@ def main() -> None:
     polya = readPolyAStartEnd(args.polya)
     # polyAEnd= readPolyAEnd(args.polya)
     # omvKmerModels = getTrainableModels(readKmerModels(args.model_path))
-    assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
+    # assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
     # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.mode, args.same_batch, args.random_batch, readKmerModels(args.model_path), trainedModels, args.minSegLen - 1, errorfile, args.max_batches, args.pore)
+    train(args.raw, args.fastx, polya, args.batch_size, args.epochs, param_file, args.same_batch, args.random_batch, readKmerModels(args.model_path), trainedModels, errorfile)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':
