@@ -34,7 +34,7 @@ unordered_map<string, double> transitions = {
     {"e2", -1.0}
 };
 size_t N, T, TN, C;
-inline constexpr size_t bandedDPwindow = 100; // Banded DP approach: Window size around the maximum, adjust as needed
+inline constexpr size_t bandedDPwindow = 120; // Banded DP approach: Window size around the maximum, adjust as needed
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
 static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");

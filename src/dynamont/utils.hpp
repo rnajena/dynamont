@@ -100,9 +100,9 @@ const unordered_map<string, double> NTK_dna_r10_400bps_transitions = {
 
 // default params for NT
 const unordered_map<string, double> NT_rna_r9_transitions = {
-    {"m1", 0.030387},
+    {"m1", 0.03},
     {"e1", 1.0},
-    {"e2", 0.969613}
+    {"e2", 0.97}
 };
 const unordered_map<string, double> NT_rna_rp4_transitions = {
     {"m1", 1.0},
