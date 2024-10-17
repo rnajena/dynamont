@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
-from dynamont.FileIO import getFiles, loadFastx, readPolyAStartEnd, feedSegmentation, SegmentationError
-from read5 import read
+from dynamont.FileIO import feedSegmentation, SegmentationError
+import read5
 from hampel import hampel
 import pickle
-# from matplotlib import ticker
+import pysam
 
 STANDARDONTMODEL = pd.read_csv("/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model", sep='\t', index_col = "kmer")
 
@@ -26,18 +26,19 @@ def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('--raw', type=str, required=True, help='Path to raw ONT training data')
-    parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
-    parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
-    parser.add_argument('--out', type=str, required=True, help='Outpath to write files')
+    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="POD5|FAST5|SLOW5", help='Raw ONT training data')
+    parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
+    parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
+    parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
+    # optional
     parser.add_argument('--resquigglePickle', type=str, default=None, help='f5c resquiggle segmentation pickle file')
     parser.add_argument('--eventalignPickle', type=str, default=None, help='f5c eventalign segmentation pickle file')
     parser.add_argument('--mode', choices=['basic', 'banded', 'resquiggle'], required=True)
-    parser.add_argument('--model', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps.model'), help='Kmer model file')
+    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps.model'), help='Kmer model file')
     parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
-    parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
+    
     return parser.parse_args()
 
 def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, kmermodels : pd.DataFrame, probability : bool):
@@ -53,7 +54,7 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
     eventalignBorders : np.ndarray
         already shifted by polyAend
     read : str
-        in 3' -> 5' orientation
+        in 5' -> 3' orientation
     '''
     basecolors = {
         'A':'#377eb8',
@@ -176,13 +177,7 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
         plotNumber += 1
 
     # OUR SEGMENTATION
-    # ax[plotNumber].vlines(segments[:, 0], ymin=-4, ymax=4, colors='red', linestyles='--', label='our segmentation', linewidth=0.6)
-    # plot kmer model range
-    # print(read)
     for segment in segments:
-        # print(segment)
-        # exit(1)
-        # print(segment)
         # extract motif from read
         pos = segment[2]
         motif = segment[6]
@@ -191,12 +186,11 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
             # add Ns to 5' end
             if pos-2 < 0:
                 continue
-                # motif = ('N' * abs(pos-2)) + motif
+                # motif = (' ' * abs(pos-2)) + motif
             # add As to 3' end
             elif pos+3 > len(read):
                 continue
-                # print(segment)
-                # motif = motif + ('N'*(pos+3-len(read)))
+                # motif = motif + (' '*(pos+3-len(read)))
         base = motif[len(motif)//2]
 
         # motif in 5' - 3' direction
@@ -243,20 +237,7 @@ def plotBorders(signal : np.ndarray, normSignal : np.ndarray, polyAend : int, re
     plt.savefig(join(outpath, readid + '.svg'), dpi=500)
     plt.savefig(join(outpath, readid + '.pdf'), dpi=500)
 
-    # plt.figure(figsize=(10, 10), dpi=500)
-    # plt.xlim((19000, 21000))
-    # plt.savefig(join(outpath, readid + '_poster.svg'), dpi=500)
-    # plt.savefig(join(outpath, readid + '_poster.pdf'), dpi=500)
-
-    # plt.figure(figsize=(12,8))
-    # plt.gcf().set_size_inches(12, 8)
-    # plt.xlim(18000, 18400)
-    # plt.ylim(45, 110)
-    # plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(100))
-    # plt.savefig(join(outpath, readid + '_ausschnitt.svg'), dpi=300)
-
-
-def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, polyAend : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int, probability : bool, pore : str):
+def segmentRead(signal : np.ndarray, normSignal : np.ndarray, ts : int, read : str, readid : str, outdir : str, resquiggleBorders : np.ndarray, eventalignBorders : np.ndarray, mode : str, modelpath : str, minSegLen : int, probability : bool, pore : str):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -270,8 +251,8 @@ def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, 
         mode = 'dynamont_NT' if mode == 'basic' else 'dynamont_NT_banded'
         PARAMS = {
             'e1': 1.0,
-            'm1': 0.030387177,
-            'e2': 0.969612823
+            'm1': 0.03,
+            'e2': 0.97
             }
     elif mode == 'resquiggle':
         mode = 'dynamont_NTK'
@@ -302,36 +283,37 @@ def segmentRead(signal : np.ndarray, normSignal : np.ndarray, polyAstart : int, 
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    # filter outliers
-    # hampel_std_signal = hampel(standardizedSignal, 20, 2.).filtered_data
-    # hampel_raw_signal = hampel(rawSignal, 20, 2.).filtered_data
-    # segments = feedSegmentation(hampel_std_signal[polyAstart:], read, CPP_SCRIPT, PARAMS)
-
-    # feedSignal = normSignal[polyAend:]
-    segments, probs = feedSegmentation(normSignal, read, CPP_SCRIPT, PARAMS)
+    segments, probs = feedSegmentation(normSignal[ts:], read, CPP_SCRIPT, PARAMS)
 
     # check for resquiggle how many new segments were inserted
     print('Read bases: ', len(read), 'Segments: ', len(segments))
 
     if not len(segments):
-        # print(segments)
-        # print(str(list(normSignal[-300:])).replace(" ", "")[1:-1], end=' ')
-        # print(read[-30:])
         raise SegmentationError(readid)
 
-    segments[:, 0] = segments[:, 0] - polyAend
-    segments[:, 1] = segments[:, 1] - polyAend
+    segments[:, 0] = segments[:, 0] - ts
+    segments[:, 1] = segments[:, 1] - ts
 
     with open(join(outdir, readid + '.txt'), 'w') as w:
         w.write('\n'.join(list(map(str, segments))))
 
-    plotBorders(signal, normSignal, polyAend, read[::-1], segments, probs, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels, probability)
-    # print(calcZ(normSignal, read, PARAMS, CPP_SCRIPT))
+    plotBorders(signal, normSignal, ts, read[::-1], segments, probs, readid, outdir, resquiggleBorders, eventalignBorders, kmermodels, probability)
 
-def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPickle, mode, modelpath, minSegLen, probability, pore) -> tuple:
-    for file in files:
-        r5 = read(file)
-        if targetID in r5.getReads():
+def start(dataPath : str, basecalls : str, targetID : str, outdir : str, resquigglePickle : str, eventalignPickle : str, mode : str, modelpath : str, minSegLen : int, probability : bool, pore : str) -> tuple:
+
+    with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
+        for basecalled_read in samfile.fetch(until_eof=True):
+
+            # init read
+            readid = basecalled_read.query_name
+            if readid != targetID:
+                continue
+            seq = basecalled_read.query_sequence
+            qual = basecalled_read.get_tag("qs")
+            ts = basecalled_read.get_tag("ts")
+            rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+            r5 = read5.read(rawFile)
+            print("Avg read quality: ", qual, "Transcript start in signal: ", ts)
             
             resquiggleBorders = None
             if resquigglePickle:
@@ -341,8 +323,8 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                     if targetID in borderMap:
                         resquiggleBorders = borderMap[targetID]
                         try:
-                            resquiggleBorders[:, 0] = resquiggleBorders[:, 0].astype(int) - polyA[targetID][1]
-                            resquiggleBorders[:, 1] = resquiggleBorders[:, 1].astype(int) - polyA[targetID][1]
+                            resquiggleBorders[:, 0] = resquiggleBorders[:, 0].astype(int) - ts
+                            resquiggleBorders[:, 1] = resquiggleBorders[:, 1].astype(int) - ts
                         except KeyError:
                             print(targetID, "not in polyA")
                             # print("ERROR resquiggle", resquiggleBorders)
@@ -360,8 +342,8 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                     if targetID in borderMap:
                         eventalignBorders = borderMap[targetID]
                         try:
-                            eventalignBorders[:, 0] = eventalignBorders[:, 0].astype(int) - polyA[targetID][1]
-                            eventalignBorders[:, 1] = eventalignBorders[:, 1].astype(int) - polyA[targetID][1]
+                            eventalignBorders[:, 0] = eventalignBorders[:, 0].astype(int) - ts
+                            eventalignBorders[:, 1] = eventalignBorders[:, 1].astype(int) - ts
                         except KeyError:
                             print(targetID, "not in polyA")
                             # print("ERROR eventalign", eventalignBorders)
@@ -371,32 +353,18 @@ def start(files, basecalls, targetID, polyA, out, resquigglePickle, eventalignPi
                         eventalignBorders = None
                         print(f'WARNING: no border found in {handle}')
             
-            # fill batch
-            polyAstart = polyA[targetID][0] if targetID in polyA else 0
-            polyAend = polyA[targetID][1] if targetID in polyA else 0
-            if polyAend - polyAstart > 30:
-                signal = r5.getPolyAStandardizedSignal(targetID, polyA[targetID][0]+5, polyA[targetID][1]-5)
-            else:
-                signal = r5.getpASignal(targetID)
-            # if targetID in polyA and polyA[targetID][1] - polyA[targetID][0] > 30:
-            normSignal = r5.getZNormSignal(targetID, "mean") #[polyA[targetID][1]:]
+            signal = r5.getPolyAStandardizedSignal(targetID, ts-105, ts-5)
+            normSignal = r5.getZNormSignal(targetID, "mean")
             normSignal = hampel(normSignal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
-            segmentRead(signal, normSignal, polyAstart, polyAend, basecalls[targetID][::-1], targetID, out, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen, probability, pore)
+            segmentRead(signal, normSignal, ts, seq[::-1], targetID, outdir, resquiggleBorders, eventalignBorders, mode, modelpath, minSegLen, probability, pore)
 
 def main() -> None:
     args = parse()
-    # print(args)
-    if not exists(args.out):
-        makedirs(args.out)
-    polya = readPolyAStartEnd(args.polya)
-    rawFiles = getFiles(args.raw, True)
-    print(f'ONT Files: {len(rawFiles)}')
-    basecalls = loadFastx(args.fastx)
-    # print("5' -> 3'", len(basecalls[args.readid]), basecalls[args.readid].replace("U", "T"))
-    # print(f'Segmenting {len(basecalls)} reads')
-    start(rawFiles, basecalls, args.readid, polya, args.out, args.resquigglePickle, args.eventalignPickle, args.mode, args.model, args.minSegLen - 1, args.probability, args.pore)
+    if not exists(args.outdir):
+        makedirs(args.outdir)
+    start(args.raw, args.basecalls, args.readid, args.outdir, args.resquigglePickle, args.eventalignPickle, args.mode, args.model_path, args.minSegLen - 1, args.probability, args.pore)
 
 if __name__ == '__main__':
     main()

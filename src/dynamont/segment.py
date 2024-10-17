@@ -9,10 +9,10 @@ from os.path import exists, join, dirname
 from os import makedirs, name
 
 import read5.AbstractFileReader
-import read5.Pod5Reader
-from FileIO import getFiles, loadFastx, feedSegmentationAsynchronous
+from FileIO import feedSegmentationAsynchronous
 import read5
 import multiprocessing as mp
+import pysam
 
 TERM_STRING = "$"
 
@@ -20,14 +20,14 @@ def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('--raw', type=str, required=True, help='Raw ONT training data')
-    parser.add_argument('--fastx', type=str, required=True, help='Basecalls of ONT training data')
-    # parser.add_argument('--polya', type=str, required=True, help='Poly A table from nanopolish polya containing the transcript starts')
+    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5|SLOW5]')
+    parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('-p', '--processes', type=int, default=None, help='Number of processes to use for segmentation')
-    parser.add_argument('--model', type=str, default=None)
-    parser.add_argument('-m', '--mode', choices=['basic', 'banded', 'resquiggle'], required=True)
-    parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
+    parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'banded', 'resquiggle'], help='Segmentation algorithm used for segmentation')
+    parser.add_argument('--processes', type=int, default=None, help='Number of processes to use for segmentation')
+    parser.add_argument('--model_path', type=str, help='Which kmer model to use for segmentation')
+    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
+    parser.add_argument('-q', '--qscore', type=int, default=0, help='Minmal allowed quality score')
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str):
@@ -45,13 +45,8 @@ def listener(q : mp.Queue, outfile : str):
             f.write(m)
             f.flush()
 
-# def segment(rawdatapath : str, fastxpath : str, polya : dict, batch_size : int, mode : str, outfile : str, modelpath : str) -> None:
-def segment(rawdatapath : str, fastxpath : str, processes : int, mode : str, outfile : str, modelpath : str, pore : str) -> None:
-    files = getFiles(rawdatapath, True)
-    print(f'ONT Files: {len(files)}')
-    basecalls = loadFastx(fastxpath)
-    print(f'{len(basecalls)} reads found')
-    
+def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
+
     if mode == 'basic':
         CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT')
     elif mode == 'banded':
@@ -68,14 +63,31 @@ def segment(rawdatapath : str, fastxpath : str, processes : int, mode : str, out
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     watcher = pool.apply_async(listener, (queue, outfile))
-    
+    qualSkipped = 0
+    oldFile = None
     jobs = []
-    for file in files:
-        r5 = read5.read(file)
-        for readid in r5.getReads():
-            if not readid in basecalls: # or (readid not in polyAIndex)
+
+    with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
+        for basecalled_read in samfile.fetch(until_eof=True):
+            
+            # skip low qual reads if activated
+            qual = basecalled_read.get_tag("qs")
+            if minQual and qual < minQual:
+                qualSkipped+=1
                 continue
-            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, getSignal(r5, readid), basecalls[readid][::-1], readid, queue)))
+
+            # init read
+            seq = basecalled_read.query_sequence
+            readid = basecalled_read.query_name
+            ts = basecalled_read.get_tag("ts")
+            rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+
+
+            if oldFile != rawFile:
+                oldFile = rawFile
+                r5 = read5.read(rawFile)
+
+            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, getSignal(r5, readid)[ts:], seq[::-1], readid, queue)))
     
     # wait for all jobs to finish
     for job in jobs:
@@ -84,29 +96,27 @@ def segment(rawdatapath : str, fastxpath : str, processes : int, mode : str, out
     # tell queue to terminate
     queue.put("kill")
 
-    # # terminate pipes
-    # jobs = []
-    # for _ in range(processes*2):
-    #     jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath}, TERM_STRING, TERM_STRING, "End", queue)))
-
     # wait for all processes to finish
     for job in jobs:
         job.get()
     watcher.get()
     pool.close()
     pool.join()
+    
     print("Done segmenting signals")
+    print(f"Skipped reads due to low quality: {qualSkipped}")
 
 def getSignal(r5 : read5.AbstractFileReader.AbstractFileReader, readid : str):
     return r5.getZNormSignal(readid, "mean")
 
 def main() -> None:
     args = parse()
+
     outfile = args.outfile
     if not exists(dirname(outfile)):
         makedirs(dirname(outfile))
-    # polya=readPolyAStartEnd(args.polya)
-    segment(args.raw, args.fastx, args.processes, args.mode, outfile, args.model, args.pore)
+
+    segment(args.raw, args.basecalls, args.processes, args.mode, outfile, args.model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
     main()

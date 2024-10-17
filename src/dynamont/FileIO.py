@@ -10,10 +10,6 @@ from subprocess import PIPE, Popen
 import re
 import numpy as np
 from pathlib import Path
-import gzip
-# import pandas as pd
-from Bio import SeqIO
-from os.path import splitext
 from os.path import join
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -84,24 +80,45 @@ def getFiles(filepath : str, rec : bool) -> list:
 
     return files
 
-def loadFastx(path : str, quality : int = None) -> dict:
-    '''
-    Returns
-    -------
-    readDict : dict
-        {readid : read}
-    quality : int
-        add a quality value to filter out reads that have a mean quality value below the given threshold
-    '''
-    readDict = {}
-    if path.endswith(".gz"):
-        path = gzip.open(path, "rt")
-    for record in SeqIO.parse(path, splitext(path)[1][1:]):
-        if quality is not None:
-            if not np.mean(record.letter_annotations["phred_quality"]) >= quality:
-                continue
-        readDict[record.id] = str(record.seq)
-    return readDict
+# def loadBasecalls(bamFile : str, quality : int = None) -> dict:
+#     '''
+#     Parameters
+#     ----------
+#     bamfile : str
+#         basecalls in .bam format from the dorado basecaller
+#     quality : int
+#         add a quality value to filter out reads that have a mean quality value below the given threshold
+
+#     Returns
+#     -------
+#     readDict : dict
+#         {readid : (read, transcript_start)}
+#     '''
+#     readDict = {}
+#     with pysam.AlignmentFile(bamFile, "r" if bamFile.endswith('.sam') else "rb", check_sq=False) as samfile:
+#         for read in samfile.fetch(until_eof=True):
+#             seq = read.query_sequence
+#             rid = read.query_name
+#             ts = read.get_tag("ts")
+            
+#             # skip reads below quality threshold
+#             if quality:
+#                 avg_qual = sum(read.query_qualities) / len(seq)
+#                 if avg_qual < quality:
+#                     continue
+
+#             readDict[rid] = (seq, ts)
+#     return readDict
+
+# def indexBasecalls(bamFile : str, rawFiles : list) -> dict:
+#     idx = {}
+#     with pysam.AlignmentFile(bamFile, "r" if bamFile.endswith('.sam') else "rb", check_sq=False) as samfile:
+#         for basecalled_read in samfile.fetch(until_eof=True):
+#             rid = basecalled_read.query_name
+#             for file in rawFiles:
+#                 if rid in read5.read(file).getReads():
+#                     idx[rid] = file
+#     return idx
 
 def openCPPScript(cpp_script : str) -> Popen:
     '''

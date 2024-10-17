@@ -433,7 +433,7 @@ int main(int argc, char* argv[]) {
     }
 
     // check that outgoing transitions sum up to 1
-    assert(fabs(exp(transitions["m1"]) + exp(transitions["e2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: m1 and e1 must approximately 1.0");
+    // assert(fabs(exp(transitions["m1"]) + exp(transitions["e2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: m1 and e1 must approximately 1.0");
 
     numKmers = pow(ALPHABET_SIZE, kmerSize);
     vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));

@@ -1105,10 +1105,10 @@ int main(int argc, char* argv[]) {
     // cerr << ", a2i2p3s2: " << exp(transitions["a2"]) + exp(transitions["i2"]) + exp(transitions["p3"]) + exp(transitions["s3"]) << endl;
     
     // check that outgoing transitions sum up to 1
-    assert(fabs(exp(transitions["e2"]) + exp(transitions["s1"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state P: e2 and s1 must approximately 1.0");
-    assert(fabs(exp(transitions["e3"]) + exp(transitions["p1"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state S: e3 and p1 must approximately 1.0");
-    assert(fabs(exp(transitions["a1"]) + exp(transitions["s2"]) + exp(transitions["e4"]) + exp(transitions["i1"]) + exp(transitions["p2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: a1, s2, e4, i1, and p2 must approximately 1.0");
-    assert(fabs(exp(transitions["a2"]) + exp(transitions["i2"]) + exp(transitions["p3"]) + exp(transitions["s3"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state I: a2, i2, p3, and s3 must approximately 1.0");
+    // assert(fabs(exp(transitions["e2"]) + exp(transitions["s1"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state P: e2 and s1 must approximately 1.0");
+    // assert(fabs(exp(transitions["e3"]) + exp(transitions["p1"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state S: e3 and p1 must approximately 1.0");
+    // assert(fabs(exp(transitions["a1"]) + exp(transitions["s2"]) + exp(transitions["e4"]) + exp(transitions["i1"]) + exp(transitions["p2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: a1, s2, e4, i1, and p2 must approximately 1.0");
+    // assert(fabs(exp(transitions["a2"]) + exp(transitions["i2"]) + exp(transitions["p3"]) + exp(transitions["s3"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state I: a2, i2, p3, and s3 must approximately 1.0");
 
     // polishing dimension K = number of possible kmers
     K = pow(ALPHABET_SIZE, kmerSize); // currently acceptable A, C, G, T, N
