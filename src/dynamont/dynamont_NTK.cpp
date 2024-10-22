@@ -67,11 +67,11 @@ size_t T, N, K, TNK, NK;
 // necessary for INFINITY usage
 static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");
 
-void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
-void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
-void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
-void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
-void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
+void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb);
+void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb);
+void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb);
+void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb);
+void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb);
 
 // ===============================================================
 // ===============================================================
@@ -698,32 +698,36 @@ list<string> getBorders(unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, 
     }
 
     list<string> segString;
-    funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, K, 0, -INFINITY);
+    vector<double> segProb;
+    funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, K, segProb);
     APSEI.clear();
     return segString;
 }
 
-void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb){
+void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb){
     const size_t currentIdx = t*NK+n*K+k;
     const size_t prevIdx  = (t-1)*NK+(n-1)*K;
     // Cache the score value to avoid redundant lookups
     const double score = APSEI[currentIdx][0];
     const double logScore = logAPSEI[currentIdx][0];
+    segProb.push_back(logScore);
     if (t<=1 && n<=1){ // Start value
-        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
         return;
     }
     for(size_t preKmer=precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
         if (t>1 && n>1) {
             // Check match with E state
             if (score == APSEI[prevIdx+preKmer][3] + logScore){
-                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
+                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segProb.clear();
+                return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI[prevIdx+preKmer][4] + logScore){
-                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
+                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segProb.clear();
+                return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
         }
     }
@@ -731,28 +735,29 @@ void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     cerr<<"Error in backtracing funcA!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb){
+void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb){
     const size_t currentIdx = NK*t+n*K+k;
     const size_t prevIdx  = NK*(t-1)+n*K+k;
     // Cache the score value to avoid redundant lookups
     const double score = APSEI[currentIdx][3];
     const double logScore = logAPSEI[currentIdx][3];
+    segProb.push_back(logScore);
     if (t>0 && n>0) {
         // Check match with A state
         if (score == APSEI[prevIdx][0] + logScore){
-            return funcA(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcA(t-1, n, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore){
-            return funcE(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcE(t-1, n, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with S state
         if (score == APSEI[prevIdx][2] + logScore){
-            return funcS(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcS(t-1, n, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore){
-            return funcP(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcP(t-1, n, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
     else [[unlikely]] { // Start value with t==0 && n==0
@@ -762,29 +767,33 @@ void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     cerr<<"Error in backtracing funcE!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb) {
+void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb) {
     // Precompute commonly used indices and values
     const size_t currentIdx = t*NK+n*K+k;
     const double score = APSEI[currentIdx][1];
     const double logScore = logAPSEI[currentIdx][1];
     const size_t prevBaseIdx = NK*(t-1)+n*K;  // Common base index for previous time step
+    segProb.push_back(logScore);
     if (t>0 && n>0) {
         for (size_t preKmer = precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
             const size_t prevIdx = prevBaseIdx + preKmer;
             // Check match with E state
             if (score == APSEI[prevIdx][3] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segProb.clear();
+                return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with S state
             if (score == APSEI[prevIdx][2] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segProb.clear();
+                return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI[prevIdx][4] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segProb.clear();
+                return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
         }
     }
@@ -792,49 +801,51 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     cerr << "Error in backtracing funcP!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb) {
+void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb) {
     const size_t currentIdx = NK*t+n*K+k;
     const size_t prevIdx = NK*(t-1)+(n-1)*K+k;
     // Cache score and logScore to avoid repeated map lookups
     const double score = APSEI[currentIdx][2];
     const double logScore = logAPSEI[currentIdx][2];
+    segProb.push_back(logScore);
     if (t>0 && n>0) {
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
             // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore) {
             // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
             // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
     // If no match is found, output an error
     cerr << "Error in backtracing funcS!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb) {
+void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, vector<double> &segProb) {
     const size_t currentIdx = NK*t+n*K+k;
     const size_t prevIdx = NK*t+(n-1)*K+k;
     // Cache the score and logScore to avoid repeated lookups
     const double score = APSEI[currentIdx][4];
     const double logScore = logAPSEI[currentIdx][4];
+    segProb.push_back(logScore);
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
             // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcI(t, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcI(t, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         } 
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
             // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcE(t, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
+            return funcE(t, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
     // If no match is found, output an error

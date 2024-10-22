@@ -298,3 +298,6 @@ inline double scoreKmer(const double signal, const size_t kmer, const vector<tup
  *                    This map is updated with logarithmic values during the function execution.
  */
 void updateTransitions(const unordered_map<string, double>& default_transitions_vals, unordered_map<string, double>& transitions);
+
+// Function to calculate the median of a vector
+double calculateMedian(vector<double>& vec);

@@ -144,3 +144,20 @@ void updateTransitions(const unordered_map<string, double>& default_transitions_
         transitions[transition.first] = log(transition.second);
     }
 }
+
+// Function to calculate the median of a vector
+double calculateMedian(vector<double>& vec) {
+    size_t size = vec.size();
+
+    // Sort the vector
+    std::sort(vec.begin(), vec.end());
+
+    // If the vector size is odd, return the middle element
+    if (size % 2 == 1) {
+        return vec[size / 2];
+    } 
+    // If the vector size is even, return the average of the two middle elements
+    else {
+        return (vec[size / 2 - 1] + vec[size / 2]) / 2.0;
+    }
+}

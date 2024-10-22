@@ -21,8 +21,8 @@
 
 using namespace std;
 
-void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb);
-void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb);
+void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
+void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
 
 inline constexpr int ALPHABET_SIZE = 4;
 int numKmers, kmerSize; // our model works with this kmer size
@@ -161,34 +161,38 @@ list<string> getBorders(const double* LPM, const double* LPE, const size_t T, co
         }
     }
     list<string> segString;
-    funcE(T-1, N-1, M, E, LPM, LPE, &segString, N, 0, -INFINITY);
+    vector<double> segProb;
+    funcE(T-1, N-1, M, E, LPM, LPE, &segString, N, segProb);
     delete[] M;
     delete[] E;
     return segString;
 }
 
-void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb){
+void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double>& segProb){
     double score = M[t*N+n];
     double logScore = LPM[t*N+n];
+    segProb.push_back(logScore);
     if (t<=1 && n<=1){ // Start value
-        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1))); // n-1 because N is 1 larger than the sequences
+        segString->push_front("M0,0," + to_string(calculateMedian(segProb))); // n-1 because N is 1 larger than the sequences
         return;
     }
     if (t>C && n>0 && score == E[(t-C-1)*N+(n-1)] + logScore){
-        segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-C-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)));
-        return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N, 0, -INFINITY);
+        segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-C-1) + "," + to_string(calculateMedian(segProb)));
+        segProb.clear();
+        return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N, segProb);
     }
 }
 
-void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb){
+void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double>& segProb){
     double score = E[t*N+n];
     double logScore = LPE[t*N+n];
+    segProb.push_back(logScore);
     if (t>0 && n>0) {
         if (score == M[(t-1)*N+n] + logScore){
-            return funcM(t-1, n, M, E, LPM, LPE, segString, N, segLen + 1, logPlus(segProb, logScore));
+            return funcM(t-1, n, M, E, LPM, LPE, segString, N, segProb);
         }
         if (score == E[(t-1)*N+n] + logScore){
-            return funcE(t-1, n, M, E, LPM, LPE, segString, N, segLen + 1, logPlus(segProb, logScore));
+            return funcE(t-1, n, M, E, LPM, LPE, segString, N, segProb);
         }
     }
 }
