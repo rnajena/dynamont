@@ -7,7 +7,6 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name
-
 import read5.AbstractFileReader
 from FileIO import feedSegmentationAsynchronous
 import read5
@@ -33,7 +32,7 @@ def parse() -> Namespace:
 def listener(q : mp.Queue, outfile : str):
     '''listens for messages on the q, writes to file. '''
     with open(outfile, 'w') as f:
-        f.write('readid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
+        f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
         i = 0
         while 1:
             m = q.get()
@@ -45,17 +44,7 @@ def listener(q : mp.Queue, outfile : str):
             f.write(m)
             f.flush()
 
-def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
-
-    if mode == 'basic':
-        CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT')
-    elif mode == 'banded':
-        CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
-    elif mode == 'resquiggle':
-        CPP_SCRIPT = join(dirname(__file__), 'dynamont_NTK')
-
-    if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
+def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
 
     if processes is None:
         processes = 2 # mp.cpu_count()-1
@@ -77,13 +66,14 @@ def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfil
                 qualSkipped+=1
                 continue
 
-            # init read, sometimes a read got split by the basecaller and got a new id
-            readid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else basecalled_read.query_name
-            seq = basecalled_read.query_sequence
+            # init read
             readid = basecalled_read.query_name
+            # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
+            signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
+            seq = basecalled_read.query_sequence
             ts = basecalled_read.get_tag("ts")
-            sp = basecalled_read.get_tag("sp") # split start of the signal
-            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
+            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling for this readid
+            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
             rawFile = join(dataPath, basecalled_read.get_tag("fn"))
 
             if oldFile != rawFile:
@@ -91,12 +81,12 @@ def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfil
                 r5 = read5.read(rawFile)
 
             try:
-                signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns]
+                signal = r5.getZNormSignal(signalid, "median")[sp+ts:sp+ns]
             except:
                 noMatchingReadid+=1
                 continue
 
-            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, signal, seq[::-1], readid, queue)))
+            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, signal, seq[::-1], sp+ts, readid, signalid, queue)))
     
     # wait for all jobs to finish
     for job in jobs:
@@ -122,7 +112,18 @@ def main() -> None:
     if not exists(dirname(outfile)):
         makedirs(dirname(outfile))
 
-    segment(args.raw, args.basecalls, args.processes, args.mode, outfile, args.model_path, args.pore, args.qscore)
+    match args.mode:
+        case "basic":
+            CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT')
+        case "banded":
+            CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
+        case "resquiggle":
+            CPP_SCRIPT = join(dirname(__file__), 'dynamont_NTK')
+
+    if name == 'nt': # check for windows
+        CPP_SCRIPT+='.exe'
+
+    segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, args.model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
     main()

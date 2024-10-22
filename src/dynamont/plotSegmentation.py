@@ -69,14 +69,12 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
         'n':'#ffffff',
         }
 
-    plt.figure(figsize=(130, 10), dpi=400)
+    plt.figure(figsize=(130, 10))
     plt.title(f'{readid} segmentation in 3\' -> 5\' orientation')
-    x=np.arange(-ts, len(normSignal) - ts, 1)
-    plt.plot(x, normSignal, color='black', label='Z Normalised Signal', linewidth=0.8)
+    plt.plot(normSignal, color='black', label='Z Normalised Signal', linewidth=0.8)
     plt.ylim((-6, 3))
     plt.ylabel('Signal pico Ampere')
-    plt.xticks([num for num in x if num % 1000 == 0])
-    # plt.xticks(-((ts//1000) * 1000), len(normSignal) - ts, 1000)
+    plt.xticks(np.arange(0, len(normSignal), 1000))
     plt.grid(True, 'both', 'y')
 
     # OUR SEGMENTATION
@@ -135,7 +133,7 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
     if probability:
         plt.twinx()
         # print(x, polyAend, probs)
-        plt.plot(x[ts:], probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
+        plt.plot(np.arange(ts, ts+len(probs)), probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
         plt.ylim((-8, 28))
         plt.yticks(np.arange(-8, 29, 4))
         plt.ylabel('log(Border Probability)')
@@ -190,7 +188,7 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    segments, borderProbs = feedSegmentation(normSignal[ts:], read, CPP_SCRIPT, PARAMS)
+    segments, borderProbs = feedSegmentation(normSignal[ts:], read, CPP_SCRIPT, ts, PARAMS)
 
     # check for resquiggle how many new segments were inserted
     print('Read bases:', len(read), ' Segments:', len(segments), ' Border probs:', len(borderProbs), ' Signal:', len(normSignal[ts:]))
@@ -216,7 +214,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
                 continue
             seq = basecalled_read.query_sequence
             # qs = basecalled_read.get_tag("qs") # quality score
-            sp = basecalled_read.get_tag("sp") # split start of the signal
+            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # split start of the signal
             ts = basecalled_read.get_tag("ts") # transcript start
             ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
 

@@ -298,7 +298,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dict = None) -> tuple:
+def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offset : int, params : dict = None) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Opens and closes a pipe to the given script.
@@ -363,7 +363,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
     # receive segmentation result
     # format output into np.ndarray
     # try:
-    segments = formatSegmentationOutput(output, len(signal), read[::-1])
+    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
     # except:
         # some error during segmentation - no proper output
         # return np.array([])
@@ -371,7 +371,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
 
 globalPipe : Popen = None
 
-def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, readid : str, queue : Queue) -> None:
+def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, queue : Queue) -> None:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Needs an open pipe for communication.
@@ -379,10 +379,15 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     Parameters
     ----------
     signal : np.ndarray
-        in 4' -> 5' direction
+        in 3 -> 5' direction
     read : str
         in 3' -> 5' direction
+    signal_offset : int
+        offset index of the signal
     readid : str
+        id within the basecall .bam file of dorado
+    signalid : str
+        "pi" flag within the basecall .bam file of dorado
     pipe : Popen
     queue : Queue
     '''
@@ -395,12 +400,12 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
         globalPipe = openCPPScriptParams(CPP_SCRIPT, params)
 
     output = feedPipeAsynchronous(signal, read, globalPipe)
-    try:
-        segments = formatSegmentationOutput(output, len(signal), read)
-    except Exception as e:
-        print("Exception in readid", readid, e)
-        return None
-    queue.put(formatSegmentation(readid, segments))
+    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
+    # try:
+    # except Exception as e:
+    #     print("Exception in readid", readid, e)
+    #     return None
+    queue.put(formatSegmentation(readid, signalid, segments))
 
 def feedPipeAsynchronous(signal : np.ndarray, read : str, pipe : Popen) -> str:
     '''
@@ -429,7 +434,7 @@ def feedPipeAsynchronous(signal : np.ndarray, read : str, pipe : Popen) -> str:
     result = pipe.stdout.readline()
     return result
 
-def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarray:
+def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int, read : str) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
 
@@ -437,8 +442,10 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
     ----------
     output : str
         Segmentation output from CPP script
-    sigLen : int
-        Length of the read signal
+    signal_offset : int
+        starting index offset
+    lastIndex : int
+        ending index with offset already added
     read : str
         5' -> 3' direction
 
@@ -455,7 +462,7 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
     segments = []
     output = output.strip().split(';')[:-1]
     for i, segment in enumerate(output):
-        print(segment)
+        # print(segment)
         # split segment state
         state = segment[0]
         segment = segment[1:]
@@ -467,7 +474,8 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
             basepos, start, prob = segment.split(',')
             polish = 'NA'
 
-        end = output[i+1][1:].split(',')[1] if i < len(output)-1 else sigLen
+        start = int(start) + signal_offset
+        end = int(output[i+1][1:].split(',')[1]) + signal_offset if i < len(output)-1 else lastIndex
 
         # convert basepos to 5' -> 3' direction
         pos = len(read) - int(basepos) - 1
@@ -475,7 +483,7 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
 
     return np.array(segments, dtype=object)
 
-def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
+def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) -> str:
     '''
     Transform segmentation into a string to write into a file
 
@@ -494,7 +502,7 @@ def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     # segmentation = feedSegmentation(signal, read, script, params)
     table = ''
     for segment in segmentation:
-        table += readid + ',' + ','.join(list(map(str, segment))) + '\n'
+        table += readid + ',' + signalid + ',' + ','.join(list(map(str, segment))) + '\n'
     return table
 
 def stopFeeding(pipe : Popen) -> None:
