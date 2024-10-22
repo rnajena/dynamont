@@ -34,15 +34,15 @@ public:
     operator double const () const { return value_; }
 };
 
-double ppTNm, ppTNe, ppTKm, ppTKe;
+inline constexpr int NUMMAT = 5;
 inline constexpr double SPARSE_THRESHOLD = log(0.99); // using paths with top 90% of probability per T
-// inline constexpr double SPARSE_THRESHOLD = log(0.9999);
-const int NUMMAT = 5;
-int alphabet_size, kmerSize, stepSize;
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
-// inline constexpr double AFFINE_COST = log(0.05);
-inline constexpr double AFFINE_COST = 0; // currently switched off with log(1), but left this in the code to play around in the future
-// double a1, a2, p1, p2, p3, s1, s2, s3, e2, e3, e4, i1, i2; // transition parameters
+inline constexpr double AFFINE_COST = 0; // log(0.05), currently switched off with log(1), but left this in the code to play around in the future
+
+size_t T, N, K, TNK, NK;
+double ppTNm, ppTNe, ppTKm, ppTKe;
+int alphabet_size, kmerSize, stepSize;
+
 unordered_map<string, double> transitions = {
     {"a1", -1.0},
     {"a2", -1.0},
@@ -60,7 +60,6 @@ unordered_map<string, double> transitions = {
     {"i2", -1.0},
     {"e1", -1.0}
 };
-size_t T, N, K, TNK, NK;
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage

@@ -24,15 +24,15 @@ using namespace std;
 void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
 void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
 
+size_t N, T, TN, C;
 int alphabet_size, numKmers, kmerSize; // our model works with this kmer size
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
-// double m, e; // transition parameters
+
 unordered_map<string, double> transitions = {
     {"m1", -1.0},
     {"e1", -1.0},
     {"e2", -1.0}
 };
-size_t N, T, TN, C;
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
