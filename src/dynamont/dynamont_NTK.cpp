@@ -36,7 +36,7 @@ public:
 
 inline constexpr int ALPHABET_SIZE = 4; // increase to enable modifications
 double ppTNm, ppTNe, ppTKm, ppTKe;
-inline constexpr double SPARSE_THRESHOLD = log(0.9); // using paths with top 90% of probability per T
+inline constexpr double SPARSE_THRESHOLD = log(0.99); // using paths with top 90% of probability per T
 // inline constexpr double SPARSE_THRESHOLD = log(0.9999);
 const int NUMMAT = 5;
 int kmerSize, stepSize;
@@ -67,11 +67,11 @@ size_t T, N, K, TNK, NK;
 // necessary for INFINITY usage
 static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");
 
-void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
-void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
-void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
-void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
-void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K);
+void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
+void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
+void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
+void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
+void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb);
 
 // ===============================================================
 // ===============================================================
@@ -698,32 +698,32 @@ list<string> getBorders(unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, 
     }
 
     list<string> segString;
-    funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, K);
+    funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, K, 0, -INFINITY);
     APSEI.clear();
     return segString;
 }
 
-void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K){
-    if (t<=1 && n<=1){ // Start value
-        segString->push_front("M"+to_string(0)+","+to_string(0)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";"); // n-1 because N is 1 larger than the sequences
-        return;
-    }
+void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb){
     const size_t currentIdx = t*NK+n*K+k;
     const size_t prevIdx  = (t-1)*NK+(n-1)*K;
     // Cache the score value to avoid redundant lookups
     const double score = APSEI[currentIdx][0];
     const double logScore = logAPSEI[currentIdx][0];
+    if (t<=1 && n<=1){ // Start value
+        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+        return;
+    }
     for(size_t preKmer=precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
         if (t>1 && n>1) {
             // Check match with E state
             if (score == APSEI[prevIdx+preKmer][3] + logScore){
-                segString->push_front("M"+to_string(n-1+kmerSize/2)+","+to_string(t-1)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";");
-                return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K);
+                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
             }
             // Check match with I state
             if (score == APSEI[prevIdx+preKmer][4] + logScore){
-                segString->push_front("M"+to_string(n-1+kmerSize/2)+","+to_string(t-1)+","+itoa(k, ALPHABET_SIZE, kmerSize)+";");
-                return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K);
+                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
             }
         }
     }
@@ -731,7 +731,7 @@ void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     cerr<<"Error in backtracing funcA!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K){
+void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb){
     const size_t currentIdx = NK*t+n*K+k;
     const size_t prevIdx  = NK*(t-1)+n*K+k;
     // Cache the score value to avoid redundant lookups
@@ -740,19 +740,19 @@ void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with A state
         if (score == APSEI[prevIdx][0] + logScore){
-            return funcA(t-1, n, k, APSEI, logAPSEI, segString, K);
+            return funcA(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore){
-            return funcE(t-1, n, k, APSEI, logAPSEI, segString, K);
+            return funcE(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
         // Check match with S state
         if (score == APSEI[prevIdx][2] + logScore){
-            return funcS(t-1, n, k, APSEI, logAPSEI, segString, K);
+            return funcS(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore){
-            return funcP(t-1, n, k, APSEI, logAPSEI, segString, K);
+            return funcP(t-1, n, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
     }
     else [[unlikely]] { // Start value with t==0 && n==0
@@ -762,7 +762,7 @@ void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     cerr<<"Error in backtracing funcE!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K) {
+void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb) {
     // Precompute commonly used indices and values
     const size_t currentIdx = t*NK+n*K+k;
     const double score = APSEI[currentIdx][1];
@@ -773,18 +773,18 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
             const size_t prevIdx = prevBaseIdx + preKmer;
             // Check match with E state
             if (score == APSEI[prevIdx][3] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
             }
             // Check match with S state
             if (score == APSEI[prevIdx][2] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
             }
             // Check match with I state
             if (score == APSEI[prevIdx][4] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-                return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K);
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K, 0, -INFINITY);
             }
         }
     }
@@ -792,7 +792,7 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     cerr << "Error in backtracing funcP!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K) {
+void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb) {
     const size_t currentIdx = NK*t+n*K+k;
     const size_t prevIdx = NK*(t-1)+(n-1)*K+k;
     // Cache score and logScore to avoid repeated map lookups
@@ -802,24 +802,24 @@ void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
             // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K);
+            return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore) {
             // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K);
+            return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
             // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K);
+            return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
     }
     // If no match is found, output an error
     cerr << "Error in backtracing funcS!: t: "<<t<<", n: "<<n<<", k: "<<k<<endl;
 }
 
-void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K) {
+void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t, array<dproxy, NUMMAT>> &APSEI, unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, list<string>* segString, const size_t K, const int segLen, const double segProb) {
     const size_t currentIdx = NK*t+n*K+k;
     const size_t prevIdx = NK*t+(n-1)*K+k;
     // Cache the score and logScore to avoid repeated lookups
@@ -828,13 +828,13 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcI(t, n-1, k, APSEI, logAPSEI, segString, K);
+            // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            return funcI(t, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         } 
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
-            return funcE(t, n-1, k, APSEI, logAPSEI, segString, K);
+            // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            return funcE(t, n-1, k, APSEI, logAPSEI, segString, K, segLen + 1, logPlus(segProb, logScore));
         }
     }
     // If no match is found, output an error
@@ -956,6 +956,9 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
 
     // First pass: Compute means and normalization factors
     for(size_t tnk : allowedKeys){
+        if(tnk<NK) [[unlikely]] {
+            continue;
+        }
         // tnk = t*NK+n*K+k
         t = tnk/NK;
         k = tnk % K;
@@ -963,9 +966,9 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
         const auto& logValues = logAPSEI.at(tnk);
         w = logPlus(logPlus(logPlus(logValues[0], logValues[1]), logPlus(logValues[2], logValues[3])), logValues[4]);
         w = exp(w); // Convert log probability to normal probability
-        if (t>0) [[likely]] {
-            means[k] += w * sig[t-1];
-        }
+        // if (t>0) [[likely]] {
+        means[k] += w * sig[t-1];
+        // }
         normFactorT[k] += w;
     }
 
@@ -979,13 +982,13 @@ tuple<double*, double*> trainEmission(const double* sig, unordered_map<size_t, a
     // Emission (stdev of kmers)
     // assuming a flat prior and integrating over N, every cell (in T x K) has on avg a prob. of 1/K, integrating over T results in T/K
     // used kmers should exceed the threshold easily
-    double TRAIN_THRESHOLD = 0.001*(T/K);
-    // double TRAIN_THRESHOLD = 1e-7; // set by eye
+    // double TRAIN_THRESHOLD = T/K;
+    double TRAIN_THRESHOLD = 1e-7; // set by eye
     for(size_t tnk : allowedKeys){
         // tnk = t*NK+n*K+k
         k = tnk % K;
         // Skip kmers with low weight or if t == 0
-        if(normFactorT[k] < TRAIN_THRESHOLD || tnk<NK) [[likely]] {
+        if(normFactorT[k] < TRAIN_THRESHOLD || tnk<NK) [[unlikely]] {
             continue;
         }
         t = tnk/NK;
@@ -1012,7 +1015,7 @@ void trainParams(const double *sig, const int *kmer_seq, unordered_map<size_t, a
 
     // newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2
     auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmer_seq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
-    cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p3:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<endl;
+    cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p3:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e1:"<<e1<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<endl;
 
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(size_t k=0; k<K; ++k){
@@ -1033,23 +1036,28 @@ int main(int argc, char* argv[]) {
     string pore, modelpath;
     const string TERM_STRING = "$";
 
+    // cerr precisions
     cerr << fixed << showpoint;
-    cerr << setprecision(15);
+    cerr << setprecision(20);
+
+    // cerr precisions
+    cout << fixed << showpoint;
+    cout << setprecision(20);
 
     argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
-    program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e1"]); // e1
-    program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e2"]); // e2
-    program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s1"]); // s1
-    program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e3"]); // e3
-    program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p1"]); // p1
-    program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a1"]); // a1
-    program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p2"]); // p2
-    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e4"]); // e4
-    program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s2"]); // s2
+    program.add_argument("-a1", "--alignscore1"    ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a1"]); // a1
+    program.add_argument("-a2", "--alignscore2"    ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a2"]); // a2
+    program.add_argument("-e1", "--extendscore1"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e1"]); // e1
+    program.add_argument("-e2", "--extendscore2"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e2"]); // e2
+    program.add_argument("-e3", "--extendscore3"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e3"]); // e3
+    program.add_argument("-e4", "--extendscore4"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e4"]); // e4
+    program.add_argument("-s1", "--sequencescore1" ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s1"]); // s1
+    program.add_argument("-s2", "--sequencescore2" ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s2"]); // s2
+    program.add_argument("-s3", "--sequencescore3" ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s3"]); // s2
+    program.add_argument("-p1", "--polishscore1"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p1"]); // p1
+    program.add_argument("-p2", "--polishscore2"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p2"]); // p2
+    program.add_argument("-p3", "--polishscore3"   ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p3"]); // p2
     program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["i1"]); // i1
-    program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a2"]); // a2
-    program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p3"]); // p3
-    program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s3"]); // s3
     program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["i2"]); // i2
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
@@ -1059,14 +1067,7 @@ int main(int argc, char* argv[]) {
     program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0); //.store_into(C);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob); //.store_into(prob);
 
-    try {
-        program.parse_args(argc, argv);
-    }
-    catch (const runtime_error& err) {
-        cerr << err.what() << std::endl;
-        cerr << program;
-        return 1;
-    }
+    program.parse_args(argc, argv);
     
     // load default and set parameters
     if (pore == "rna_r9") {
@@ -1162,7 +1163,7 @@ int main(int argc, char* argv[]) {
 
         vector<size_t> allowedKeys;
         preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<endl; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
+        // cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<endl; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<endl;
         unordered_map<size_t, array<dproxy, NUMMAT>> forAPSEI;
         
         // cerr<<"forward"<<endl;
@@ -1179,7 +1180,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if (abs(Zf-Zb)/TNK >= EPSILON) {
+        if (abs(Zf-Zb)/TNK >= EPSILON || isinf(Zf) || isinf(Zb)) {
             cerr<<"Z values between matrices do not match! forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" > "<<EPSILON<<endl;
             cerr.flush();
             exit(13);
@@ -1188,29 +1189,22 @@ int main(int argc, char* argv[]) {
         // cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<endl;
 
         if (calcZ){
-            cout<<Zf<<endl;
+            cout<<Zf/(T*N)<<endl;
             cout.flush();
+
         } else {
             unordered_map<size_t, array<dproxy, NUMMAT>> logAPSEI;
             logP(logAPSEI, forAPSEI, backAPSEI, Zf, allowedKeys, N, K);
 
-
             // train both Transitions and Emissions
             if (train) {
                 trainParams(sig, kmer_seq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
-                cout<<"Z:"<<Zf<<endl;
+                cout<<"Z:"<<Zf/(T*N)<<endl;
                 cout.flush();
 
             // print out segmentation string
             } else {
-                // TODO output probability for polishing
-                // for each n, sum over K==n & T, output probability: how much probability supports this n?
-                // for each k, sum over K==N & T, output probability: how much probability support this k
-                // output 
-
                 // Alignment output
-                // N string, K string alignment, for each position how confident is the tool (3 lines)?
-                // (N, K) tuple spans Ts = segment, output avg of probs over this segment as third line for confidence                // number 0-9 and * for percent intervals, 0-5%, 5-15%, ..., 95%-100% 
                 list<string> segString = getBorders(logAPSEI, allowedKeys, T, N, K);
 
                 for(auto const& seg : segString) {
@@ -1230,7 +1224,7 @@ int main(int argc, char* argv[]) {
                             cout<<sum<<",";
                             sum = -INFINITY;
                         }
-                        for(int i : {0, 1, 2}) {
+                        for(int i : {0, 1}) { // sum up prob for new segment in dimension K
                             sum = logPlus(sum, logAPSEI.at(tnk)[i]);
                         }
                     }

@@ -362,11 +362,11 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, params : dic
 
     # receive segmentation result
     # format output into np.ndarray
-    try:
-        segments = formatSegmentationOutput(output, len(signal), read[::-1])
-    except:
+    # try:
+    segments = formatSegmentationOutput(output, len(signal), read[::-1])
+    # except:
         # some error during segmentation - no proper output
-        return np.array([])
+        # return np.array([])
     return segments , probs
 
 globalPipe : Popen = None
@@ -450,38 +450,30 @@ def formatSegmentationOutput(output : str, sigLen : int, read : str) -> np.ndarr
             start : signal idx
             end : signal idx
             readpos : base position within 5' - 3' read
-            state: {'M', 'I', 'D'}
-                'M' : match
-                'I' : insertion of a base
-                'D' : deletion of a base
+            state : match, extend, etc
     '''
-    pattern =  r"\w\d+,\d+(?:,[A-Z]+)?"
-    # \w\d+ — Matches the first part (a letter followed by digits, e.g., M5, I6).
-    # ,\d+ — Matches the second part (a comma followed by digits, e.g., ,123, ,125).
-    # (?:,[A-Z]+)? — Optionally matches the third part (a comma followed by uppercase letters, e.g., ,GNGNT), made optional by ?.
-    output = re.findall(pattern, output)
     segments = []
+    output = output.strip().split(';')[:-1]
     for i, segment in enumerate(output):
+        print(segment)
         # split segment state
         state = segment[0]
         segment = segment[1:]
 
         # get basepos, signal start and polish if existing
         try:
-            basepos, start, polish = segment.split(',')
+            basepos, start, prob, polish = segment.split(',')
         except ValueError:
-            basepos, start = segment.split(',')
+            basepos, start, prob = segment.split(',')
             polish = 'NA'
 
         end = output[i+1][1:].split(',')[1] if i < len(output)-1 else sigLen
 
         # convert basepos to 5' -> 3' direction
         pos = len(read) - int(basepos) - 1
-        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, polish])
-        # segments[-1] = list(map(str, segments[-1]))
+        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, prob, polish])
 
     return np.array(segments, dtype=object)
-    # return segments
 
 def formatSegmentation(readid : str, segmentation : np.ndarray) -> str:
     '''
@@ -548,7 +540,7 @@ def plotParameters(param_file : str, outdir : str) -> None:
     matplotlib.use('Agg') # Use non-interactive backend (no GUI)
     df = pd.read_csv(param_file, sep=',')
     for column in df:
-        if column in ['epoch', 'batch']:
+        if column in ['epoch', 'batch', 'read']:
             continue
         sns.set_theme()        
         sns.lineplot(data=df, x="batch", y=column, hue='epoch')

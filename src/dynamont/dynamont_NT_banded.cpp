@@ -21,8 +21,8 @@
 
 using namespace std;
 
-void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N);
-void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N);
+void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb);
+void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb);
 
 inline constexpr int ALPHABET_SIZE = 4;
 int numKmers, kmerSize; // our model works with this kmer size
@@ -213,32 +213,34 @@ list<string> getBorders(const double* LPM, const double* LPE, const size_t T, co
         }
     }
     list<string> segString;
-    funcE(T-1, N-1, M, E, LPM, LPE, &segString, N);
+    funcE(T-1, N-1, M, E, LPM, LPE, &segString, N, 0, -INFINITY);
     delete[] M;
     delete[] E;
     return segString;
 }
 
-void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N){
+void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb){
     double score = M[t*N+n];
+    double logScore = LPM[t*N+n];
     if (t<=1 && n<=1){ // Start value
-        segString->push_front("M"+to_string(0)+","+to_string(0)); // n-1 because N is 1 larger than the sequences
+        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1))); // n-1 because N is 1 larger than the sequences
         return;
     }
-    if (t>C && n>0 && score == E[(t-C-1)*N+(n-1)] + LPM[t*N+n]){
-        segString->push_front("M"+to_string(n-1+kmerSize/2)+","+to_string(t-C-1));
-        return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N);
+    if (t>C && n>0 && score == E[(t-C-1)*N+(n-1)] + logScore){
+        segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-C-1) + "," + to_string(exp(logPlus(segProb, logScore)) / (segLen + 1)));
+        return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N, 0, -INFINITY);
     }
 }
 
-void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N){
+void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, const int segLen, const double segProb){
     double score = E[t*N+n];
+    double logScore = LPE[t*N+n];
     if (t>0 && n>0) {
-        if (score == M[(t-1)*N+n] + LPE[t*N+n]){
-            return funcM(t-1, n, M, E, LPM, LPE, segString, N);
+        if (score == M[(t-1)*N+n] + logScore){
+            return funcM(t-1, n, M, E, LPM, LPE, segString, N, segLen + 1, logPlus(segProb, logScore));
         }
-        if (score == E[(t-1)*N+n] + LPE[t*N+n]){
-            return funcE(t-1, n, M, E, LPM, LPE, segString, N);
+        if (score == E[(t-1)*N+n] + logScore){
+            return funcE(t-1, n, M, E, LPM, LPE, segString, N, segLen + 1, logPlus(segProb, logScore));
         }
     }
 }
@@ -368,7 +370,7 @@ tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, do
 void trainParams(const double* sig, const int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
     auto [newM, newE1, newE2] = trainTransition(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
 
-    cout<<"m1:"<<newM<<endl;
+    cout<<"m1:"<<newM<<";e1:"<<newE1<<";e2:"<<newE2<<endl;
 
     auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
     for (int i=0; i<numKmers; i++){
@@ -386,6 +388,14 @@ int main(int argc, char* argv[]) {
     bool train, calcZ, prob;
     string pore, modelpath;
     const string TERM_STRING = "$";
+
+    // cerr precisions
+    cerr << fixed << showpoint;
+    cerr << setprecision(20);
+
+    // cerr precisions
+    cout << fixed << showpoint;
+    cout << setprecision(20);
 
     // Argparser
     argparse::ArgumentParser program("dynamont basic", "0.1");
@@ -518,9 +528,7 @@ int main(int argc, char* argv[]) {
         const double Zb = backE[0];
 
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if (abs(Zf-Zb)/TN > EPSILON) {
-            cerr << fixed << showpoint;
-            cerr << setprecision(20);
+        if (abs(Zf-Zb)/TN > EPSILON || isinf(Zf) || isinf(Zb)) {
             cerr<<"Z values between matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/(TN)<<" > "<<EPSILON<<", T: "<<T<<", N: "<<N<<endl;
             cerr.flush();
             exit(11);
@@ -530,14 +538,14 @@ int main(int argc, char* argv[]) {
         const double Z = max(Zf, Zb);
 
         if (calcZ){
-            cout<<Z<<"\n";
+            cout<<Z/TN<<"\n";
             cout.flush();
         } else {
             
             // train both Transitions and Emissions
             if (train) {
                 trainParams(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
-                cout<<"Z:"<<Z<<endl;
+                cout<<"Z:"<<Z/TN<<endl;
                 cout.flush();
 
             } else {

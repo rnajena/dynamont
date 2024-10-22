@@ -33,7 +33,7 @@ def parse() -> Namespace:
 def listener(q : mp.Queue, outfile : str):
     '''listens for messages on the q, writes to file. '''
     with open(outfile, 'w') as f:
-        f.write('readid,start,end,basepos,base,motif,state,polish\n')
+        f.write('readid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
         i = 0
         while 1:
             m = q.get()
@@ -64,6 +64,7 @@ def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfil
     queue = mp.Manager().Queue()
     watcher = pool.apply_async(listener, (queue, outfile))
     qualSkipped = 0
+    noMatchingReadid = 0
     oldFile = None
     jobs = []
 
@@ -71,23 +72,31 @@ def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfil
         for basecalled_read in samfile.fetch(until_eof=True):
             
             # skip low qual reads if activated
-            qual = basecalled_read.get_tag("qs")
-            if minQual and qual < minQual:
+            qs = basecalled_read.get_tag("qs")
+            if minQual and qs < minQual:
                 qualSkipped+=1
                 continue
 
-            # init read
+            # init read, sometimes a read got split by the basecaller and got a new id
+            readid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else basecalled_read.query_name
             seq = basecalled_read.query_sequence
             readid = basecalled_read.query_name
             ts = basecalled_read.get_tag("ts")
+            sp = basecalled_read.get_tag("sp") # split start of the signal
+            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
             rawFile = join(dataPath, basecalled_read.get_tag("fn"))
-
 
             if oldFile != rawFile:
                 oldFile = rawFile
                 r5 = read5.read(rawFile)
 
-            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, getSignal(r5, readid)[ts:], seq[::-1], readid, queue)))
+            try:
+                signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns]
+            except:
+                noMatchingReadid+=1
+                continue
+
+            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, signal, seq[::-1], readid, queue)))
     
     # wait for all jobs to finish
     for job in jobs:
@@ -104,10 +113,7 @@ def segment(dataPath : str, basecalls : str, processes : int, mode : str, outfil
     pool.join()
     
     print("Done segmenting signals")
-    print(f"Skipped reads due to low quality: {qualSkipped}")
-
-def getSignal(r5 : read5.AbstractFileReader.AbstractFileReader, readid : str):
-    return r5.getZNormSignal(readid, "mean")
+    print(f"Skipped reads: low quality: {qualSkipped}\treadid not found (possible split read): {noMatchingReadid}")
 
 def main() -> None:
     args = parse()
