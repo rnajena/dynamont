@@ -24,8 +24,7 @@ using namespace std;
 void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
 void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
 
-inline constexpr int ALPHABET_SIZE = 4;
-int numKmers, kmerSize; // our model works with this kmer size
+int alphabet_size, numKmers, kmerSize; // our model works with this kmer size
 inline constexpr double EPSILON = 1e-2; // chose by eye just to distinguish real errors from numeric errors
 // double m, e; // transition parameters
 unordered_map<string, double> transitions = {
@@ -379,7 +378,7 @@ void trainParams(const double* sig, const int* kmer_seq, double* forM, double* f
     auto [newMeans, newStdevs] = trainEmission(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
     for (int i=0; i<numKmers; i++){
         if (newStdevs[i]!=0.0){
-            cout<<itoa(i, ALPHABET_SIZE, kmerSize)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
+            cout<<itoa(i, alphabet_size, kmerSize)<<":"<<newMeans[i]<<","<<newStdevs[i]<<";";
         }
     }
     cout<<endl;
@@ -449,10 +448,10 @@ int main(int argc, char* argv[]) {
     // check that outgoing transitions sum up to 1
     // assert(fabs(exp(transitions["m1"]) + exp(transitions["e2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: m1 and e1 must approximately 1.0");
 
-    numKmers = pow(ALPHABET_SIZE, kmerSize);
-    vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
+    // vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
     assert(!modelpath.empty() && "Please provide a modelpath!");
-    readKmerModel(modelpath, model, ALPHABET_SIZE);
+    auto [model, alphabet_size] = readKmerModel(modelpath);
+    numKmers = pow(alphabet_size, kmerSize);
     string signal;
     string read;
     int truish = 1;
@@ -494,7 +493,7 @@ int main(int argc, char* argv[]) {
         N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
         int* kmer_seq = new int[N-1];
         for (size_t n=0; n<N-1; ++n) {
-            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), ALPHABET_SIZE);
+            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
         }
 
         // process read: convert string to int array
@@ -504,7 +503,7 @@ int main(int argc, char* argv[]) {
         // // cerr<<read<<endl;
         // for (size_t n=0; n<N-1; ++n) {
         //     // cerr<<n<<": "<<read.substr(n, kmerSize)<<endl;
-        //     kmer_seq[n] = kmer2int(read.substr(n, kmerSize), ALPHABET_SIZE);
+        //     kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
         // }
         // cerr<<read<<endl;
 

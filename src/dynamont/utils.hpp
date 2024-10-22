@@ -13,6 +13,7 @@
 #include <cmath> //log1p
 #include <algorithm> //stable_sort
 #include <numeric> //iota
+#include <set>
 
 using namespace std;
 
@@ -165,36 +166,36 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
  * 
- * Converts a decimal to number to a number of base ALPHABET_SIZE.
+ * Converts a decimal to number to a number of base alphabet_size.
  * TODO Works for base between 2 and 16 (included)
  * 
  * Returns kmer in reversed direction!
  * 
  * @param value input number in decimal to convert to base
- * @param ALPHABET_SIZE number of allowed characters in alphabet
+ * @param alphabet_size number of allowed characters in alphabet
  * @param kmerSize length of kmer
  * @returns kmer as reversed string, should be 5' - 3' direction
 */
-string itoa(const size_t value, const int ALPHABET_SIZE, const int kmerSize);
+string itoa(const size_t value, const int alphabet_size, const int kmerSize);
 
 /**
  * Converts the kmers of the model file to the integer representation using the BASE2ID map
  *
  * @param s kmer containing nucleotides 
  * @param BASE2ID base to id map 
- * @param ALPHABET_SIZE
+ * @param alphabet_size
  * @returns integer representation of the given kmer
  */
-int kmer2int(const string &s, const int ALPHABET_SIZE);
+int kmer2int(const string &s, const int alphabet_size);
 
 /**
  * Read the normal distribution parameters from a given TSV file
+ * and return the kmer model and alphabet size
  *
  * @param file path to the TSV file containing the parameters
- * @param model kmer model to fill
- * @param ALPHABET_SIZE
+ * @returns a tuple containing the kmer model (mean, stdev) and the alphabet size
  */
-void readKmerModel(const string &file, vector<tuple<double, double>> &model, const int ALPHABET_SIZE);
+tuple<vector<tuple<double, double>>, int> readKmerModel(const string &file);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**
@@ -221,12 +222,12 @@ inline double logPlus(const double x, const double y) {
  * 
  * @param currentKmer current kmer in decimal representation
  * @param nextNt successing nucleotide as a token
- * @param ALPHABET_SIZE number of accepted characters
- * @param stepSize equals ALPHABET_SIZE ^ (kmerSize - 1)
+ * @param alphabet_size number of accepted characters
+ * @param stepSize equals alphabet_size ^ (kmerSize - 1)
  * @return successing Kmer as integer representation in the current base
  */
-inline size_t successingKmer(const size_t currentKmer, const int nextNt, const int stepSize, const int ALPHABET_SIZE) {
-    return (currentKmer % stepSize) * ALPHABET_SIZE + nextNt;
+inline size_t successingKmer(const size_t currentKmer, const int nextNt, const int stepSize, const int alphabet_size) {
+    return (currentKmer % stepSize) * alphabet_size + nextNt;
 }
 
 /**
@@ -235,12 +236,12 @@ inline size_t successingKmer(const size_t currentKmer, const int nextNt, const i
  * 
  * @param currentKmer current kmer in decimal representation
  * @param priorNt precessing nucleotide as a token
- * @param ALPHABET_SIZE number of accepted characters
- * @param stepSize equals ALPHABET_SIZE ^ (kmerSize - 1)
+ * @param alphabet_size number of accepted characters
+ * @param stepSize equals alphabet_size ^ (kmerSize - 1)
  * @return precessing Kmer as integer representation in the current base
  */
-inline size_t precessingKmer(const size_t currentKmer, const int priorNt, const int stepSize, const int ALPHABET_SIZE) {
-    return (currentKmer/ALPHABET_SIZE) + (priorNt * stepSize);
+inline size_t precessingKmer(const size_t currentKmer, const int priorNt, const int stepSize, const int alphabet_size) {
+    return (currentKmer/alphabet_size) + (priorNt * stepSize);
 }
 
 // ===============================================================

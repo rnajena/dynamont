@@ -36,7 +36,7 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
  * 
- * Converts a decimal to number to a number of base ALPHABET_SIZE.
+ * Converts a decimal to number to a number of base alphabet_size.
  * TODO Works for base between 2 and 16 (included)
  * 
  * Returns kmer in reversed direction!
@@ -44,9 +44,9 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * @param value input number in decimal to convert to base
  * @returns kmer as reversed string, should be 5' - 3' direction
 */
-string itoa(const size_t value, const int ALPHABET_SIZE, const int kmerSize) {
+string itoa(const size_t value, const int alphabet_size, const int kmerSize) {
     string buf;
-    int base = ALPHABET_SIZE;
+    int base = alphabet_size;
 
     // check that the base if valid
     if (base < 2 || base > 16) return to_string(value);
@@ -78,14 +78,14 @@ string itoa(const size_t value, const int ALPHABET_SIZE, const int kmerSize) {
  *
  * @param s kmer containing nucleotides 
  * @param BASE2ID base to id map 
- * @param ALPHABET_SIZE
+ * @param alphabet_size
  * @returns integer representation of the given kmer
  */
-int kmer2int(const string &s, const int ALPHABET_SIZE) {
+int kmer2int(const string &s, const int alphabet_size) {
     int ret = 0;
     for(char const &c:s){
         // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
-        ret*=ALPHABET_SIZE; // move the number in base to the left
+        ret*=alphabet_size; // move the number in base to the left
         ret+=BASE2ID.at(c);
     }
     return ret;
@@ -94,16 +94,21 @@ int kmer2int(const string &s, const int ALPHABET_SIZE) {
 #include <iostream>
 /**
  * Read the normal distribution parameters from a given TSV file
+ * and return the kmer model and alphabet size
  *
  * @param file path to the TSV file containing the parameters
- * @param model kmer model to fill
- * @param ALPHABET_SIZE
+ * @returns a tuple containing the kmer model (mean, stdev) and the alphabet size
  */
-void readKmerModel(const string &file, vector<tuple<double, double>> &model, const int ALPHABET_SIZE) {
+tuple<vector<tuple<double, double>>, int> readKmerModel(const string &file) {
+    vector<tuple<double, double>> model;
+    set<char> uniqueChars;  // Set to store unique characters from kmers
     ifstream inputFile(file);
     string line, kmer, tmp;
     double mean, stdev;
+
+    // Skip the header line
     getline(inputFile, line);
+
     while(getline(inputFile, line)) { // read line
         stringstream buffer(line); // parse line to stringstream for getline
         getline(buffer, kmer, '\t');
@@ -111,13 +116,22 @@ void readKmerModel(const string &file, vector<tuple<double, double>> &model, con
         // https://github.com/nanoporetech/kmer_models
         // new models are stored in 5' - 3'
         reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
+
+        // Add all unique characters in the kmer to the set
+        for (char c : kmer) {
+            uniqueChars.insert(c);
+        }
+
         getline(buffer, tmp, '\t'); // level_mean
         mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
         stdev = stod(tmp);
-        model[kmer2int(kmer, ALPHABET_SIZE)]=make_tuple(mean, stdev);
+        model.push_back(make_tuple(mean, stdev));
     }
     inputFile.close();
+
+    // Return the kmer model and the alphabet size (number of unique characters)
+    return make_tuple(model, uniqueChars.size());
 }
 
 /**

@@ -34,12 +34,11 @@ public:
     operator double const () const { return value_; }
 };
 
-inline constexpr int ALPHABET_SIZE = 4; // increase to enable modifications
 double ppTNm, ppTNe, ppTKm, ppTKe;
 inline constexpr double SPARSE_THRESHOLD = log(0.99); // using paths with top 90% of probability per T
 // inline constexpr double SPARSE_THRESHOLD = log(0.9999);
 const int NUMMAT = 5;
-int kmerSize, stepSize;
+int alphabet_size, kmerSize, stepSize;
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 // inline constexpr double AFFINE_COST = log(0.05);
 inline constexpr double AFFINE_COST = 0; // currently switched off with log(1), but left this in the code to play around in the future
@@ -263,7 +262,7 @@ void ppForTK(const double* sig, double* M, double* E, const size_t T, const size
             // t>0
             } else [[likely]] {
                 const double score = scoreKmer(sig[t-1], k, model);
-                for(size_t preKmer=precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize){
+                for(size_t preKmer=precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize){
                     // mat=logPlus(mat, E[prevTK+preKmer] + scoreKmer(sig[t-1], preKmer, model) + m);
                     mat=logPlus(mat, E[prevTK+preKmer] + score + ppTKm);
                 }
@@ -296,8 +295,8 @@ void ppBackTK(const double* sig, double* M, double* E, const size_t T, const siz
                 ext = 0.0;
             // t<T-1
             } else [[likely]] {
-                const size_t startKmer = successingKmer(k, 0, stepSize, ALPHABET_SIZE);
-                const size_t endKmer = startKmer + ALPHABET_SIZE;
+                const size_t startKmer = successingKmer(k, 0, stepSize, alphabet_size);
+                const size_t endKmer = startKmer + alphabet_size;
                 for(size_t sucKmer = startKmer; sucKmer<endKmer; ++sucKmer){
                     ext=logPlus(ext, M[nexttK+sucKmer] + scoreKmer(sig[t], sucKmer, model) + ppTKm);
                 }
@@ -507,7 +506,7 @@ void logF(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
             const size_t baseIdx5 = tnk - K;
 
             // non-consecutive, differs by 5^4
-            for(size_t preKmer = precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
+            for(size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
                 // (t-1)*NK+(n-1)*K+k'
                 forAPSEIRef = forAPSEI[baseIdx1+preKmer];
                 a=logPlus(a, forAPSEIRef[3] + transitions.at("a1") + openScore);
@@ -572,8 +571,8 @@ void logB(const double *sig, const int *kmer_seq, unordered_map<size_t, array<dp
             // (t+1)*NK+(n+1)*K+k
             const size_t next_tnk_n = next_tnk + K;
             // Cache results of successingKmer to avoid recomputation
-            const size_t sucKmerBase = successingKmer(k, 0, stepSize, ALPHABET_SIZE);
-            const size_t sucKmerEnd = sucKmerBase + ALPHABET_SIZE;
+            const size_t sucKmerBase = successingKmer(k, 0, stepSize, alphabet_size);
+            const size_t sucKmerEnd = sucKmerBase + alphabet_size;
 
             if (n>0) [[likely]] {
                 // Precompute score for efficiency
@@ -657,7 +656,7 @@ list<string> getBorders(unordered_map<size_t, array<dproxy, NUMMAT>> &logAPSEI, 
             const size_t baseIdx4 = tnk - NK;           // (t-1)*NK+ n   *K+k
             const size_t baseIdx5 = tnk - K;            //  t   *NK+(n-1)*K+k
             const array<dproxy, NUMMAT> logAPSEIRef = logAPSEI.at(tnk); // .at(idx) : index must exist
-            for(size_t preKmer = precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
+            for(size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
                 // (t-1)*NK+(n-1)*K+k'
                 idx = baseIdx1+preKmer;
                 a=max(a, APSEI[idx][3] + logAPSEIRef[0]);
@@ -712,20 +711,20 @@ void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     const double logScore = logAPSEI[currentIdx][0];
     segProb.push_back(logScore);
     if (t<=1 && n<=1){ // Start value
-        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+        segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
         return;
     }
-    for(size_t preKmer=precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
+    for(size_t preKmer=precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
         if (t>1 && n>1) {
             // Check match with E state
             if (score == APSEI[prevIdx+preKmer][3] + logScore){
-                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI[prevIdx+preKmer][4] + logScore){
-                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
@@ -775,23 +774,23 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     const size_t prevBaseIdx = NK*(t-1)+n*K;  // Common base index for previous time step
     segProb.push_back(logScore);
     if (t>0 && n>0) {
-        for (size_t preKmer = precessingKmer(k, 0, stepSize, ALPHABET_SIZE); preKmer<K; preKmer+=stepSize) {
+        for (size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
             const size_t prevIdx = prevBaseIdx + preKmer;
             // Check match with E state
             if (score == APSEI[prevIdx][3] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with S state
             if (score == APSEI[prevIdx][2] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI[prevIdx][4] + logScore) {
-                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+                segString->push_front("P" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
@@ -811,17 +810,17 @@ void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore) {
-            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("S" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -839,12 +838,12 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {
-            // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcI(t, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         } 
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
-            // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, ALPHABET_SIZE, kmerSize) + ";");
+            // segString->push_front("I" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcE(t, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -874,8 +873,8 @@ tuple<double, double, double, double, double, double, double, double, double, do
         auto &forAPSEI_tnk = forAPSEI[tnk];
 
         if (t<T-1) [[likely]] {
-            const size_t sucKmerBase = successingKmer(k, 0, stepSize, ALPHABET_SIZE);
-            const size_t sucKmerEnd = sucKmerBase + ALPHABET_SIZE;
+            const size_t sucKmerBase = successingKmer(k, 0, stepSize, alphabet_size);
+            const size_t sucKmerEnd = sucKmerBase + alphabet_size;
 
             if (n>0) [[likely]] {
                 sc = score(sig[t], kmer_seq[n-1], k, model);
@@ -1031,7 +1030,7 @@ void trainParams(const double *sig, const int *kmer_seq, unordered_map<size_t, a
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(size_t k=0; k<K; ++k){
         if ((newStdevs[k]!=0.0) & (!isnan(newStdevs[k]))){
-            cout<<itoa(k, ALPHABET_SIZE, kmerSize)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
+            cout<<itoa(k, alphabet_size, kmerSize)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
         }
     }
     cout<<endl;
@@ -1123,11 +1122,10 @@ int main(int argc, char* argv[]) {
     // assert(fabs(exp(transitions["a2"]) + exp(transitions["i2"]) + exp(transitions["p3"]) + exp(transitions["s3"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state I: a2, i2, p3, and s3 must approximately 1.0");
 
     // polishing dimension K = number of possible kmers
-    K = pow(ALPHABET_SIZE, kmerSize); // currently acceptable A, C, G, T, N
-    stepSize = pow(ALPHABET_SIZE, kmerSize-1);
-    vector<tuple<double, double>> model(K, make_tuple(-INFINITY, -INFINITY));
     assert(!modelpath.empty() && "Please provide a modelpath!");
-    readKmerModel(modelpath, model, ALPHABET_SIZE);
+    auto [model, alphabet_size] = readKmerModel(modelpath);
+    K = pow(alphabet_size, kmerSize); // currently acceptable A, C, G, T, N
+    stepSize = pow(alphabet_size, kmerSize-1);
     string signal, read;
     bool truish = 1;
 
@@ -1165,7 +1163,7 @@ int main(int argc, char* argv[]) {
         N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
         int* kmer_seq = new int[N-1];
         for (size_t n=0; n<N-1; ++n) {
-            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), ALPHABET_SIZE);
+            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
         }
         NK = N*K;
         TNK = T*NK;
