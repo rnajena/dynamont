@@ -170,14 +170,14 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
  */
 void updateTransitions(const std::unordered_map<std::string, double>& default_transitions_vals, std::unordered_map<std::string, double>& transitions) {
     // Iterate over each transition in the 'transitions' std::unordered_map
-    for (const auto& transition : transitions) {
+    for (const auto &[param, value] : transitions) {
         // Check if the transition value is -1, which indicates it should use the default value
         if (transition.second == -1.0) {
             // Fetch the default value for this key, and store the value in the transition map
-            transitions[transition.first] = default_transitions_vals.at(transition.first);
+            transitions[param] = default_transitions_vals.at(param);
         }
         // Apply the logarithmic value to the current transition value
-        transitions[transition.first] = log(transition.second);
+        transitions[param] = log(value);
     }
 }
 
