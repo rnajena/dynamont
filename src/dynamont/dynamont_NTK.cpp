@@ -708,7 +708,7 @@ void funcA(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     // Cache the score value to avoid redundant lookups
     const double score = APSEI[currentIdx][0];
     const double logScore = logAPSEI[currentIdx][0];
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t<=1 && n<=1){ // Start value
         segString->push_front("M" + to_string(0) + "," + to_string(0) + "," + to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
         return;
@@ -739,7 +739,7 @@ void funcE(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     // Cache the score value to avoid redundant lookups
     const double score = APSEI[currentIdx][3];
     const double logScore = logAPSEI[currentIdx][3];
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t>0 && n>0) {
         // Check match with A state
         if (score == APSEI[prevIdx][0] + logScore){
@@ -771,7 +771,7 @@ void funcP(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     const double score = APSEI[currentIdx][1];
     const double logScore = logAPSEI[currentIdx][1];
     const size_t prevBaseIdx = NK*(t-1)+n*K;  // Common base index for previous time step
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t>0 && n>0) {
         for (size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
             const size_t prevIdx = prevBaseIdx + preKmer;
@@ -805,7 +805,7 @@ void funcS(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     // Cache score and logScore to avoid repeated map lookups
     const double score = APSEI[currentIdx][2];
     const double logScore = logAPSEI[currentIdx][2];
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t>0 && n>0) {
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore) {
@@ -833,7 +833,7 @@ void funcI(const size_t t, const size_t n, const size_t k, unordered_map<size_t,
     // Cache the score and logScore to avoid repeated lookups
     const double score = APSEI[currentIdx][4];
     const double logScore = logAPSEI[currentIdx][4];
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore) {

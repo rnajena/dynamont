@@ -170,7 +170,7 @@ list<string> getBorders(const double* LPM, const double* LPE, const size_t T, co
 void funcM(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double>& segProb){
     double score = M[t*N+n];
     double logScore = LPM[t*N+n];
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t<=1 && n<=1){ // Start value
         segString->push_front("M0,0," + to_string(calculateMedian(segProb))); // n-1 because N is 1 larger than the sequences
         return;
@@ -185,7 +185,7 @@ void funcM(const size_t t, const size_t n, const double* M, const double* E, con
 void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double>& segProb){
     double score = E[t*N+n];
     double logScore = LPE[t*N+n];
-    segProb.push_back(logScore);
+    segProb.push_back(exp(logScore));
     if (t>0 && n>0) {
         if (score == M[(t-1)*N+n] + logScore){
             return funcM(t-1, n, M, E, LPM, LPE, segString, N, segProb);
