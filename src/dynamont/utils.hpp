@@ -210,7 +210,7 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
  * @return log(exp(a) + exp(b))
  */
 inline double logPlus(const double x, const double y) {
-    if (isinf(x) && isinf(y)) {
+    if (std::isinf(x) && std::isinf(y)) {
         return x;
     }
     if (x>=y){
