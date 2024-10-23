@@ -14,16 +14,16 @@
  * @param C column size
  * @param t the column to sort for
  * 
- * @return size_t vector with the sorted index of column in descending order
+ * @return std::size_t std::vector with the sorted index of column in descending order
  */
-vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t t) {
+std::vector<std::size_t> column_argsort(const double* matrix, const std::size_t C, const std::size_t t) {
     // Initialize original index locations (indices correspond to C)
-    vector<size_t> idx(C);
+    std::vector<std::size_t> idx(C);
     iota(idx.begin(), idx.end(), 0);
 
     // Sort indexes based on comparing values in the given column 'c'
     stable_sort(idx.begin(), idx.end(),
-        [matrix, C, t](size_t i1, size_t i2) {
+        [matrix, C, t](std::size_t i1, std::size_t i2) {
             return matrix[t * C + i1] > matrix[t * C + i2];
         });
 
@@ -31,7 +31,7 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
 }
 
 /**
- * C++ version 0.4 std::string style "itoa":
+ * C++ version 0.4 std::std::string style "itoa":
  * Contributions from Stuart Lowe, Ray-Yuan Sheu,
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
@@ -42,20 +42,20 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * Returns kmer in reversed direction!
  * 
  * @param value input number in decimal to convert to base
- * @returns kmer as reversed string, should be 5' - 3' direction
+ * @returns kmer as reversed std::string, should be 5' - 3' direction
 */
-string itoa(const size_t value, const int alphabet_size, const int kmerSize) {
-    string buf;
+std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize) {
+    std::string buf;
     int base = alphabet_size;
 
     // check that the base if valid
-    if (base < 2 || base > 16) return to_string(value);
+    if (base < 2 || base > 16) return std::to_string(value);
 
     enum { kMaxDigits = 35 };
     buf.reserve( kMaxDigits ); // Pre-allocate enough space.
     int quotient = value;
 
-    // Translating number to string with base:
+    // Translating number to std::string with base:
     do {
         buf += ID2BASE.at("0123456789abcdef"[ abs( quotient % base ) ]);
         quotient /= base;
@@ -81,7 +81,7 @@ string itoa(const size_t value, const int alphabet_size, const int kmerSize) {
  * @param alphabet_size
  * @returns integer representation of the given kmer
  */
-int kmer2int(const string &s, const int alphabet_size) {
+int kmer2int(const std::string &s, const int alphabet_size) {
     int ret = 0;
     for(char const &c:s){
         // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
@@ -98,24 +98,24 @@ int kmer2int(const string &s, const int alphabet_size) {
  *
  * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
  * @param kmerSize   The size of the kmers (length of the kmers in the file).
- * @returns          A tuple containing:
- *                   1. An array of tuples, where each tuple holds (mean, stdev) for each kmer.
- *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
+ * @returns          A std::tuple containing:
+ *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
+ *                   2. The alphabet size (number of unique nucleotide characters from the kmer std::set).
  *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
  */
-tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &file, const int kmerSize) {
-    string line, kmer, tmp;
+std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize) {
+    std::string line, kmer, tmp;
 
-    set<char> uniqueChars;  // Set to store unique characters from kmers to determine the alphabet size
-    ifstream inputFile(file);
+    std::set<char> uniqueChars;  // std::set to store unique characters from kmers to determine the alphabet size
+    std::ifstream inputFile(file);
 
     // First pass: read file to collect unique characters from kmer sequences
     // Skip the header line
     getline(inputFile, line);
     while(getline(inputFile, line)) { // read line
-        stringstream buffer(line); // parse line to stringstream for getline
+        std::stringstream buffer(line); // parse line to std::stringstream for getline
         getline(buffer, kmer, '\t');
-        // Add all unique characters in the kmer to the set
+        // Add all unique characters in the kmer to the std::set
         for (char c : kmer) {
             uniqueChars.insert(c);
         }
@@ -123,10 +123,10 @@ tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &fi
     inputFile.close();
 
     int alphabet_size = (int) uniqueChars.size();
-    size_t numKmers = pow(alphabet_size, kmerSize);
-    uniqueChars.clear(); // Clear the unique character set (no longer needed) to free up memory
+    std::size_t numKmers = pow(alphabet_size, kmerSize);
+    uniqueChars.clear(); // Clear the unique character std::set (no longer needed) to free up memory
 
-    vector<tuple<double, double>> model(numKmers);
+    std::vector<std::tuple<double, double>> model(numKmers);
     double mean, stdev;
     inputFile.open(file);  // Reopen the file for the second pass
 
@@ -134,7 +134,7 @@ tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &fi
     // Skip the header line
     getline(inputFile, line);
     while(getline(inputFile, line)) { // read line
-        stringstream buffer(line); // parse line to stringstream for getline
+        std::stringstream buffer(line); // parse line to std::stringstream for getline
         getline(buffer, kmer, '\t');
         // legacy models are stored from 3' - 5'
         // https://github.com/nanoporetech/kmer_models
@@ -144,16 +144,16 @@ tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &fi
         mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
         stdev = stod(tmp);
-        // model.push_back(make_tuple(mean, stdev));
-        model[kmer2int(kmer, alphabet_size)]=make_tuple(mean, stdev);
+        // model.push_back(std::make_tuple(mean, stdev));
+        model[kmer2int(kmer, alphabet_size)]=std::make_tuple(mean, stdev);
     }
     inputFile.close();
 
-    // Return a tuple containing:
+    // Return a std::tuple containing:
     // 1. The model array (containing kmers and their (mean, stdev) tuples)
     // 2. The alphabet size (number of unique characters in the kmers)
     // 3. The total number of kmers (alphabet_size^kmerSize)
-    return make_tuple(model, alphabet_size, numKmers);
+    return std::make_tuple(model, alphabet_size, numKmers);
 }
 
 /**
@@ -163,13 +163,13 @@ tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &fi
  * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
  * Otherwise, it applies the logarithm directly to the existing transition value.
  * 
- * @param default_transitions_vals A map containing default transition values (string keys and double values).
- *                                 These default values are used when a transition value is set to `-1`.
- * @param transitions A map containing current transition values (string keys and double values).
+ * @param default_transitions_vals A map containing default transition values (std::string keys and double values).
+ *                                 These default values are used when a transition value is std::set to `-1`.
+ * @param transitions A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const unordered_map<string, double>& default_transitions_vals, unordered_map<string, double>& transitions) {
-    // Iterate over each transition in the 'transitions' unordered_map
+void updateTransitions(const std::unordered_map<std::string, double>& default_transitions_vals, std::unordered_map<std::string, double>& transitions) {
+    // Iterate over each transition in the 'transitions' std::unordered_map
     for (const auto& transition : transitions) {
         // Check if the transition value is -1, which indicates it should use the default value
         if (transition.second == -1.0) {
@@ -181,18 +181,18 @@ void updateTransitions(const unordered_map<string, double>& default_transitions_
     }
 }
 
-// Function to calculate the median of a vector
-double calculateMedian(vector<double>& vec) {
-    size_t size = vec.size();
+// Function to calculate the median of a std::vector
+double calculateMedian(std::vector<double>& vec) {
+    std::size_t size = vec.size();
 
-    // Sort the vector
+    // Sort the std::vector
     std::sort(vec.begin(), vec.end());
 
-    // If the vector size is odd, return the middle element
+    // If the std::vector size is odd, return the middle element
     if (size % 2 == 1) {
         return vec[size / 2];
     } 
-    // If the vector size is even, return the average of the two middle elements
+    // If the std::vector size is even, return the average of the two middle elements
     else {
         return (vec[size / 2 - 1] + vec[size / 2]) / 2.0;
     }

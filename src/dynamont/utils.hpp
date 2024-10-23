@@ -16,10 +16,8 @@
 #include <numeric> //iota
 #include <set>
 
-using namespace std;
-
 // default params for NTK
-const unordered_map<string, double> NTK_rna_r9_transitions = {
+const std::unordered_map<std::string, double> NTK_rna_r9_transitions = {
     {"a1", 0.012252440188168037},
     {"a2", 0.246584724985145},
     {"p1", 0.04477093133243305},
@@ -35,7 +33,7 @@ const unordered_map<string, double> NTK_rna_r9_transitions = {
     {"i1", 7.208408117990252e-05},
     {"i2", 0.08645733058947891}
 };
-const unordered_map<string, double> NTK_rna_rp4_transitions = {
+const std::unordered_map<std::string, double> NTK_rna_rp4_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
     {"p1", 1.0},
@@ -51,7 +49,7 @@ const unordered_map<string, double> NTK_rna_rp4_transitions = {
     {"i1", 1.0},
     {"i2", 1.0}
 };
-const unordered_map<string, double> NTK_dna_r9_transitions = {
+const std::unordered_map<std::string, double> NTK_dna_r9_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
     {"p1", 1.0},
@@ -67,7 +65,7 @@ const unordered_map<string, double> NTK_dna_r9_transitions = {
     {"i1", 1.0},
     {"i2", 1.0}
 };
-const unordered_map<string, double> NTK_dna_r10_260bps_transitions = {
+const std::unordered_map<std::string, double> NTK_dna_r10_260bps_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
     {"p1", 1.0},
@@ -83,7 +81,7 @@ const unordered_map<string, double> NTK_dna_r10_260bps_transitions = {
     {"i1", 1.0},
     {"i2", 1.0}
 };
-const unordered_map<string, double> NTK_dna_r10_400bps_transitions = {
+const std::unordered_map<std::string, double> NTK_dna_r10_400bps_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
     {"p1", 1.0},
@@ -101,33 +99,33 @@ const unordered_map<string, double> NTK_dna_r10_400bps_transitions = {
 };
 
 // default params for NT
-const unordered_map<string, double> NT_rna_r9_transitions = {
+const std::unordered_map<std::string, double> NT_rna_r9_transitions = {
     {"m1", 0.03},
     {"e1", 1.0},
     {"e2", 0.97}
 };
-const unordered_map<string, double> NT_rna_rp4_transitions = {
+const std::unordered_map<std::string, double> NT_rna_rp4_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}
 };
-const unordered_map<string, double> NT_dna_r9_transitions = {
+const std::unordered_map<std::string, double> NT_dna_r9_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}
 };
-const unordered_map<string, double> NT_dna_r10_260bps_transitions = {
+const std::unordered_map<std::string, double> NT_dna_r10_260bps_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}
 };
-const unordered_map<string, double> NT_dna_r10_400bps_transitions = {
+const std::unordered_map<std::string, double> NT_dna_r10_400bps_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}
 };
 
-const unordered_map<char, int> BASE2ID = {
+const std::unordered_map<char, int> BASE2ID = {
     {'A', 0},
     {'a', 0},
     {'C', 1},
@@ -141,7 +139,7 @@ const unordered_map<char, int> BASE2ID = {
     {'N', 4},
     {'n', 4}
 }; // Nucleotide : Token map
-const unordered_map<int, char> ID2BASE = {
+const std::unordered_map<int, char> ID2BASE = {
     {'0', 'A'},
     {'1', 'C'},
     {'2', 'G'},
@@ -157,12 +155,12 @@ const unordered_map<int, char> ID2BASE = {
  * @param C column size
  * @param t the column to sort for
  * 
- * @return size_t vector with the sorted index of column in descending order
+ * @return std::size_t std::vector with the sorted index of column in descending order
  */
-vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t t);
+std::vector<std::size_t> column_argsort(const double* matrix, const std::size_t C, const std::size_t t);
 
 /**
- * C++ version 0.4 std::string style "itoa":
+ * C++ version 0.4 std::std::string style "itoa":
  * Contributions from Stuart Lowe, Ray-Yuan Sheu,
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
@@ -175,9 +173,9 @@ vector<size_t> column_argsort(const double* matrix, const size_t C, const size_t
  * @param value input number in decimal to convert to base
  * @param alphabet_size number of allowed characters in alphabet
  * @param kmerSize length of kmer
- * @returns kmer as reversed string, should be 5' - 3' direction
+ * @returns kmer as reversed std::string, should be 5' - 3' direction
 */
-string itoa(const size_t value, const int alphabet_size, const int kmerSize);
+std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize);
 
 /**
  * Converts the kmers of the model file to the integer representation using the BASE2ID map
@@ -187,7 +185,7 @@ string itoa(const size_t value, const int alphabet_size, const int kmerSize);
  * @param alphabet_size
  * @returns integer representation of the given kmer
  */
-int kmer2int(const string &s, const int alphabet_size);
+int kmer2int(const std::string &s, const int alphabet_size);
 
 /**
  * Reads the normal distribution parameters from a given TSV file,
@@ -195,12 +193,12 @@ int kmer2int(const string &s, const int alphabet_size);
  *
  * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
  * @param kmerSize   The size of the kmers (length of the kmers in the file).
- * @returns          A tuple containing:
- *                   1. An array of tuples, where each tuple holds (mean, stdev) for each kmer.
+ * @returns          A std::tuple containing:
+ *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
  *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
  */
-tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &file, const int kmerSize);
+std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**
@@ -231,7 +229,7 @@ inline double logPlus(const double x, const double y) {
  * @param stepSize equals alphabet_size ^ (kmerSize - 1)
  * @return successing Kmer as integer representation in the current base
  */
-inline size_t successingKmer(const size_t currentKmer, const int nextNt, const int stepSize, const int alphabet_size) {
+inline std::size_t successingKmer(const std::size_t currentKmer, const int nextNt, const int stepSize, const int alphabet_size) {
     return (currentKmer % stepSize) * alphabet_size + nextNt;
 }
 
@@ -245,7 +243,7 @@ inline size_t successingKmer(const size_t currentKmer, const int nextNt, const i
  * @param stepSize equals alphabet_size ^ (kmerSize - 1)
  * @return precessing Kmer as integer representation in the current base
  */
-inline size_t precessingKmer(const size_t currentKmer, const int priorNt, const int stepSize, const int alphabet_size) {
+inline std::size_t precessingKmer(const std::size_t currentKmer, const int priorNt, const int stepSize, const int alphabet_size) {
     return (currentKmer/alphabet_size) + (priorNt * stepSize);
 }
 
@@ -285,8 +283,8 @@ inline double log_normal_pdf(const double x, const double m, const double s) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return log probability density value for x in the given normal distribution
  */
-inline double scoreKmer(const double signal, const size_t kmer, const vector<tuple<double, double>> &model) {
-    // Access elements of the model tuple directly to avoid redundant tuple creation and overhead
+inline double scoreKmer(const double signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model) {
+    // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
     return log_normal_pdf(signal, mean, stddev);
 }
@@ -298,12 +296,12 @@ inline double scoreKmer(const double signal, const size_t kmer, const vector<tup
  * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
  * Otherwise, it applies the logarithm directly to the existing transition value.
  * 
- * @param default_transitions_vals A map containing default transition values (string keys and double values).
+ * @param default_transitions_vals A map containing default transition values (std::string keys and double values).
  *                                 These default values are used when a transition value is set to `-1`.
- * @param transitions A map containing current transition values (string keys and double values).
+ * @param transitions A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const unordered_map<string, double>& default_transitions_vals, unordered_map<string, double>& transitions);
+void updateTransitions(const std::unordered_map<std::string, double>& default_transitions_vals, std::unordered_map<std::string, double>& transitions);
 
-// Function to calculate the median of a vector
-double calculateMedian(vector<double>& vec);
+// Function to calculate the median of a std::vector
+double calculateMedian(std::vector<double>& vec);
