@@ -8,6 +8,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <array>
 #include <fstream> // file io
 #include <sstream> // file io
 #include <cmath> //log1p
@@ -189,13 +190,17 @@ string itoa(const size_t value, const int alphabet_size, const int kmerSize);
 int kmer2int(const string &s, const int alphabet_size);
 
 /**
- * Read the normal distribution parameters from a given TSV file
- * and return the kmer model and alphabet size
+ * Reads the normal distribution parameters from a given TSV file,
+ * and returns the kmer model and alphabet size.
  *
- * @param file path to the TSV file containing the parameters
- * @returns a tuple containing the kmer model (mean, stdev) and the alphabet size
+ * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
+ * @param kmerSize   The size of the kmers (length of the kmers in the file).
+ * @returns          A tuple containing:
+ *                   1. An array of tuples, where each tuple holds (mean, stdev) for each kmer.
+ *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
+ *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
  */
-tuple<vector<tuple<double, double>>, int> readKmerModel(const string &file);
+tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &file, const int kmerSize);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**

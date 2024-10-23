@@ -941,7 +941,7 @@ tuple<double, double, double, double, double, double, double, double, double, do
     newp3=exp(newp3-Ai);
     news3=exp(news3-Ai);
 
-    return tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double>({newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2});
+    return make_tuple(newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2);
 }
 
 /**
@@ -1109,21 +1109,13 @@ int main(int argc, char* argv[]) {
         updateTransitions(NTK_dna_r10_400bps_transitions, transitions);
     }
 
-    // cerr << "e2s1: " << exp(transitions["e2"]) + exp(transitions["s1"]);
-    // cerr << ", e3p1: " << exp(transitions["e3"]) + exp(transitions["p1"]);
-    // cerr << ", a1s2e4i1p2: " << exp(transitions["a1"]) + exp(transitions["s2"]) + exp(transitions["e4"]) + exp(transitions["i1"]) + exp(transitions["p2"]);
-    // cerr << ", a2i2p3s2: " << exp(transitions["a2"]) + exp(transitions["i2"]) + exp(transitions["p3"]) + exp(transitions["s3"]) << endl;
-    
-    // check that outgoing transitions sum up to 1
-    // assert(fabs(exp(transitions["e2"]) + exp(transitions["s1"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state P: e2 and s1 must approximately 1.0");
-    // assert(fabs(exp(transitions["e3"]) + exp(transitions["p1"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state S: e3 and p1 must approximately 1.0");
-    // assert(fabs(exp(transitions["a1"]) + exp(transitions["s2"]) + exp(transitions["e4"]) + exp(transitions["i1"]) + exp(transitions["p2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: a1, s2, e4, i1, and p2 must approximately 1.0");
-    // assert(fabs(exp(transitions["a2"]) + exp(transitions["i2"]) + exp(transitions["p3"]) + exp(transitions["s3"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state I: a2, i2, p3, and s3 must approximately 1.0");
-
     // polishing dimension K = number of possible kmers
     assert(!modelpath.empty() && "Please provide a modelpath!");
-    auto [model, alphabet_size] = readKmerModel(modelpath);
-    K = pow(alphabet_size, kmerSize); // currently acceptable A, C, G, T, N
+    auto result = readKmerModel(modelpath, kmerSize);
+    vector<tuple<double, double>> model = get<0>(result);
+    alphabet_size = get<1>(result);
+    K = get<2>(result);
+
     stepSize = pow(alphabet_size, kmerSize-1);
     string signal, read;
     bool truish = 1;

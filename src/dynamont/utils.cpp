@@ -93,22 +93,46 @@ int kmer2int(const string &s, const int alphabet_size) {
 
 #include <iostream>
 /**
- * Read the normal distribution parameters from a given TSV file
- * and return the kmer model and alphabet size
+ * Reads the normal distribution parameters from a given TSV file,
+ * and returns the kmer model and alphabet size.
  *
- * @param file path to the TSV file containing the parameters
- * @returns a tuple containing the kmer model (mean, stdev) and the alphabet size
+ * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
+ * @param kmerSize   The size of the kmers (length of the kmers in the file).
+ * @returns          A tuple containing:
+ *                   1. An array of tuples, where each tuple holds (mean, stdev) for each kmer.
+ *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
+ *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
  */
-tuple<vector<tuple<double, double>>, int> readKmerModel(const string &file) {
-    vector<tuple<double, double>> model;
-    set<char> uniqueChars;  // Set to store unique characters from kmers
-    ifstream inputFile(file);
+tuple<vector<tuple<double, double>>, int, size_t> readKmerModel(const string &file, const int kmerSize) {
     string line, kmer, tmp;
-    double mean, stdev;
 
+    set<char> uniqueChars;  // Set to store unique characters from kmers to determine the alphabet size
+    ifstream inputFile(file);
+
+    // First pass: read file to collect unique characters from kmer sequences
     // Skip the header line
     getline(inputFile, line);
+    while(getline(inputFile, line)) { // read line
+        stringstream buffer(line); // parse line to stringstream for getline
+        getline(buffer, kmer, '\t');
+        // Add all unique characters in the kmer to the set
+        for (char c : kmer) {
+            uniqueChars.insert(c);
+        }
+    }
+    inputFile.close();
 
+    int alphabet_size = (int) uniqueChars.size();
+    size_t numKmers = pow(alphabet_size, kmerSize);
+    uniqueChars.clear(); // Clear the unique character set (no longer needed) to free up memory
+
+    vector<tuple<double, double>> model(numKmers);
+    double mean, stdev;
+    inputFile.open(file);  // Reopen the file for the second pass
+
+    // Read through the file to populate the model with (mean, stdev) for each kmer
+    // Skip the header line
+    getline(inputFile, line);
     while(getline(inputFile, line)) { // read line
         stringstream buffer(line); // parse line to stringstream for getline
         getline(buffer, kmer, '\t');
@@ -116,22 +140,20 @@ tuple<vector<tuple<double, double>>, int> readKmerModel(const string &file) {
         // https://github.com/nanoporetech/kmer_models
         // new models are stored in 5' - 3'
         reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
-
-        // Add all unique characters in the kmer to the set
-        for (char c : kmer) {
-            uniqueChars.insert(c);
-        }
-
         getline(buffer, tmp, '\t'); // level_mean
         mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
         stdev = stod(tmp);
-        model.push_back(make_tuple(mean, stdev));
+        // model.push_back(make_tuple(mean, stdev));
+        model[kmer2int(kmer, alphabet_size)]=make_tuple(mean, stdev);
     }
     inputFile.close();
 
-    // Return the kmer model and the alphabet size (number of unique characters)
-    return make_tuple(model, uniqueChars.size());
+    // Return a tuple containing:
+    // 1. The model array (containing kmers and their (mean, stdev) tuples)
+    // 2. The alphabet size (number of unique characters in the kmers)
+    // 3. The total number of kmers (alphabet_size^kmerSize)
+    return make_tuple(model, alphabet_size, numKmers);
 }
 
 /**

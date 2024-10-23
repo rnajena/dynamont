@@ -124,7 +124,7 @@ def openCPPScript(cpp_script : str) -> Popen:
     '''
     Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE)
     '''
-    # print("Popen call:", cpp_script)
+    # print("Popen call:", ' '.join(cpp_script))
     return Popen(cpp_script, stdout=PIPE, stdin=PIPE, text=True)
 
 def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
@@ -354,7 +354,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offse
             print(signal)
             print(read)
             with open("failed_input.txt", "w") as w:
-                w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', ''))
+                w.write(str(np.around(signal, 4).tolist()).replace(' ', '').replace('[', '').replace(']', ''))
                 w.write('\n')
                 w.write(read)
                 w.write('\n')

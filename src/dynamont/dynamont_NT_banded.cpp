@@ -452,8 +452,10 @@ int main(int argc, char* argv[]) {
 
     // vector<tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
     assert(!modelpath.empty() && "Please provide a modelpath!");
-    auto [model, alphabet_size] = readKmerModel(modelpath);
-    numKmers = pow(alphabet_size, kmerSize);
+    auto result = readKmerModel(modelpath, kmerSize);
+    vector<tuple<double, double>> model = get<0>(result);
+    alphabet_size = get<1>(result);
+    numKmers = get<2>(result);
     string signal;
     string read;
     int truish = 1;

@@ -398,8 +398,10 @@ int main(int argc, char* argv[]) {
     // assert(fabs(exp(transitions.at("m1")) + exp(transitions.at("e2")) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: m1 and e1 must approximately 1.0");
 
     assert(!modelpath.empty() && "Please provide a modelpath!");
-    auto[model, alphabet_size] = readKmerModel(modelpath);
-    numKmers = pow(alphabet_size, kmerSize);
+    auto result = readKmerModel(modelpath, kmerSize);
+    vector<tuple<double, double>> model = get<0>(result);
+    alphabet_size = get<1>(result);
+    numKmers = get<2>(result);
     string signal;
     string read;
     int truish = 1;
