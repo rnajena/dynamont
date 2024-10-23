@@ -330,7 +330,6 @@ void preProcTN(const double *sig, const int *kmer_seq, std::unordered_map<std::s
     // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
     if (abs(Zf-Zb)/TN > EPSILON || isinf(Zf) || isinf(Zb)) {
         std::cerr<<"Z values of preProcTN matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TN<<" > "<<EPSILON<<std::endl;
-        std::cerr.flush();
         exit(11);
     }
     
@@ -353,7 +352,7 @@ void preProcTN(const double *sig, const int *kmer_seq, std::unordered_map<std::s
             }
         }
     }
-    // std::cerr<<"TN dense: "<<c/double(TN)<<std::endl;
+    // std::cerr<<"TN dense: "<<c/double(TN)<<"\n";
 
     // deallocate memory
     std::vector<double>().swap(forM);
@@ -388,11 +387,10 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
     // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
     if (abs(Zf-Zb)/TK > EPSILON || isinf(Zf) || isinf(Zb)) {
         std::cerr<<"Z values of preProcTK matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TK<<" > "<<EPSILON<<std::endl;
-        std::cerr.flush();
         exit(12);
     }
 
-    // std::cerr<<"preProcTK: Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/(TK)<<" <! "<<EPSILON<<std::endl;
+    // std::cerr<<"preProcTK: Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/(TK)<<" <! "<<EPSILON<<"\n";
 
     logP(LP.data(), forM.data(), backM.data(), forE.data(), backE.data(), K, Zb);
 
@@ -413,7 +411,7 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
             }
         }
     }
-    // std::cerr<<"TK dense: "<<c/double(TK)<<std::endl;
+    // std::cerr<<"TK dense: "<<c/double(TK)<<"\n";
 
     // deallocate memory
     std::vector<double>().swap(forM);
@@ -728,7 +726,7 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         }
     }
     // If no match is found, output an error
-    std::cerr<<"Error in backtracing funcA!: t: "<<t<<", n: "<<n<<", k: "<<k<<std::endl;
+    std::cerr<<"Error in backtracing funcA!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
 void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb){
@@ -760,7 +758,7 @@ void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         return;
     }
     // If no match is found, output an error
-    std::cerr<<"Error in backtracing funcE!: t: "<<t<<", n: "<<n<<", k: "<<k<<std::endl;
+    std::cerr<<"Error in backtracing funcE!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
 void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb) {
@@ -794,7 +792,7 @@ void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         }
     }
     // If no match is found, output an error
-    std::cerr << "Error in backtracing funcP!: t: "<<t<<", n: "<<n<<", k: "<<k<<std::endl;
+    std::cerr << "Error in backtracing funcP!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
 void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb) {
@@ -822,7 +820,7 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         }
     }
     // If no match is found, output an error
-    std::cerr << "Error in backtracing funcS!: t: "<<t<<", n: "<<n<<", k: "<<k<<std::endl;
+    std::cerr << "Error in backtracing funcS!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
 void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb) {
@@ -845,7 +843,7 @@ void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         }
     }
     // If no match is found, output an error
-    std::cerr << "Error in backtracing funcI!: t: "<<t<<", n: "<<n<<", k: "<<k<<std::endl;
+    std::cerr << "Error in backtracing funcI!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
 /**
@@ -861,7 +859,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
     double sc, pv;
     std::size_t t, n, k;
 
-    for(std::size_t tnk : allowedKeys){ //<int>::iterator iter = allowedKeys.begin(); iter<allowedKeys.end(); iter++){
+    for(const std::size_t &tnk : allowedKeys){ //<int>::iterator iter = allowedKeys.begin(); iter<allowedKeys.end(); iter++){
         // tnk = t*NK+n*K+k
         t = tnk/NK;
         n = (tnk % NK) / K;
@@ -1022,7 +1020,7 @@ void trainParams(const double *sig, const int *kmer_seq, std::unordered_map<std:
 
     // newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2
     auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmer_seq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
-    std::cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p3:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e1:"<<e1<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<std::endl;
+    std::cout<<"a1:"<<a1<<";a2:"<<a2<<";p1:"<<p1<<";p2:"<<p2<<";p3:"<<p3<<";s1:"<<s1<<";s2:"<<s2<<";s3:"<<s3<<";e1:"<<e1<<";e2:"<<e2<<";e3:"<<e3<<";e4:"<<e4<<";i1:"<<i1<<";i2:"<<i2<<"\n";
 
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(std::size_t k=0; k<K; ++k){
@@ -1030,7 +1028,7 @@ void trainParams(const double *sig, const int *kmer_seq, std::unordered_map<std:
             std::cout<<itoa(k, alphabet_size, kmerSize)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
         }
     }
-    std::cout<<std::endl;
+    std::cout<<"\n";
     delete[] newMeans;
     delete[] newStdevs;
 }
@@ -1129,12 +1127,10 @@ int main(int argc, char* argv[]) {
             return 0;
         // ... or signal or read is missing
         } else if (signal.empty()) {
-            std::cout<<"Signal missing!\n";
-            std::cout.flush();
+            std::cout<<"Signal missing!"<<std::endl;
             return 1;
         } else if (read.empty()) {
-            std::cout<<"Read missing!\n";
-            std::cout.flush();
+            std::cout<<"Read missing!"<<std::endl;
             return 2;
         }
         
@@ -1157,16 +1153,16 @@ int main(int argc, char* argv[]) {
         NK = N*K;
         TNK = T*NK;
 
-        // std::cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<std::endl;
+        // std::cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<"\n";
 
         std::vector<std::size_t> allowedKeys;
         preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        // std::cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<std::endl; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<std::endl;
+        // std::cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<"\n"; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<"\n";
         std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> forAPSEI;
         
-        // std::cerr<<"forward"<<std::endl;
+        // std::cerr<<"forward"<<"\n";
         logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
-        // std::cerr<<"backward"<<std::endl;
+        // std::cerr<<"backward"<<"\n";
         std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> backAPSEI;
         logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
 
@@ -1180,15 +1176,13 @@ int main(int argc, char* argv[]) {
         // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
         if (abs(Zf-Zb)/TNK >= EPSILON || isinf(Zf) || isinf(Zb)) {
             std::cerr<<"Z values between matrices do not match! forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" > "<<EPSILON<<std::endl;
-            std::cerr.flush();
             exit(13);
         }
 
-        // std::cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<std::endl;
+        // std::cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<"\n";
 
         if (calcZ){
             std::cout<<Zf/(T*N)<<std::endl;
-            std::cout.flush();
 
         } else {
             std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logAPSEI;
@@ -1198,18 +1192,16 @@ int main(int argc, char* argv[]) {
             if (train) {
                 trainParams(sig, kmer_seq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
                 std::cout<<"Z:"<<Zf/(T*N)<<std::endl;
-                std::cout.flush();
 
             // print out segmentation std::string
             } else {
                 // Alignment output
                 std::list<std::string> segString = getBorders(logAPSEI, allowedKeys, T, N, K);
 
-                for(auto const &seg : segString) {
+                for(const auto &seg : segString) {
                     std::cout<<seg;
                 }
                 std::cout<<std::endl;
-                std::cout.flush();
 
                 // calculate sum of segment border probabilities
                 if (prob) {
@@ -1222,14 +1214,12 @@ int main(int argc, char* argv[]) {
                             std::cout<<sum<<",";
                             sum = -INFINITY;
                         }
-                        for(int i : {0, 1}) { // sum up prob for new segment in dimension K
+                        for(const int &i : {0, 1}) { // sum up prob for new segment in dimension K
                             sum = logPlus(sum, logAPSEI.at(tnk)[i]);
                         }
                     }
                     std::cout<<std::endl;
-                    std::cout.flush();
                 }
-
             }
             logAPSEI.clear();
         }
