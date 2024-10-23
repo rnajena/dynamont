@@ -275,6 +275,26 @@ inline double log_normal_pdf(const double x, const double m, const double s) {
     return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
 }
 
+// https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
+/**
+ * Calculate log pdf for a given x, mean and standard deviation
+ * 
+ * @param x value
+ * @param m mean
+ * @param s standard deviation 
+ * @return probabily density at position x for N~(m, s²)
+*/
+inline double log_normal_pdf(const float x, const double m, const double s) {
+    if (s == 0.0) {
+        return -INFINITY; // Handling edge case where standard deviation is 0
+    }
+    
+    const double variance = s * s;
+    const double diff = x - m;
+    
+    return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
+}
+
 /**
  * Return log probability density for a given value and a given normal distribution
  *
@@ -284,6 +304,20 @@ inline double log_normal_pdf(const double x, const double m, const double s) {
  * @return log probability density value for x in the given normal distribution
  */
 inline double scoreKmer(const double signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model) {
+    // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
+    const auto &[mean, stddev] = model[kmer];
+    return log_normal_pdf(signal, mean, stddev);
+}
+
+/**
+ * Return log probability density for a given value and a given normal distribution
+ *
+ * @param signal point to calculate probability density
+ * @param kmer key for the model kmer:(mean, stdev) map
+ * @param model map containing kmers as keys and (mean, stdev) tuples as values
+ * @return log probability density value for x in the given normal distribution
+ */
+inline double scoreKmer(const float signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model) {
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
     return log_normal_pdf(signal, mean, stddev);

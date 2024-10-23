@@ -159,7 +159,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                     if len(mp_items) < batch_size:
                         # saw more consistency for short reads when using the mean
                         try:
-                            signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float16)
+                            signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float32)
                         except:
                             noMatchingReadid+=1
                             continue
