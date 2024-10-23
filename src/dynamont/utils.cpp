@@ -172,7 +172,7 @@ void updateTransitions(const std::unordered_map<std::string, double>& default_tr
     // Iterate over each transition in the 'transitions' std::unordered_map
     for (const auto &[param, value] : transitions) {
         // Check if the transition value is -1, which indicates it should use the default value
-        if (transition.second == -1.0) {
+        if (value == -1.0) {
             // Fetch the default value for this key, and store the value in the transition map
             transitions[param] = default_transitions_vals.at(param);
         }
