@@ -70,7 +70,7 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
             readid = basecalled_read.query_name
             # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
             signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-            seq = basecalled_read.query_sequence
+            seq = basecalled_read.query_sequence[::-1] # change direction from 5' - 3' to 3' - 5'
             ts = basecalled_read.get_tag("ts")
             ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling for this readid
             sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
@@ -86,18 +86,28 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
                 noMatchingReadid+=1
                 continue
 
-            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (CPP_SCRIPT, {'m': modelpath, 'r' : pore}, signal, seq[::-1], sp+ts, readid, signalid, queue)))
-    
-    # wait for all jobs to finish
-    for job in jobs:
-        job.get()
+            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (
+                CPP_SCRIPT,
+                {'m': modelpath, 'r' : pore},
+                signal,
+                seq,
+                sp+ts,
+                readid,
+                signalid,
+                queue
+                )))
+            
+            # Limit the number of concurrent jobs by waiting for completion
+            if len(jobs) >= processes:
+                jobs[0].get()  # Wait for the oldest job to finish
+                jobs.pop(0)    # Remove the completed job from the list
+
+        # wait for all jobs to finish
+        for job in jobs:
+            job.get()
         
     # tell queue to terminate
     queue.put("kill")
-
-    # wait for all processes to finish
-    for job in jobs:
-        job.get()
     watcher.get()
     pool.close()
     pool.join()
