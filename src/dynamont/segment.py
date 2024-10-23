@@ -12,6 +12,7 @@ from FileIO import feedSegmentationAsynchronous
 import read5
 import multiprocessing as mp
 import pysam
+from numpy import float16
 
 TERM_STRING = "$"
 
@@ -78,10 +79,11 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
 
             if oldFile != rawFile:
                 oldFile = rawFile
+                del r5
                 r5 = read5.read(rawFile)
 
             try:
-                signal = r5.getZNormSignal(signalid, "median")[sp+ts:sp+ns]
+                signal = r5.getZNormSignal(signalid, "median")[sp+ts:sp+ns].astype(float16)
             except:
                 noMatchingReadid+=1
                 continue

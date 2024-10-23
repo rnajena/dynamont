@@ -229,7 +229,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             # print('mean sp:sp+ns', np.mean(r5.getpASignal(readid)[sp:sp+ns]), np.std(r5.getpASignal(readid)[sp:sp+ns]))
             # print('mean sp+ts:sp+ns', np.mean(r5.getpASignal(readid)[sp+ts:sp+ns]), np.std(r5.getpASignal(readid)[sp+ts:sp+ns]))
 
-            normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns]
+            normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float16)
             normSignal = hampel(normSignal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
