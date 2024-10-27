@@ -33,7 +33,7 @@ public:
 };
 
 inline constexpr int NUMMAT = 5;
-inline constexpr double SPARSE_THRESHOLD = log(0.99); // using paths with top 90% of probability per T
+inline constexpr double SPARSE_THRESHOLD = log(0.99); // using paths with top X% of probability per T
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 inline constexpr double AFFINE_COST = 0; // log(0.05), currently switched off with log(1), but left this in the code to play around in the future
 
@@ -87,8 +87,8 @@ inline int scoreHD(const std::size_t kmer_N, const std::size_t kmer_K) {
     div_t dv_N{}; dv_N.quot=kmer_N;
     div_t dv_K{}; dv_K.quot=kmer_K;
     for(int i=0; i<kmerSize; ++i){
-        dv_N = div(dv_N.quot, kmerSize);
-        dv_K = div(dv_K.quot, kmerSize);
+        dv_N = div(dv_N.quot, alphabet_size);
+        dv_K = div(dv_K.quot, alphabet_size);
         acc += (dv_N.rem != dv_K.rem);
     }
     return -2*acc; // log(e^(−k×HD)), maybe use k=10 for r9 RNA error rate of roughly 10 %
@@ -328,7 +328,7 @@ void preProcTN(const double *sig, const int *kmer_seq, std::unordered_map<std::s
     const double Zb = backE[0];
 
     // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-    if (abs(Zf-Zb)/TN > EPSILON || isinf(Zf) || isinf(Zb)) {
+    if (abs(Zf-Zb)/TN > EPSILON || std::isinf(Zf) || std::isinf(Zb)) {
         std::cerr<<"Z values of preProcTN matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TN<<" > "<<EPSILON<<std::endl;
         exit(11);
     }
@@ -385,7 +385,7 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
     }
 
     // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-    if (abs(Zf-Zb)/TK > EPSILON || isinf(Zf) || isinf(Zb)) {
+    if (abs(Zf-Zb)/TK > EPSILON || std::isinf(Zf) || std::isinf(Zb)) {
         std::cerr<<"Z values of preProcTK matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TK<<" > "<<EPSILON<<std::endl;
         exit(12);
     }
@@ -430,10 +430,10 @@ void preProcTNK(const double *sig, const int *kmer_seq, std::vector<std::size_t>
 
     // combine both preprocessings using AND
     for (std::size_t t=0; t<T; ++t) {
-        for(const std::size_t &n : tnMap[t]) {
+        for(const std::size_t &n : tnMap.at(t)) {
             // always enable the possibility to just use the read as a baseline for segmentation
             allowedKeys.push_back(t * NK + n * K + kmer_seq[n-1]);
-            for(const std::size_t &k: tkMap[t]) {
+            for(const std::size_t &k: tkMap.at(t)) {
                 // these positions will be possible resquiggles / error corrections
                 allowedKeys.push_back(t * NK + n * K + k);
             }
@@ -1024,7 +1024,7 @@ void trainParams(const double *sig, const int *kmer_seq, std::unordered_map<std:
 
     auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
     for(std::size_t k=0; k<K; ++k){
-        if ((newStdevs[k]!=0.0) & (!isnan(newStdevs[k]))){
+        if ((newStdevs[k]!=0.0) & (!std::isnan(newStdevs[k]))){
             std::cout<<itoa(k, alphabet_size, kmerSize)<<":"<<newMeans[k]<<","<<newStdevs[k]<<";";
         }
     }
@@ -1037,17 +1037,19 @@ void trainParams(const double *sig, const int *kmer_seq, std::unordered_map<std:
  * Read signal and read from stdin until the TERM_STRING is seen
 */
 int main(int argc, char* argv[]) {
+    // speedup for I/O
+    std::ios_base::sync_with_stdio(0);
+    std::cin.tie(0);
+    std::cout.tie(0);
+
     bool train, calcZ, prob; // atrain
     std::string pore, modelpath;
-    const std::string TERM_STRING = "$";
+    // const std::string TERM_STRING = "$";
 
     // std::cerr precisions
-    std::cerr << std::fixed << std::showpoint;
-    std::cerr << std::setprecision(20);
-
+    std::cerr << std::fixed << std::showpoint << std::setprecision(7);
     // std::cerr precisions
-    std::cout << std::fixed << std::showpoint;
-    std::cout << std::setprecision(20);
+    std::cout << std::fixed << std::showpoint << std::setprecision(7);
 
     argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
     program.add_argument("-a1", "--alignscore1"    ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a1"]); // a1
@@ -1114,119 +1116,120 @@ int main(int argc, char* argv[]) {
 
     stepSize = pow(alphabet_size, kmerSize-1);
     std::string signal, read;
-    bool truish = 1;
+    // bool truish = 1;
 
-    while(truish) {
-        // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
-        // read input, signal and read whitespace separated in single line
-        getline(std::cin, signal);
-        getline(std::cin, read);
+    // while(truish) {
+    // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
+    // read input, signal and read whitespace separated in single line
+    getline(std::cin, signal);
+    getline(std::cin, read);
 
-        // break loop if termination character ...
-        if (signal.find(TERM_STRING) != std::string::npos) {
-            return 0;
-        // ... or signal or read is missing
-        } else if (signal.empty()) {
-            std::cout<<"Signal missing!"<<std::endl;
-            return 1;
-        } else if (read.empty()) {
-            std::cout<<"Read missing!"<<std::endl;
-            return 2;
-        }
-        
-        // process signal T: convert std::string to double std::array
-        T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
-        double* sig = new double[T-1];
-        std::fill_n(sig, T-1, -INFINITY);
-        std::string value;
-        std::stringstream ss(signal);
-        int i = 0;
-        while(getline(ss, value, ',')) {
-            sig[i++] = stod(value);
-        }
-        // process read N: convert std::string to int std::array
-        N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
-        int* kmer_seq = new int[N-1];
-        for (std::size_t n=0; n<N-1; ++n) {
-            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
-        }
-        NK = N*K;
-        TNK = T*NK;
+    // break loop if termination character ...
+    // if (signal.find(TERM_STRING) != std::string::npos) {
+    //     return 0;
+    // ... or signal or read is missing
+    // }
+    if (signal.empty()) {
+        std::cout<<"Signal missing!"<<std::endl;
+        return 1;
+    } else if (read.empty()) {
+        std::cout<<"Read missing!"<<std::endl;
+        return 2;
+    }
+    
+    // process signal T: convert std::string to double std::array
+    T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
+    double* sig = new double[T-1];
+    std::fill_n(sig, T-1, -INFINITY);
+    std::string value;
+    std::stringstream ss(signal);
+    int i = 0;
+    while(getline(ss, value, ',')) {
+        sig[i++] = stod(value);
+    }
+    // process read N: convert std::string to int std::array
+    N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
+    int* kmer_seq = new int[N-1];
+    for (std::size_t n=0; n<N-1; ++n) {
+        kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
+    }
+    NK = N*K;
+    TNK = T*NK;
 
-        // std::cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<"\n";
+    // std::cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<"\n";
 
-        std::vector<std::size_t> allowedKeys;
-        preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
-        // std::cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<"\n"; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<"\n";
-        std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> forAPSEI;
-        
-        // std::cerr<<"forward"<<"\n";
-        logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
-        // std::cerr<<"backward"<<"\n";
-        std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> backAPSEI;
-        logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
+    std::vector<std::size_t> allowedKeys;
+    preProcTNK(sig, kmer_seq, allowedKeys, T, N, K, model);
+    // std::cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<"\n"; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<"\n";
+    std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> forAPSEI;
+    
+    // std::cerr<<"forward"<<"\n";
+    logF(sig, kmer_seq, forAPSEI, allowedKeys, T, N, K, model);
+    // std::cerr<<"backward"<<"\n";
+    std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> backAPSEI;
+    logB(sig, kmer_seq, backAPSEI, allowedKeys, T, N, K, model);
 
-        double Zf = -INFINITY;
-        double Zb = -INFINITY;
-        for(std::size_t k=0; k<K; ++k){
-            Zf = logPlus(Zf, forAPSEI[TNK-1-k][3]);
-            Zb = logPlus(Zb, backAPSEI[k][3]);
-        }
+    double Zf = -INFINITY;
+    double Zb = -INFINITY;
+    for(std::size_t k=0; k<K; ++k){
+        Zf = logPlus(Zf, forAPSEI[TNK-1-k][3]);
+        Zb = logPlus(Zb, backAPSEI[k][3]);
+    }
 
-        // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if (abs(Zf-Zb)/TNK >= EPSILON || isinf(Zf) || isinf(Zb)) {
-            std::cerr<<"Z values between matrices do not match! forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" > "<<EPSILON<<std::endl;
-            exit(13);
-        }
+    // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
+    if (abs(Zf-Zb)/TNK >= EPSILON || std::isinf(Zf) || std::isinf(Zb)) {
+        std::cerr<<"Z values between matrices do not match! forZ: "<<Zf<<", backZ: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" > "<<EPSILON<<std::endl;
+        exit(13);
+    }
 
-        // std::cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<"\n";
+    // std::cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<"\n";
 
-        if (calcZ){
-            std::cout<<Zf/(T*N)<<std::endl;
+    if (calcZ){
+        std::cout<<Zf<<std::endl;
 
+    } else {
+        std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logAPSEI;
+        logP(logAPSEI, forAPSEI, backAPSEI, Zf, allowedKeys, N, K);
+
+        // train both Transitions and Emissions
+        if (train) {
+            trainParams(sig, kmer_seq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
+            std::cout<<"Z:"<<Zf<<std::endl;
+
+        // print out segmentation std::string
         } else {
-            std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logAPSEI;
-            logP(logAPSEI, forAPSEI, backAPSEI, Zf, allowedKeys, N, K);
+            // Alignment output
+            const std::list<std::string> segString = getBorders(logAPSEI, allowedKeys, T, N, K);
 
-            // train both Transitions and Emissions
-            if (train) {
-                trainParams(sig, kmer_seq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
-                std::cout<<"Z:"<<Zf/(T*N)<<std::endl;
+            for(const auto &seg : segString) {
+                std::cout<<seg;
+            }
+            std::cout<<std::endl;
 
-            // print out segmentation std::string
-            } else {
-                // Alignment output
-                std::list<std::string> segString = getBorders(logAPSEI, allowedKeys, T, N, K);
-
-                for(const auto &seg : segString) {
-                    std::cout<<seg;
+            // calculate sum of segment border probabilities
+            if (prob) {
+                double sum = -INFINITY;
+                int lastT = -1, t;
+                for(const std::size_t &tnk : allowedKeys) {
+                    t = tnk/NK;
+                    if (t != lastT) {
+                        lastT = t;
+                        std::cout<<sum<<",";
+                        sum = -INFINITY;
+                    }
+                    for(const int &i : {0, 1}) { // sum up prob for new segment in dimension K
+                        sum = logPlus(sum, logAPSEI.at(tnk)[i]);
+                    }
                 }
                 std::cout<<std::endl;
-
-                // calculate sum of segment border probabilities
-                if (prob) {
-                    double sum = -INFINITY;
-                    int lastT = -1, t;
-                    for(const std::size_t &tnk : allowedKeys) {
-                        t = tnk/NK;
-                        if (t != lastT) {
-                            lastT = t;
-                            std::cout<<sum<<",";
-                            sum = -INFINITY;
-                        }
-                        for(const int &i : {0, 1}) { // sum up prob for new segment in dimension K
-                            sum = logPlus(sum, logAPSEI.at(tnk)[i]);
-                        }
-                    }
-                    std::cout<<std::endl;
-                }
             }
-            logAPSEI.clear();
         }
-        delete[] sig;
-        delete[] kmer_seq;
-        forAPSEI.clear();
-        backAPSEI.clear();
+        logAPSEI.clear();
     }
+    delete[] sig;
+    delete[] kmer_seq;
+    forAPSEI.clear();
+    backAPSEI.clear();
+    // }
     return 0;
 }
