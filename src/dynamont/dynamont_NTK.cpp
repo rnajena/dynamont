@@ -33,7 +33,7 @@ public:
 };
 
 inline constexpr int NUMMAT = 5;
-inline constexpr double SPARSE_THRESHOLD = log(0.99); // using paths with top X% of probability per T
+inline constexpr double SPARSE_THRESHOLD = log(0.95); // using paths with top X% of probability per T
 inline constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 inline constexpr double AFFINE_COST = 0; // log(0.05), currently switched off with log(1), but left this in the code to play around in the future
 
@@ -338,14 +338,14 @@ void preProcTN(const double *sig, const int *kmer_seq, std::unordered_map<std::s
     // extract indices with highest probability per column, until SPARSE_THRESHOLD is reached
     std::size_t c = 0;
     for(std::size_t t=0; t<T; ++t){
+        const std::size_t tN = t*N;
         double s = -INFINITY;
-        // std::get indices of values in descending order
+        // get indices of values in descending order
         for(const std::size_t &n : column_argsort(LP.data(), N, t)) {
             // collect key pairs with highest value per column t
-            // allowedKeys.push_back(t*N+n);
             ++c;
             tnMap[t].insert(n);
-            s = logPlus(s, LP.at(t*N+n));
+            s = logPlus(s, LP.at(tN+n));
             // stop if threshold is reached
             if (s > SPARSE_THRESHOLD) {
                 break;
@@ -397,14 +397,15 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
     // extract indices with highest probability per column, until SPARSE_THRESHOLD is reached
     std::size_t c = 0;
     for(std::size_t t=0; t<T; ++t){
+        const std::size_t tK = t*K;
         double s = -INFINITY;
-        // std::get indices of values in descending order
+        // get indices of values in descending order
         for(const std::size_t &k : column_argsort(LP.data(), K, t)) {
             // collect key pairs with highest value per column t
             // allowedKeys.push_back(t*K+k);
             ++c;
             tkMap[t].insert(k);
-            s = logPlus(s, LP.at(t*K+k));
+            s = logPlus(s, LP.at(tK+k));
             // stop if threshold is reached
             if (s >= SPARSE_THRESHOLD) {
                 break;
@@ -430,12 +431,14 @@ void preProcTNK(const double *sig, const int *kmer_seq, std::vector<std::size_t>
 
     // combine both preprocessings using AND
     for (std::size_t t=0; t<T; ++t) {
+        const std::size_t tNK = t * NK;
         for(const std::size_t &n : tnMap.at(t)) {
             // always enable the possibility to just use the read as a baseline for segmentation
-            allowedKeys.push_back(t * NK + n * K + kmer_seq[n-1]);
+            const std::size_t tNKnK = tNK + n*K;
+            allowedKeys.push_back(tNKnK + kmer_seq[n-1]);
             for(const std::size_t &k: tkMap.at(t)) {
                 // these positions will be possible resquiggles / error corrections
-                allowedKeys.push_back(t * NK + n * K + k);
+                allowedKeys.push_back(tNKnK + k);
             }
         }
     }
