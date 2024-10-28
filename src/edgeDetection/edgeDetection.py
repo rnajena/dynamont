@@ -85,7 +85,7 @@ def wavelet(raw : str, basecalls : str, output_file: str) -> None:
                 key = f'{signalid}/waveletEdge'
                 # save to hdf5 file
                 if not signalid in hdf.keys():
-                    hdf.create_dataset(key, data=waveletEdges)
+                    hdf.create_dataset(key, data=waveletEdges, maxshape=(None,))
                 else:
                     hdf[key].resize(hdf[key].shape[0] + len(waveletEdges))
                     hdf[key][hdf[key].shape[0]:] = waveletEdges
