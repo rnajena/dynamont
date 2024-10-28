@@ -36,17 +36,24 @@ def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 
     ---
     np.ndarray: An array of indices where peaks are detected in the input signal.
     """
+    from scipy.signal import find_peaks
+    halfThreshold = threshold / 2
     # Perform continuous wavelet transform on the signal with scale 6
-    coef, freqs = pywt.cwt(signal, [6], wavelet)
-    c = np.abs(coef[0])
-    peaks = []
-    # Iterate over the wavelet coefficients to find local maxima
-    for i in range(len(c)):
-        # Check if the current point is a local maximum and the standard deviation around it is low
-        if c[i] >= threshold and c[i] == np.max(c[max(0, i-3):i+3]) and np.std(c[max(0, i-3):i+3]) < threshold/2:
-            peaks.append(i)
-    peaks = np.array(peaks)
-    return peaks
+    coef, _ = pywt.cwt(signal, [6], wavelet)
+    coef = np.abs(coef[0])
+
+    # Use SciPy's find_peaks to locate peaks above the threshold
+    peaks, _ = find_peaks(coef, height=threshold, distance=3)
+
+    # Further filter the peaks based on a local standard deviation threshold
+    final_peaks = []
+    for peak in peaks:
+        # Calculate standard deviation in a 6-element window around each peak
+        window = coef[max(0, peak-3):peak+3]
+        if np.std(window) < halfThreshold:
+            final_peaks.append(peak)
+
+    return np.array(final_peaks)
 
 def wavelet(raw : str, basecalls : str, output_file: str) -> None:
     """
@@ -62,17 +69,24 @@ def wavelet(raw : str, basecalls : str, output_file: str) -> None:
     ---
     None: This function does not return any value. It writes the detected wavelet edges to the specified HDF5 file.
     """
+    oldFile = None
     with h5py.File(output_file, 'w') as hdf:
         with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
 
-            for basecalled_read in samfile.fetch(until_eof=True):
+            for i, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
+                # if (i+1) % 100 == 0:
+                print(f"Extracting edges for read {i+1}...", end='\r')
+
                 readid = basecalled_read.query_name
                 signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
                 sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # start sample of split read by the basecaller
                 ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
                 ts = basecalled_read.get_tag("ts") # start sample of basecalling
                 rawFile = join(raw, basecalled_read.get_tag("fn"))
-                r5 = read5.read(rawFile)
+                
+                if rawFile != oldFile:
+                    r5 = read5.read(rawFile)
+                    oldFile = rawFile
 
                 shift = basecalled_read.get_tag("sm")
                 scale = basecalled_read.get_tag("sd")
@@ -85,13 +99,18 @@ def wavelet(raw : str, basecalls : str, output_file: str) -> None:
                 key = f'{signalid}/waveletEdge'
                 # save to hdf5 file
                 if not signalid in hdf.keys():
-                    hdf.create_dataset(key, data=waveletEdges, maxshape=(None,))
+                    hdf.create_dataset(key, data=waveletEdges, maxshape=(None,), dtype = 'f')
                 else:
-                    hdf[key].resize(hdf[key].shape[0] + len(waveletEdges))
-                    hdf[key][hdf[key].shape[0]:] = waveletEdges
+                    current_shape = hdf[key].shape[0]
+                    new_shape = current_shape + len(waveletEdges)
+                    hdf[key].resize(new_shape, axis=0)
+                    hdf[key][current_shape:new_shape] = waveletEdges
+
+    print(f'Done extracting edges for {i} reads')
 
 def main() -> None:
     args = parse()
+    print('Start extracting')
     wavelet(args.raw, args.basecalls, args.output)
 
 if __name__ == '__main__':
