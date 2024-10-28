@@ -27,23 +27,31 @@ def parse() -> Namespace:
     parser.add_argument('--processes', type=int, default=None, help='Number of processes to use for segmentation')
     parser.add_argument('--model_path', type=str, help='Which kmer model to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
-    parser.add_argument('-q', '--qscore', type=int, default=0, help='Minmal allowed quality score')
+    parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str):
     '''listens for messages on the q, writes to file. '''
     with open(outfile, 'w') as f:
         f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
+
         i = 0
+
         while 1:
             m = q.get()
-            i+=1
-            if i%100==0:
-                print(f"Segmented {i} reads", end='\r')
+
             if m == 'kill':
                 break
+
+            i+=1
+
+            if i%100==0:
+                print(f"Segmented {i} reads", end='\r')
+                f.flush()
+
             f.write(m)
-            f.flush()
+
+    print(f'Segmented {i} reads\n')
 
 def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
 
@@ -56,10 +64,10 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
     qualSkipped = 0
     noMatchingReadid = 0
     oldFile = None
-    jobs = []
+    jobs = [None for _ in range(processes)]
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-        for basecalled_read in samfile.fetch(until_eof=True):
+        for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
             
             # skip low qual reads if activated
             qs = basecalled_read.get_tag("qs")
@@ -79,16 +87,20 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
 
             if oldFile != rawFile:
                 oldFile = rawFile
-                del r5
                 r5 = read5.read(rawFile)
 
             try:
-                signal = r5.getZNormSignal(signalid, "median")[sp+ts:sp+ns].astype(float32)
+                # signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float32)
+                shift = basecalled_read.get_tag("sm")
+                scale = basecalled_read.get_tag("sd")
+                signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(float32)
+                signal = (signal - shift) / scale
+
             except:
                 noMatchingReadid+=1
                 continue
 
-            jobs.append(pool.apply_async(feedSegmentationAsynchronous, (
+            jobs[bi % processes] = pool.apply_async(feedSegmentationAsynchronous, (
                 CPP_SCRIPT,
                 {'m': modelpath, 'r' : pore},
                 signal,
@@ -97,14 +109,9 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
                 readid,
                 signalid,
                 queue
-                )))
-            
-            # Limit the number of concurrent jobs by waiting for completion
-            if len(jobs) >= processes:
-                jobs[0].get()  # Wait for the oldest job to finish
-                jobs.pop(0)    # Remove the completed job from the list
+                ))
 
-        # wait for all jobs to finish
+        # wait for last job batch to finish
         for job in jobs:
             job.get()
         
@@ -114,7 +121,6 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
     pool.close()
     pool.join()
     
-    print("Done segmenting signals")
     print(f"Skipped reads: low quality: {qualSkipped}\treadid not found (possible split read): {noMatchingReadid}")
 
 def main() -> None:

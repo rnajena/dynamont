@@ -61,11 +61,10 @@ def parse() -> Namespace:
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of training epochs')
-    parser.add_argument('-c', '--minSegLen', type=int, default=1, help='Minmal allowed segment length')
-    parser.add_argument('-q', '--qscore', type=int, default=0, help='Minmal allowed quality score')
+    parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
     return parser.parse_args()
 
-def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, minSegLen : int, max_batches : int, pore : str, minQual : float = None) -> None:
+def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, max_batches : int, pore : str, minQual : float = None) -> None:
 
     kmerModels = readKmerModels(model_path)
     trainedModels = join(dirname(param_file), 'trained_0_0.model')
@@ -159,12 +158,16 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                     if len(mp_items) < batch_size:
                         # saw more consistency for short reads when using the mean
                         try:
-                            signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float32)
+                            # signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float32)
+                            shift = basecalled_read.get_tag("sm")
+                            scale = basecalled_read.get_tag("sd")
+                            signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(np.float32)
+                            signal = (signal - shift) / scale
                         except:
                             noMatchingReadid+=1
                             continue
                         signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
-                        mp_items.append([signal, seq[::-1], transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, minSegLen, readid])
+                        mp_items.append([signal, seq[::-1], transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, readid])
                         training_readids.append(readid)
 
                     if len(mp_items) == batch_size:
@@ -244,9 +247,6 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 def main() -> None:
     args = parse()
 
-    # due to algorithm min len is 1 by default, minSegLen stores number of positions to add to that length
-    assert args.minSegLen>=1, "Please choose a minimal segment length greater than 0"
-
     # init outdir
     outdir = args.outdir + f'_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}'
     if not exists(outdir):
@@ -254,7 +254,7 @@ def main() -> None:
 
     param_file = join(outdir, 'params.csv')
 
-    train(args.raw, args.basecalls, args.batch_size, args.epochs, param_file, args.mode, args.model_path, args.minSegLen - 1, args.max_batches, args.pore, args.qscore)
+    train(args.raw, args.basecalls, args.batch_size, args.epochs, param_file, args.mode, args.model_path, args.max_batches, args.pore, args.qscore)
     plotParameters(param_file, outdir)
 
 if __name__ == '__main__':

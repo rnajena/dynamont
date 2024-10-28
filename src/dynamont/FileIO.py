@@ -148,7 +148,7 @@ def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
     script.append("--atrain")
     return openCPPScript(script)
 
-def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str, minSegLen : int) -> Popen:
+def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str) -> Popen:
     '''
     Open cpp script with transition params in training mode
 
@@ -166,7 +166,7 @@ def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str, minSeg
     script = [cpp_script]
     for param in params:
         script.extend([f"-{param}", str(params[param])])
-    script.extend(["--train", "--model", model_file, "--minSegLen", str(minSegLen)])
+    script.extend(["--train", "--model", model_file])
     return openCPPScript(script)
 
 def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
@@ -192,7 +192,7 @@ def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
             script.extend([f"-{param}", str(params[param])])
     return openCPPScript(script)
 
-def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None, minSegLen : int = None) -> Popen:
+def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None) -> Popen:
     '''
     Open cpp script with transition params in calculate-Z mode
 
@@ -213,12 +213,10 @@ def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None,
     script.append("--calcZ")
     if model_file is not None:
         script.extend(["--model", model_file])
-    if minSegLen is not None:
-        script.extend(["--minSegLen",  str(minSegLen)])
     return openCPPScript(script)
 
-def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, minSegLen : int = None, readid : str = None) -> float:
-    pipe = openCPPScriptCalcZ(script, params, model_file, minSegLen)
+def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, readid : str = None) -> float:
+    pipe = openCPPScriptCalcZ(script, params, model_file)
     try:
         Z = float(feedPipe(signal, read, pipe).strip())
     except:
@@ -244,16 +242,17 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
 
     # prepare cookie for segmentation
     # signal = str(np.around(signal.tolist(), 5).tolist()).replace(' ', '').replace('[', '').replace(']', '')
-    signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
+    # signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
+    signal = ",".join([f'{x:.5f}' for x in signal])
     cookie = f"{signal}\n{read}\n{TERM_STRING}\n{TERM_STRING}\n"
     result = pipe.communicate(input=cookie)[0]
-    stopFeeding(pipe)
+    # stopFeeding(pipe)
     # with open("lastCookie.txt", "w") as w:
     #     w.write(cookie)
     return result
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, minSegLen : int, readid : str) -> tuple|str:
+def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, readid : str) -> tuple|str:
     '''
     Parse & feed signal & read to the C++ segmentation script.
 
@@ -273,7 +272,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
         {str : float}
     Z : float
     '''
-    pipe = openCPPScriptTrain(script, params, model_file, minSegLen)
+    pipe = openCPPScriptTrain(script, params, model_file)
     try:
         result = feedPipe(signal, read, pipe).split('\n')
         transitionParams, modelParams, Z, _ = result
@@ -342,7 +341,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offse
     else:
         pipe = openCPPScriptParams(script, params)
     result = feedPipe(signal, read, pipe)
-
+    
     try:
         output, probs, _ = result.split('\n')
         probs = np.array(list(map(float, probs.split(',')[:-1])))[1:]
@@ -369,8 +368,6 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offse
         # return np.array([])
     return segments , probs
 
-globalPipe : Popen = None
-
 def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, queue : Queue) -> None:
     '''
     Parse & feed signal & read to the C++ segmentation script.
@@ -391,20 +388,9 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     pipe : Popen
     queue : Queue
     '''
-    global globalPipe
-    # terminate
-    if read == TERM_STRING:
-        stopFeeding(globalPipe)
-        return None
-    if globalPipe is None:
-        globalPipe = openCPPScriptParams(CPP_SCRIPT, params)
-
-    output = feedPipeAsynchronous(signal, read, globalPipe)
+    pipe = openCPPScriptParams(CPP_SCRIPT, params)
+    output = feedPipe(signal, read, pipe)
     segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
-    # try:
-    # except Exception as e:
-    #     print("Exception in readid", readid, e)
-    #     return None
     queue.put(formatSegmentation(readid, signalid, segments))
 
 def feedPipeAsynchronous(signal : np.ndarray, read : str, pipe : Popen) -> str:
@@ -462,7 +448,6 @@ def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int,
     segments = []
     output = output.strip().split(';')[:-1]
     for i, segment in enumerate(output):
-        # print(segment)
         # split segment state
         state = segment[0]
         segment = segment[1:]
@@ -506,10 +491,7 @@ def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) 
     return table
 
 def stopFeeding(pipe : Popen) -> None:
-    try:
-        pipe.kill()
-    except:
-        pass
+    pipe.kill()
     return None
 
     # if pipe is None:

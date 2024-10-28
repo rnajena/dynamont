@@ -25,9 +25,9 @@ void funcM(const size_t t, const size_t n, const double* M, const double* E, con
 void funcE(const size_t t, const size_t n, const double* M, const double* E, const double* LPM, const double* LPE, list<string>* segString, const size_t N, vector<double> &segProb);
 
 inline constexpr double EPSILON = 1e-2; // chose by eye just to distinguish real errors from numeric errors
-inline constexpr size_t bandedDPwindow = 120; // Banded DP approach: Window size around the maximum, adjust as needed
+inline constexpr size_t BANDEDDPWINDOW = 150; // Banded DP approach: Window size around the maximum, adjust as needed
 
-size_t N, T, TN, C;
+size_t N, T, TN;
 int alphabet_size, numKmers, kmerSize; // our model works with this kmer size
 
 unordered_map<string, double> transitions = {
@@ -50,50 +50,33 @@ static_assert(numeric_limits<double>::is_iec559, "IEEE 754 required");
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logF(const double* sig, const int* kmer_seq, double* M, double* E, const size_t T, const size_t N, vector<tuple<double, double>>& model){
-    double mat, ext, tmp;
     E[0] = 0;
-    
     // Initialize max indices for the first iteration
     size_t max_idx = 0;
 
     for (size_t t=1; t<T; ++t){
         double max_val = -INFINITY;
+        const size_t tN = t*N;
 
         // Determine the range around the max index
-        size_t start_n = (max_idx > bandedDPwindow) ? max_idx - bandedDPwindow : 1;
-        size_t end_n = (max_idx + bandedDPwindow < N) ? max_idx + bandedDPwindow : N - 1;
-
-        // cerr << "t: " << t << ", start_n: " << start_n << ", end_n: " << end_n << "\t";
+        size_t start_n = (max_idx > BANDEDDPWINDOW) ? max_idx - BANDEDDPWINDOW : 1;
+        size_t end_n = (max_idx + BANDEDDPWINDOW < N) ? max_idx + BANDEDDPWINDOW : N - 1;
 
         for (size_t n=start_n; n<=end_n; ++n){  // Use restricted range
-            mat = -INFINITY;
-            ext = -INFINITY;
-
-            double score = scoreKmer(sig[t-1], kmer_seq[n-1], model);  // Cache scoreKmer for (t-1, n-1)
-
-            // Calculate match (M) and extension (E) scores
-            if (t > C) {
-                tmp = E[(t-C-1)*N+(n-1)] + score + transitions["m1"];
-                for (size_t l=1; l<=C; ++l) {
-                    tmp += scoreKmer(sig[t-l-1], kmer_seq[n-1], model);
-                }
-                mat = logPlus(mat, tmp);
-            }
-            ext = logPlus(ext, M[(t-1)*N+n] + score);  // transition probability is always 1, e1 first extend
-            ext = logPlus(ext, E[(t-1)*N+n] + score + transitions["e2"]);  // e2 extend further
+            const double score = scoreKmer(sig[t-1], kmer_seq[n-1], model);  // Cache scoreKmer for (t-1, n-1)
 
             // Update matrices
-            M[t*N+n] = mat;
-            E[t*N+n] = ext;
+            M[tN+n] = E[(t-1)*N+(n-1)] + score + transitions["m1"];
+            E[tN+n] = logPlus(M[tN-N+n] + score, E[tN-N+n] + score + transitions["e2"]);
 
             // Track maximum values for the next iteration
             // Update max indices for the next iteration
-            if (mat > max_val) {
-                max_val = mat;
+            if (M[tN+n] > max_val) {
+                max_val = M[tN+n];
                 max_idx = n;
             }
-            if (ext > max_val) {
-                max_val = ext;
+            if (E[tN+n] > max_val) {
+                max_val = E[tN+n];
                 max_idx = n;
             }
         }
@@ -110,7 +93,6 @@ void logF(const double* sig, const int* kmer_seq, double* M, double* E, const si
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
 void logB(const double* sig, const int* kmer_seq, double* M, double* E, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
-    double mat, ext, tmp;
     E[TN-1] = 0;
     // Initialize max indices for the first iteration (starting at t=T-1)
     size_t max_idx = N-1;
@@ -118,37 +100,29 @@ void logB(const double* sig, const int* kmer_seq, double* M, double* E, const si
     // Start backward iteration
     for (size_t t=T-1; t-->0;){
         double max_val = -INFINITY;
+        const size_t tN = t*N;
 
         // Define the range of n based on the previous max_idx
-        size_t start_n = (max_idx > bandedDPwindow) ? max_idx - bandedDPwindow : 0;
-        size_t end_n = (max_idx + bandedDPwindow < N) ? max_idx + bandedDPwindow + 1 : N;
+        size_t start_n = (max_idx > BANDEDDPWINDOW) ? max_idx - BANDEDDPWINDOW : 0;
+        size_t end_n = (max_idx + BANDEDDPWINDOW < N) ? max_idx + BANDEDDPWINDOW + 1 : N;
 
         for (size_t n = end_n; n-->start_n;){  // Use restricted range and iterate backwards
-            mat = -INFINITY;
-            ext = -INFINITY;
+            double mat = -INFINITY;
+            double ext = -INFINITY;
 
-            // if (t == T-1 && n == N-1) {
-            //     ext = 0;
-            // }
-
-            // Compute extension (E) and match (M) scores
-            if (t+1+C < T && n+1 < N) {
-                tmp = M[(t+1+C)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + transitions["m1"];
-                for (size_t l = 1; l <= C; ++l) {
-                    tmp += scoreKmer(sig[t+l], kmer_seq[n], model);
-                }
-                ext = logPlus(ext, tmp);
+            if (t+1 < T && n+1 < N) [[likely]] {
+                ext = logPlus(ext, M[(t+1)*N+(n+1)] + scoreKmer(sig[t], kmer_seq[n], model) + transitions["m1"]);
             }
 
-            if (t+1 < T && n > 0) {
-                double score = scoreKmer(sig[t], kmer_seq[n-1], model);
-                mat = logPlus(mat, E[(t+1)*N+n] + score);  // e1 first extend
-                ext = logPlus(ext, E[(t+1)*N+n] + score + transitions["e2"]);  // e2 extend further
+            if (t+1<T && n > 0) [[likely]] {
+                const double score = scoreKmer(sig[t], kmer_seq[n-1], model);
+                mat = logPlus(mat, E[tN+N+n] + score);  // e1 first extend
+                ext = logPlus(ext, E[tN+N+n] + score + transitions["e2"]);  // e2 extend further
             }
 
             // Store computed values in matrices
-            M[t*N+n] = mat;
-            E[t*N+n] = ext;
+            M[tN+n] = mat;
+            E[tN+n] = ext;
 
             // Update the maximum values for the next iteration
             if (mat > max_val) {
@@ -198,19 +172,11 @@ list<string> getBorders(const double* LPM, const double* LPE, const size_t T, co
         E[i] = -INFINITY;
     }
 
-    double mat, ext;
     E[0] = 0;
     for (size_t t=1; t<T; ++t){
         for (size_t n=1; n<=t && n<N; ++n){ // speed up, due to rules no need to look at upper triangle of matrices
-            mat=-INFINITY;
-            ext=-INFINITY;
-            if (t>C){
-                mat=max(mat, E[(t-C-1)*N+(n-1)] + LPM[t*N+n]); // m1
-            }
-            ext=max(ext, M[(t-1)*N+n] + LPE[t*N+n]); // e1
-            ext=max(ext, E[(t-1)*N+n] + LPE[t*N+n]); // e2
-            M[t*N+n]=mat;
-            E[t*N+n]=ext;
+            M[t*N+n]=E[(t-1)*N+(n-1)] + LPM[t*N+n]; //m1
+            E[t*N+n]=max(M[(t-1)*N+n] + LPE[t*N+n], E[(t-1)*N+n] + LPE[t*N+n]); //e1, e2
         }
     }
     list<string> segString;
@@ -226,13 +192,13 @@ void funcM(const size_t t, const size_t n, const double* M, const double* E, con
     double logScore = LPM[t*N+n];
     segProb.push_back(exp(logScore));
     if (t<=1 && n<=1){ // Start value
-        segString->push_front("M0,0," + to_string(calculateMedian(segProb))); // n-1 because N is 1 larger than the sequences
+        segString->push_front("M0,0," + to_string(calculateMedian(segProb)) + ";"); // n-1 because N is 1 larger than the sequences
         return;
     }
-    if (t>C && n>0 && score == E[(t-C-1)*N+(n-1)] + logScore){
-        segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-C-1) + "," + to_string(calculateMedian(segProb)));
+    if (t>0 && n>0 && score == E[(t-1)*N+(n-1)] + logScore){
+        segString->push_front("M" + to_string(n-1+kmerSize/2) + "," + to_string(t-1) + "," + to_string(calculateMedian(segProb)) + ";");
         segProb.clear();
-        return funcE(t-C-1, n-1, M, E, LPM, LPE, segString, N, segProb);
+        return funcE(t-1, n-1, M, E, LPM, LPE, segString, N, segProb);
     }
 }
 
@@ -255,17 +221,13 @@ void funcE(const size_t t, const size_t n, const double* M, const double* E, con
 */
 tuple<double, double, double> trainTransition(const double* sig, const int* kmer_seq, double* forM, double* forE, double* backM, double* backE, const size_t T, const size_t N, vector<tuple<double, double>>& model) {
     // Transition parameters
-    double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY, tempM = -INFINITY;
+    double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
 
     for (size_t t=0; t<T; ++t){
         for (size_t n=0; n<=t && n<N; ++n){ // speed up, due to rules no need to look at upper triangle of matrices
-            if (n+1<N && t+C+1<T) {
-                // m1:  forward(i)    a   e(i+1)                                  backward(i+1)
-                tempM = forE[t*N+n] + transitions["m1"] + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+C+1)*N+(n+1)];
-                for(size_t l=1; l<=C; ++l){
-                    tempM+=scoreKmer(sig[t+l], kmer_seq[n], model);
-                }
-                newM1 = logPlus(newM1, tempM);
+            if (n+1<N && t+1<T) {
+                // m1:                 forward(i)    a                   e(i+1)                                  backward(i+1)
+                newM1 = logPlus(newM1, forE[t*N+n] + transitions["m1"] + scoreKmer(sig[t], kmer_seq[n], model) + backM[(t+1)*N+(n+1)]);
             }
 
             if (t+1<T && n>0) {
@@ -390,17 +352,18 @@ void trainParams(const double* sig, const int* kmer_seq, double* forM, double* f
  * Read signal and read from stdin until the TERM_STRING is seen
 */
 int main(int argc, char* argv[]) {
+    // speedup for I/O
+    std::ios_base::sync_with_stdio(0);
+    std::cin.tie(0);
+    std::cout.tie(0);
+
     bool train, calcZ, prob;
     string pore, modelpath;
-    const string TERM_STRING = "$";
 
-    // cerr precisions
-    cerr << fixed << showpoint;
-    cerr << setprecision(20);
-
-    // cerr precisions
-    cout << fixed << showpoint;
-    cout << setprecision(20);
+    // std::cerr precisions
+    std::cerr << std::fixed << std::showpoint << std::setprecision(5);
+    // std::cerr precisions
+    std::cout << std::fixed << std::showpoint << std::setprecision(5);
 
     // Argparser
     argparse::ArgumentParser program("dynamont basic", "0.1");
@@ -412,7 +375,6 @@ int main(int argc, char* argv[]) {
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore used to sequence the data").default_value("rna_r9").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10").store_into(pore);
-    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0).scan<'i', int>();
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob);
 
     try {
@@ -423,8 +385,6 @@ int main(int argc, char* argv[]) {
         cerr << program;
         return 1;
     }
-
-    C = program.get<int>("minSegLen");
 
     // load default and set parameters
     if (pore == "rna_r9") {
@@ -456,142 +416,121 @@ int main(int argc, char* argv[]) {
     vector<tuple<double, double>> model = get<0>(result);
     alphabet_size = get<1>(result);
     numKmers = get<2>(result);
-    string signal;
-    string read;
-    int truish = 1;
+    string signal, read;
 
-    while(truish) {
-        // truish = 0;
-        // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
-        // read input, signal and read whitespace separated in single line
-        getline(cin, signal);
-        getline(cin, read);
+    // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
+    // read input, signal and read whitespace separated in single line
+    getline(cin, signal);
+    getline(cin, read);
 
-        // break loop if termination character ...
-        if (signal.find(TERM_STRING) != string::npos) {
-            return 0;
-        // ... or signal or read is missing
-        } else if (signal.empty()) {
-            cout<<"Signal missing!\n";
-            cout.flush();
-            return 1;
-        } else if (read.empty()) {
-            cout<<"Read missing!\n";
-            cout.flush();
-            return 2;
-        }
+    if (signal.empty()) {
+        cout<<"Signal missing!"<<endl;
+        return 1;
+    } else if (read.empty()) {
+        cout<<"Read missing!"<<endl;
+        return 2;
+    }
 
-        // cerr<<"DEBUG 1"<<endl;
-        // process signal: convert string to double array
-        T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
-        double* sig = new double[T-1];
-        fill_n(sig, T-1, -INFINITY);
-        string value;
-        stringstream ss(signal);
-        int i = 0;
-        while(getline(ss, value, ',')) {
-            sig[i++] = stod(value);
-        }
+    // cerr<<"DEBUG 1"<<endl;
+    // process signal: convert string to double array
+    T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
+    double* sig = new double[T-1];
+    string value;
+    stringstream ss(signal);
+    int i = 0;
+    while(getline(ss, value, ',')) {
+        sig[i++] = stof(value);
+    }
+    
+    // process read N: convert string to int array
+    N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
+    int* kmer_seq = new int[N-1];
+    for (size_t n=0; n<N-1; ++n) {
+        kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
+    }
+
+    // deallocate memory
+    ss.clear();
+    signal.erase();
+    read.erase();
+    value.erase();
+
+    TN = T*N;
+
+    // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<endl;
+
+    // initialize matrices
+    double* forM = new double[TN];
+    double* forE = new double[TN];
+    double* backM = new double[TN];
+    double* backE = new double[TN];
+    for (size_t i = 0; i<TN; ++i) {
+        forM[i] = -INFINITY;
+        forE[i] = -INFINITY;
+        backM[i] = -INFINITY;
+        backE[i] = -INFINITY;
+    }
+    // calculate segmentation probabilities, fill forward matrices
+    logF(sig, kmer_seq, forM, forE, T, N, model);
+    // calculate segmentation probabilities, fill backward matrices
+    logB(sig, kmer_seq, backM, backE, T, N, model);
+
+    const double Zf = forE[TN-1];
+    const double Zb = backE[0];
+
+    // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
+    if (abs(Zf-Zb)/TN > EPSILON || isinf(Zf) || isinf(Zb)) {
+        cerr<<"Z values between matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/(TN)<<" > "<<EPSILON<<", T: "<<T<<", N: "<<N<<endl;
+        exit(11);
+    }
+    
+    // cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TN<<" <! "<<EPSILON<<endl;
+    const double Z = max(Zf, Zb);
+
+    if (calcZ){
+        cout<<Z<<endl;
+    } else {
         
-        // process read N: convert string to int array
-        N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
-        int* kmer_seq = new int[N-1];
-        for (size_t n=0; n<N-1; ++n) {
-            kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
-        }
+        // train both Transitions and Emissions
+        if (train) {
+            trainParams(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
+            cout<<"Z:"<<Z<<endl;
 
-        // process read: convert string to int array
-        // N = read.size() + 1; // operate on base transitions
-        // read = "NN" + read + "NN";
-        // int* kmer_seq = new int[N-1];
-        // // cerr<<read<<endl;
-        // for (size_t n=0; n<N-1; ++n) {
-        //     // cerr<<n<<": "<<read.substr(n, kmerSize)<<endl;
-        //     kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
-        // }
-        // cerr<<read<<endl;
-
-        TN = T*N;
-
-        // cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<endl;
-
-        // initialize matrices
-        double* forM = new double[TN];
-        double* forE = new double[TN];
-        double* backM = new double[TN];
-        double* backE = new double[TN];
-        for (size_t i = 0; i<TN; ++i) {
-            forM[i] = -INFINITY;
-            forE[i] = -INFINITY;
-            backM[i] = -INFINITY;
-            backE[i] = -INFINITY;
-        }
-        // calculate segmentation probabilities, fill forward matrices
-        logF(sig, kmer_seq, forM, forE, T, N, model);
-        // calculate segmentation probabilities, fill backward matrices
-        logB(sig, kmer_seq, backM, backE, T, N, model);
-
-        const double Zf = forE[TN-1];
-        const double Zb = backE[0];
-
-        // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-        if (abs(Zf-Zb)/TN > EPSILON || isinf(Zf) || isinf(Zb)) {
-            cerr<<"Z values between matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/(TN)<<" > "<<EPSILON<<", T: "<<T<<", N: "<<N<<endl;
-            cerr.flush();
-            exit(11);
-        }
-        
-        // cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TN<<" <! "<<EPSILON<<endl;
-        const double Z = max(Zf, Zb);
-
-        if (calcZ){
-            cout<<Z/TN<<"\n";
-            cout.flush();
         } else {
-            
-            // train both Transitions and Emissions
-            if (train) {
-                trainParams(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
-                cout<<"Z:"<<Z/TN<<endl;
-                cout.flush();
+            const double* LPM = logP(forM, backM, Z, N); // log probs for segmentation
+            const double* LPE = logP(forE, backE, Z, N); // log probs for extension
+            const list<string> segString = getBorders(LPM, LPE, T, N);
 
-            } else {
-                const double* LPM = logP(forM, backM, Z, N); // log probs for segmentation
-                const double* LPE = logP(forE, backE, Z, N); // log probs for extension
-                list<string> segString = getBorders(LPM, LPE, T, N);
+            for (auto const& seg : segString) {
+                cout<<seg;
+            }
+            cout<<endl;
 
-                for (auto const& seg : segString) {
-                    cout<<seg;
+            // calculate sum of segment probabilities
+            if (prob) {
+                double sum;
+                for (size_t t=0; t<T; ++t) {
+                    sum = -INFINITY;
+                    for (size_t n=0; n<N; ++n) {
+                        sum = logPlus(sum, LPM[t*N+n]);
+                    }
+                    cout<<sum<<",";
                 }
                 cout<<endl;
-                cout.flush();
-
-                // calculate sum of segment probabilities
-                if (prob) {
-                    double sum;
-                    for (size_t t=0; t<T; ++t) {
-                        sum = -INFINITY;
-                        for (size_t n=0; n<N; ++n) {
-                            sum = logPlus(sum, LPM[t*N+n]);
-                        }
-                        cout<<sum<<",";
-                    }
-                    cout<<endl;
-                    cout.flush();
-                }
-
-                // Clean up
-                delete[] LPM;
-                delete[] LPE;
             }
+
+            // Clean up
+            delete[] LPM;
+            delete[] LPE;
         }
-        delete[] forM;
-        delete[] forE;
-        delete[] backM;
-        delete[] backE;
-        delete[] sig;
-        // delete[] seq;
-        delete[] kmer_seq;
     }
+    delete[] forM;
+    delete[] forE;
+    delete[] backM;
+    delete[] backE;
+    delete[] sig;
+    // delete[] seq;
+    delete[] kmer_seq;
+    // }
     return 0;
 }

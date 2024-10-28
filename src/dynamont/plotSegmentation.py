@@ -34,7 +34,6 @@ def parse() -> Namespace:
     # optional
     parser.add_argument('--mode', choices=['basic', 'banded', 'resquiggle'], required=True)
     parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps.model'), help='Kmer model file')
-    parser.add_argument('--minSegLen', type=int, default=1, help='Minmal allowed segment length')
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
     
     return parser.parse_args()
@@ -142,7 +141,7 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
     plt.savefig(join(outpath, readid + '.svg'), dpi=500)
     plt.savefig(join(outpath, readid + '.pdf'), dpi=500)
 
-def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, outdir : str, mode : str, modelpath : str, minSegLen : int, probability : bool, pore : str):
+def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -184,7 +183,6 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     CPP_SCRIPT = join(dirname(__file__), f'{mode}')
 
     PARAMS['m'] = modelpath
-    PARAMS['c'] = minSegLen
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
@@ -201,7 +199,7 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
 
     plotBorders(normSignal, ts, read[::-1], segments, borderProbs, readid, outdir, kmermodels, probability)
 
-def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, minSegLen : int, probability : bool, pore : str) -> tuple:
+def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str) -> tuple:
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
         for basecalled_read in samfile.fetch(until_eof=True):
@@ -229,17 +227,21 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             # print('mean sp:sp+ns', np.mean(r5.getpASignal(readid)[sp:sp+ns]), np.std(r5.getpASignal(readid)[sp:sp+ns]))
             # print('mean sp+ts:sp+ns', np.mean(r5.getpASignal(readid)[sp+ts:sp+ns]), np.std(r5.getpASignal(readid)[sp+ts:sp+ns]))
 
-            normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float16)
+            # normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float32)
+            shift = basecalled_read.get_tag("sm")
+            scale = basecalled_read.get_tag("sd")
+            signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(np.float32)
+            normSignal = (signal - shift) / scale
             normSignal = hampel(normSignal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
-            segmentRead(normSignal, ts, seq[::-1], basecalled_read.query_name, outdir, mode, modelpath, minSegLen, probability, pore)
+            segmentRead(normSignal, ts, seq[::-1], basecalled_read.query_name, outdir, mode, modelpath, probability, pore)
 
 def main() -> None:
     args = parse()
     if not exists(args.outdir):
         makedirs(args.outdir)
-    start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.minSegLen - 1, args.probability, args.pore)
+    start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.probability, args.pore)
 
 if __name__ == '__main__':
     main()

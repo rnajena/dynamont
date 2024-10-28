@@ -922,19 +922,19 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
 
     // Final normalization and averaging of transition parameters
     // newe1=exp(newe1-newe1);
-    double Ae = logPlus(logPlus(logPlus(newa1, news2), logPlus(newe4, newi1)), newp2);
+    const double Ae = logPlus(logPlus(logPlus(newa1, news2), logPlus(newe4, newi1)), newp2);
     newa1=exp(newa1-Ae);
     news2=exp(news2-Ae);
     newe4=exp(newe4-Ae);
     newi1=exp(newi1-Ae);
     newp2=exp(newp2-Ae);
-    double As = logPlus(newe3, newp1);
+    const double As = logPlus(newe3, newp1);
     newe3=exp(newe3-As);
     newp1=exp(newp1-As);
-    double Ap = logPlus(newe2, news1);
+    const double Ap = logPlus(newe2, news1);
     newe2=exp(newe2-Ap);
     news1=exp(news1-Ap);
-    double Ai = logPlus(logPlus(newa2, newi2), logPlus(newp3, news3));
+    const double Ai = logPlus(logPlus(newa2, newi2), logPlus(newp3, news3));
     newa2=exp(newa2-Ai);
     newi2=exp(newi2-Ai);
     newp3=exp(newp3-Ai);
@@ -1047,12 +1047,11 @@ int main(int argc, char* argv[]) {
 
     bool train, calcZ, prob; // atrain
     std::string pore, modelpath;
-    // const std::string TERM_STRING = "$";
 
     // std::cerr precisions
-    std::cerr << std::fixed << std::showpoint << std::setprecision(7);
+    std::cerr << std::fixed << std::showpoint << std::setprecision(5);
     // std::cerr precisions
-    std::cout << std::fixed << std::showpoint << std::setprecision(7);
+    std::cout << std::fixed << std::showpoint << std::setprecision(5);
 
     argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
     program.add_argument("-a1", "--alignscore1"    ).help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a1"]); // a1
@@ -1074,7 +1073,6 @@ int main(int argc, char* argv[]) {
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore used to sequence the data").default_value("rna_r9").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
     // unused, just here to match the other modes
-    program.add_argument("-c", "--minSegLen").help("MinSegLen + 1 is the minimal segment length").default_value(0); //.store_into(C);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob); //.store_into(prob);
 
     program.parse_args(argc, argv);
@@ -1119,19 +1117,13 @@ int main(int argc, char* argv[]) {
 
     stepSize = pow(alphabet_size, kmerSize-1);
     std::string signal, read;
-    // bool truish = 1;
-
-    // while(truish) {
+    
     // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
     // read input, signal and read whitespace separated in single line
     getline(std::cin, signal);
     getline(std::cin, read);
 
-    // break loop if termination character ...
-    // if (signal.find(TERM_STRING) != std::string::npos) {
-    //     return 0;
-    // ... or signal or read is missing
-    // }
+    // exit if wrong input ...
     if (signal.empty()) {
         std::cout<<"Signal missing!"<<std::endl;
         return 1;
@@ -1143,7 +1135,6 @@ int main(int argc, char* argv[]) {
     // process signal T: convert std::string to double std::array
     T = count(signal.begin(), signal.end(), ',')+2; // len(sig) + 1
     double* sig = new double[T-1];
-    std::fill_n(sig, T-1, -INFINITY);
     std::string value;
     std::stringstream ss(signal);
     int i = 0;
@@ -1156,6 +1147,13 @@ int main(int argc, char* argv[]) {
     for (std::size_t n=0; n<N-1; ++n) {
         kmer_seq[n] = kmer2int(read.substr(n, kmerSize), alphabet_size);
     }
+
+    // deallocate memory
+    ss.clear();
+    signal.erase();
+    read.erase();
+    value.erase();
+
     NK = N*K;
     TNK = T*NK;
 
@@ -1233,6 +1231,5 @@ int main(int argc, char* argv[]) {
     delete[] kmer_seq;
     forAPSEI.clear();
     backAPSEI.clear();
-    // }
     return 0;
 }
