@@ -31,25 +31,21 @@ def readKmerModels(filepath : str) -> dict:
         format: {kmer : (mean, stdev)}
     '''
     df = pd.read_csv(filepath, sep='\t')
-    # try:
     models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
-    # except AttributeError:
-    #     df['level_stdv'] = 1.0
-    #     models = pd.Series(zip(df.level_mean.values, df.level_stdv.values), index=df.kmer).to_dict()
     return models
 
-def writeKmerModels(filepath : str, kmerModels : dict) -> dict:
-    '''
-    Writes kmer models to a file
-    '''
+def writeKmerModels(filepath : str, kmerModels : dict) -> None:
+    """Writes the kmer models to a file.
+
+    Args:
+        filepath (str):
+        kmerModels (dict):
+    """
     with open(filepath, 'w') as w:
         w.write('kmer\tlevel_mean\tlevel_stdv\n')
         for kmer in kmerModels:
-            # happens in indel model, when kmer is deleted in all paths
-            mean = kmerModels[kmer][0] # if not np.isnan(kmerModels[kmer][0]) else backUpModel[kmer][0]
-            # safety to very small stdev TODO find another way to fix this? happens in real data, when segment very small - nucleotides do not match signal
-            stdev = kmerModels[kmer][1] # if kmerModels[kmer][1] > 0 else backUpModel[kmer][1]
-
+            mean = kmerModels[kmer][0]
+            stdev = kmerModels[kmer][1]
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
 def getFiles(filepath : str, rec : bool) -> list:
@@ -79,46 +75,6 @@ def getFiles(filepath : str, rec : bool) -> list:
         files.append(str(path))
 
     return files
-
-# def loadBasecalls(bamFile : str, quality : int = None) -> dict:
-#     '''
-#     Parameters
-#     ----------
-#     bamfile : str
-#         basecalls in .bam format from the dorado basecaller
-#     quality : int
-#         add a quality value to filter out reads that have a mean quality value below the given threshold
-
-#     Returns
-#     -------
-#     readDict : dict
-#         {readid : (read, transcript_start)}
-#     '''
-#     readDict = {}
-#     with pysam.AlignmentFile(bamFile, "r" if bamFile.endswith('.sam') else "rb", check_sq=False) as samfile:
-#         for read in samfile.fetch(until_eof=True):
-#             seq = read.query_sequence
-#             rid = read.query_name
-#             ts = read.get_tag("ts")
-            
-#             # skip reads below quality threshold
-#             if quality:
-#                 avg_qual = sum(read.query_qualities) / len(seq)
-#                 if avg_qual < quality:
-#                     continue
-
-#             readDict[rid] = (seq, ts)
-#     return readDict
-
-# def indexBasecalls(bamFile : str, rawFiles : list) -> dict:
-#     idx = {}
-#     with pysam.AlignmentFile(bamFile, "r" if bamFile.endswith('.sam') else "rb", check_sq=False) as samfile:
-#         for basecalled_read in samfile.fetch(until_eof=True):
-#             rid = basecalled_read.query_name
-#             for file in rawFiles:
-#                 if rid in read5.read(file).getReads():
-#                     idx[rid] = file
-#     return idx
 
 def openCPPScript(cpp_script : str) -> Popen:
     '''
@@ -358,7 +314,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offse
     # except:
         # some error during segmentation - no proper output
         # return np.array([])
-    return segments , probs
+    return segments, probs
 
 def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, queue : Queue) -> None:
     '''
@@ -384,33 +340,6 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     output = feedPipe(signal, read, pipe)
     segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
     queue.put(formatSegmentation(readid, signalid, segments))
-
-def feedPipeAsynchronous(signal : np.ndarray, read : str, pipe : Popen) -> str:
-    '''
-    Feeds signal and read to pipe without a stop signal.
-    Uses stdin.write
-    Then reads and returns one line with stdout.readline().
-
-    Params
-    ------
-    signal : np.ndarray
-    read : str
-    pipe : Popen
-
-    Returns
-    -------
-    result : str
-    '''
-    # prepare cookie for segmentation
-    # signal = str(np.around(signal.tolist(), 5).tolist()).replace(' ', '').replace('[', '').replace(']', '')
-    signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
-    cookie = f"{signal}\n{read}\n"
-    # with open("lastCookie.txt", "w") as w:
-    #     w.write(cookie)
-    pipe.stdin.write(cookie)
-    pipe.stdin.flush()
-    result = pipe.stdout.readline()
-    return result
 
 def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int, read : str) -> np.ndarray:
     '''
@@ -456,7 +385,7 @@ def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int,
 
         # convert basepos to 5' -> 3' direction
         pos = len(read) - int(basepos) - 1
-        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, prob, polish])
+        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, float(prob), polish])
 
     return np.array(segments, dtype=object)
 
@@ -483,37 +412,6 @@ def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) 
 def stopFeeding(pipe : Popen) -> None:
     pipe.kill()
     return None
-
-    # if pipe is None:
-    #     return None
-    # if pipe.poll() == 0:
-    #     return None
-    # else:
-    #     try:
-    #         pipe.communicate(input=f'{TERM_STRING}\n{TERM_STRING}\n')
-    #     except:
-    #         pass
-    #     pipe.kill()
-    #     return None
-
-def readPolyAEnd(file : str) -> dict:
-    df = pd.read_csv(file, usecols=['readname', 'transcript_start'], sep='\t')
-    df = df.astype({'readname' : str, 'transcript_start' : int})
-    # df.set_index('readname', inplace=True)
-    return pd.Series(df.transcript_start.values, index=df.readname).to_dict()
-
-def readPolyAStartEnd(file : str) -> dict:
-    '''
-    Returns
-    -------
-    polya : dict
-        {readid : [polyastart, polyaend]}
-    '''
-    df = pd.read_csv(file, usecols=['readname', 'polya_start', 'transcript_start', 'qc_tag'], sep='\t')
-    # filter for good quality reads, set by nanopolish
-    df = df[df['qc_tag'] == "PASS"]
-    df = df.astype({'readname' : str, 'polya_start' : int, 'transcript_start' : int})
-    return pd.Series([[a,b] for a,b in zip(df.polya_start.values, df.transcript_start.values)], index=df.readname).to_dict()
 
 def plotParameters(param_file : str, outdir : str) -> None:
     import matplotlib
