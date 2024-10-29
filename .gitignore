@@ -65,3 +65,4 @@ src/edgeDetection/edge_meanstd.svg
 src/edgeDetection/gaus.ipynb
 src/edgeDetection/edgeWavelet.svg
 old/
+test/__pycache__/
