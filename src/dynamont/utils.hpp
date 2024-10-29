@@ -147,6 +147,17 @@ const std::unordered_map<int, char> ID2BASE = {
     {'4', 'N'}
 }; // Token : Nucleotide map
 
+// https://stackoverflow.com/questions/72807569/set-default-value-of-unordered-map-if-key-doesnt-exist/72807851#72807851
+// workaround to change default double value in map from 0 to -INFINITY
+class dproxy {
+    double value_;
+public:
+    dproxy(double value = -INFINITY)
+    : value_{value} {}
+    operator double () { return value_; }
+    operator double const () const { return value_; }
+};
+
 /**
  * Sorts the column indices of a row-major-indexed double matrix.
  * Complexity is O(C * log(C)), see https://en.cppreference.com/w/cpp/algorithm/stable_sort.
