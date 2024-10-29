@@ -168,7 +168,7 @@ public:
  * 
  * @return std::size_t std::vector with the sorted index of column in descending order
  */
-std::vector<std::size_t> column_argsort(const double* matrix, const std::size_t C, const std::size_t t);
+std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t C, const std::size_t t);
 
 /**
  * C++ version 0.4 std::std::string style "itoa":
@@ -346,7 +346,7 @@ inline double scoreKmer(const float signal, const std::size_t kmer, const std::v
  * @param transitions A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double>& default_transitions_vals, std::unordered_map<std::string, double>& transitions);
+void updateTransitions(const std::unordered_map<std::string, double> &default_transitions_vals, std::unordered_map<std::string, double> &transitions);
 
 // Function to calculate the median of a std::vector
-double calculateMedian(std::vector<double>& vec);
+double calculateMedian(std::vector<double> &vec);

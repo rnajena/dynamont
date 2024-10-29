@@ -16,7 +16,7 @@
  * 
  * @return std::size_t std::vector with the sorted index of column in descending order
  */
-std::vector<std::size_t> column_argsort(const double* matrix, const std::size_t C, const std::size_t t) {
+std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t C, const std::size_t t) {
     // Initialize original index locations (indices correspond to C)
     std::vector<std::size_t> idx(C);
     iota(idx.begin(), idx.end(), 0);
@@ -167,7 +167,7 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
  * @param transitions A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double>& default_transitions_vals, std::unordered_map<std::string, double>& transitions) {
+void updateTransitions(const std::unordered_map<std::string, double> &default_transitions_vals, std::unordered_map<std::string, double> &transitions) {
     // Iterate over each transition in the 'transitions' std::unordered_map
     for (const auto &[param, value] : transitions) {
         // Check if the transition value is -1, which indicates it should use the default value
@@ -181,7 +181,7 @@ void updateTransitions(const std::unordered_map<std::string, double>& default_tr
 }
 
 // Function to calculate the median of a std::vector
-double calculateMedian(std::vector<double>& vec) {
+double calculateMedian(std::vector<double> &vec) {
     const std::size_t size = vec.size();
 
     // Sort the std::vector
