@@ -25,7 +25,7 @@ def parse() -> Namespace:
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'banded', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     parser.add_argument('--processes', type=int, default=None, help='Number of processes to use for segmentation')
-    parser.add_argument('--model_path', type=str, help='Which kmer model to use for segmentation')
+    parser.add_argument('--model_path', type=str, required=True, help='Which kmer model to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
     parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
     return parser.parse_args()

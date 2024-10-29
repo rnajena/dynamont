@@ -20,8 +20,6 @@ from hampel import hampel
 import pysam
 from scipy.stats import median_abs_deviation as mad
 
-STANDARDONTMODEL = pd.read_csv("/home/yi98suv/projects/dynamont/data/template_median69pA_extended.model", sep='\t', index_col = "kmer")
-
 def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
@@ -32,8 +30,8 @@ def parse() -> Namespace:
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
     parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
     # optional
-    parser.add_argument('--mode', choices=['basic', 'banded', 'resquiggle'], required=True)
-    parser.add_argument('--model_path', type=str, default=join(dirname(__file__), '..', '..', 'data', 'norm_models', 'rna_r9.4_180mv_70bps.model'), help='Kmer model file')
+    parser.add_argument('--model_path', type=str, required=True, help='Kmer model file')
+    parser.add_argument('--mode', required=True, choices=['basic', 'banded', 'resquiggle'])
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
     
     return parser.parse_args()

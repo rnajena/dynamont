@@ -57,7 +57,7 @@ def parse() -> Namespace:
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'banded', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     # optional
-    parser.add_argument('--model_path', type=str, help='Which initial kmer models to use for training')
+    parser.add_argument('--model_path', type=str, required=True, help='Which initial kmer models to use for training')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of training epochs')
