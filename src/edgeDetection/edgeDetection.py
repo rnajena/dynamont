@@ -12,6 +12,7 @@ from hampel import hampel
 import pysam
 import pywt
 from os.path import join
+import multiprocessing as mp
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -20,6 +21,7 @@ def parse() -> Namespace:
     parser.add_argument("-r", "--raw", type=str, required=True, metavar="FAST5|SLOW5|POD5", help="Input raw file format (FAST5, SLOW5, POD5)")
     parser.add_argument("-b", "--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as.bam file")
     parser.add_argument("-o", "--output", type=str, required=True, metavar="HDF5", help="Output HDF5 file")
+    parser.add_argument("-p", "--processes", type=int, default=mp.cpu_count(), metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
 def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 1.1) -> np.ndarray:
@@ -55,7 +57,39 @@ def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 
 
     return np.array(final_peaks)
 
-def wavelet(raw : str, basecalls : str, output_file: str) -> None:
+def writer(h5file : str, q : mp.Queue) -> None:
+    with h5py.File(h5file, 'w') as hdf:
+        i = 0
+        while True:
+            signalid, waveletEdges = q.get()
+
+            if signalid == 'kill':
+                break
+
+            i+=1
+
+            print(f"Extracting edges for {i} reads", end='\r')
+        
+            key = f'{signalid}/waveletEdge'
+            # save to hdf5 file
+            if not signalid in hdf.keys():
+                hdf.create_dataset(key, data=waveletEdges, maxshape=(None,), dtype = 'f')
+            else:
+                current_shape = hdf[key].shape[0]
+                new_shape = current_shape + len(waveletEdges)
+                hdf[key].resize(new_shape, axis=0)
+                hdf[key][current_shape:new_shape] = waveletEdges
+
+        print()
+        
+def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, queue : mp.Queue) -> None:
+    r5 = read5.read(rawFile)
+    signal = r5.getpASignal(signalid).astype(np.float32)
+    filtered = hampel(signal, 6, 5.).filtered_data
+    waveletEdges = waveletPeaks(filtered[start:end], 'gaus1', threshold) + start
+    queue.put((signalid, waveletEdges))
+        
+def wavelet(raw : str, basecalls : str, output_file: str, processes : int) -> None:
     """
     Processes raw signal data and basecalls to detect edges using the wavelet transform and stores the results in an HDF5 file.
 
@@ -69,49 +103,41 @@ def wavelet(raw : str, basecalls : str, output_file: str) -> None:
     ---
     None: This function does not return any value. It writes the detected wavelet edges to the specified HDF5 file.
     """
-    oldFile = None
-    with h5py.File(output_file, 'w') as hdf:
-        with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-
-            for i, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
-                # if (i+1) % 100 == 0:
-                print(f"Extracting edges for read {i+1}...", end='\r')
-
-                readid = basecalled_read.query_name
-                signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-                sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # start sample of split read by the basecaller
-                ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
-                ts = basecalled_read.get_tag("ts") # start sample of basecalling
-                rawFile = join(raw, basecalled_read.get_tag("fn"))
-                
-                if rawFile != oldFile:
-                    r5 = read5.read(rawFile)
-                    oldFile = rawFile
-
-                shift = basecalled_read.get_tag("sm")
-                scale = basecalled_read.get_tag("sd")
-                signal = r5.getpASignal(signalid).astype(np.float32)
-                signal = (signal - shift) / scale
-                filtered = hampel(signal, 6, 5.).filtered_data
-
-                waveletEdges = waveletPeaks(filtered[sp+ts:sp+ns]) + (ts + sp)
-
-                key = f'{signalid}/waveletEdge'
-                # save to hdf5 file
-                if not signalid in hdf.keys():
-                    hdf.create_dataset(key, data=waveletEdges, maxshape=(None,), dtype = 'f')
-                else:
-                    current_shape = hdf[key].shape[0]
-                    new_shape = current_shape + len(waveletEdges)
-                    hdf[key].resize(new_shape, axis=0)
-                    hdf[key][current_shape:new_shape] = waveletEdges
+    # processes = 40
+    pool = mp.Pool(processes)
+    queue = mp.Manager().Queue()
+    watcher = pool.apply_async(writer, (output_file, queue))
+    jobs = [None for _ in range(processes - 1)]
+    
+    with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
+        for i, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
+            readid = basecalled_read.query_name
+            signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
+            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # start sample of split read by the basecaller
+            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
+            ts = basecalled_read.get_tag("ts") # start sample of basecalling
+            rawFile = join(raw, basecalled_read.get_tag("fn"))
+            # shift = basecalled_read.get_tag("sm")
+            scale = basecalled_read.get_tag("sd")
+            # signal = (signal - shift) / scale
+    
+            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 1.1*scale, queue))
+        
+    for job in jobs:
+        job.get()
+    
+    queue.put(('kill', None))
+    watcher.get()
+        
+    pool.close()
+    pool.join()
 
     print(f'Done extracting edges for {i} reads')
 
 def main() -> None:
     args = parse()
     print('Start extracting')
-    wavelet(args.raw, args.basecalls, args.output)
+    wavelet(args.raw, args.basecalls, args.output, args.processes)
 
 if __name__ == '__main__':
     main()
