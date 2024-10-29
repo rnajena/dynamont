@@ -64,3 +64,4 @@ src/dynamont/dynamont_TK
 src/edgeDetection/edge_meanstd.svg
 src/edgeDetection/gaus.ipynb
 src/edgeDetection/edgeWavelet.svg
+old/
