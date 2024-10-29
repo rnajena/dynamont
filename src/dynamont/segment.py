@@ -45,13 +45,31 @@ def listener(q : mp.Queue, outfile : str):
 
             i+=1
 
-            if i%100==0:
-                print(f"Segmented {i} reads", end='\r')
-                f.flush()
+            # if i%100==0:
+            print(f"Segmented {i} reads", end='\r')
 
             f.write(m)
 
     print(f'Segmented {i} reads\n')
+
+def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
+    
+    r5 = read5.read(rawFile)
+    signal = r5.getpASignal(readid)[start:end]
+    signal = (signal - shift) / scale
+    
+    feedSegmentationAsynchronous(
+                script,
+                {'m': modelpath, 'r' : pore},
+                signal,
+                read[::-1],
+                start,
+                readid,
+                signalid,
+                q
+                )
+
+    r5.close()
 
 def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
 
@@ -62,8 +80,7 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
     queue = mp.Manager().Queue()
     watcher = pool.apply_async(listener, (queue, outfile))
     qualSkipped = 0
-    noMatchingReadid = 0
-    oldFile = None
+    # noMatchingReadid = 0
     jobs = [None for _ in range(processes)]
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
@@ -79,41 +96,34 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
             readid = basecalled_read.query_name
             # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
             signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-            seq = basecalled_read.query_sequence[::-1] # change direction from 5' - 3' to 3' - 5'
+            seq = basecalled_read.query_sequence # change direction from 5' - 3' to 3' - 5'
             ts = basecalled_read.get_tag("ts")
             ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling for this readid
             sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
             rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+            shift = basecalled_read.get_tag("sm")
+            scale = basecalled_read.get_tag("sd")
 
-            if oldFile != rawFile:
-                oldFile = rawFile
-                r5 = read5.read(rawFile)
+            jobs[bi % processes] = pool.apply_async(
+                asyncSegmentation, (
+                    queue,
+                    CPP_SCRIPT,
+                    modelpath,
+                    pore,
+                    rawFile,
+                    shift,
+                    scale,
+                    sp+ts,
+                    sp+ns,
+                    seq,
+                    readid,
+                    signalid
+                    )
+                )
 
-            try:
-                # signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float32)
-                shift = basecalled_read.get_tag("sm")
-                scale = basecalled_read.get_tag("sd")
-                signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(float32)
-                signal = (signal - shift) / scale
-
-            except:
-                noMatchingReadid+=1
-                continue
-
-            jobs[bi % processes] = pool.apply_async(feedSegmentationAsynchronous, (
-                CPP_SCRIPT,
-                {'m': modelpath, 'r' : pore},
-                signal,
-                seq,
-                sp+ts,
-                readid,
-                signalid,
-                queue
-                ))
-
-        # wait for last job batch to finish
-        for job in jobs:
-            job.get()
+    # wait for last job batch to finish
+    for job in jobs:
+        job.get()
         
     # tell queue to terminate
     queue.put("kill")
@@ -121,7 +131,7 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
     pool.close()
     pool.join()
     
-    print(f"Skipped reads: low quality: {qualSkipped}\treadid not found (possible split read): {noMatchingReadid}")
+    print(f"Skipped reads: low quality: {qualSkipped}")
 
 def main() -> None:
     args = parse()

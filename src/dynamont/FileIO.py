@@ -238,17 +238,9 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     -------
     result : str
     '''
-    # print("Debug", "Signal length", len(signal), "Read length", len(read))
-
-    # prepare cookie for segmentation
-    # signal = str(np.around(signal.tolist(), 5).tolist()).replace(' ', '').replace('[', '').replace(']', '')
-    # signal = str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '')
     signal = ",".join([f'{x:.5f}' for x in signal])
     cookie = f"{signal}\n{read}\n{TERM_STRING}\n{TERM_STRING}\n"
     result = pipe.communicate(input=cookie)[0]
-    # stopFeeding(pipe)
-    # with open("lastCookie.txt", "w") as w:
-    #     w.write(cookie)
     return result
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
@@ -482,13 +474,11 @@ def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) 
     table : str
         string to write in a segmentation result file
     '''
-    # if model is not None:
-    #     params = {"m" : model}
-    # segmentation = feedSegmentation(signal, read, script, params)
-    table = ''
+    lines = []
     for segment in segmentation:
-        table += readid + ',' + signalid + ',' + ','.join(list(map(str, segment))) + '\n'
-    return table
+        line = f"{readid},{signalid}," + ','.join(map(str, segment))
+        lines.append(line)
+    return '\n'.join(lines) + '\n'
 
 def stopFeeding(pipe : Popen) -> None:
     pipe.kill()
