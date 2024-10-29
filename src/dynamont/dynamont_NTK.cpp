@@ -508,7 +508,7 @@ std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logF(const double *s
 //  * @param N length of nucleotide sequence + 1
 //  * @param model map containing kmers as keys and (mean, stdev) tuples as values
 //  */
-std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logB(const double *sig, const int *kmer_seq, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::vector<std::tuple<double, double>> &model){
+std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logB(const double *sig, const int *kmer_seq, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::vector<std::tuple<double, double>> &model){
     std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> backAPSEI;
     for(auto tnk = allowedKeys.rbegin(); tnk != allowedKeys.rend(); ++tnk){
         const std::size_t t = *tnk/NK;
@@ -973,7 +973,7 @@ std::tuple<double*, double*> trainEmission(const double* sig, const std::unorder
     return std::tuple<double*, double*>({means, stdevs});
 }
 
-void trainParams(const double *sig, const int *kmer_seq, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, std::vector<std::tuple<double, double>> &model) {
+void trainParams(const double *sig, const int *kmer_seq, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, std::vector<std::tuple<double, double>> &model) {
 
     // newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2
     auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmer_seq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
