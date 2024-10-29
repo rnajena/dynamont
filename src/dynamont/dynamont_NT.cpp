@@ -421,7 +421,7 @@ int main(int argc, char* argv[]) {
             const double* LPE = logP(forE, backE, Zb, TN); // log probs for extension
             const std::list<std::string> segString = getBorders(LPM, LPE, T, N, kmerSize);
 
-            for (auto const& seg : segString) {
+            for (const auto& seg : segString) {
                 std::cout<<seg;
             }
             std::cout<<std::endl;
