@@ -46,7 +46,7 @@ std::vector<std::size_t> column_argsort(const double* matrix, const std::size_t 
 */
 std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize) {
     std::string buf;
-    int base = alphabet_size;
+    const int base = alphabet_size;
 
     // check that the base if valid
     if (base < 2 || base > 16) return std::to_string(value);
@@ -83,7 +83,7 @@ std::string itoa(const std::size_t value, const int alphabet_size, const int kme
  */
 int kmer2int(const std::string &s, const int alphabet_size) {
     int ret = 0;
-    for(char const &c:s){
+    for(const char &c:s){
         // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
         ret*=alphabet_size; // move the number in base to the left
         ret+=BASE2ID.at(c);
@@ -122,12 +122,11 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
     }
     inputFile.close();
 
-    int alphabet_size = (int) uniqueChars.size();
-    std::size_t numKmers = pow(alphabet_size, kmerSize);
+    const int alphabet_size = (int) uniqueChars.size();
+    const std::size_t numKmers = pow(alphabet_size, kmerSize);
     uniqueChars.clear(); // Clear the unique character std::set (no longer needed) to free up memory
 
     std::vector<std::tuple<double, double>> model(numKmers);
-    double mean, stdev;
     inputFile.open(file);  // Reopen the file for the second pass
 
     // Read through the file to populate the model with (mean, stdev) for each kmer
@@ -141,9 +140,9 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
         // new models are stored in 5' - 3'
         reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
         getline(buffer, tmp, '\t'); // level_mean
-        mean = stod(tmp);
+        const double mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
-        stdev = stod(tmp);
+        const double stdev = stod(tmp);
         // model.push_back(std::make_tuple(mean, stdev));
         model[kmer2int(kmer, alphabet_size)]=std::make_tuple(mean, stdev);
     }
@@ -183,7 +182,7 @@ void updateTransitions(const std::unordered_map<std::string, double>& default_tr
 
 // Function to calculate the median of a std::vector
 double calculateMedian(std::vector<double>& vec) {
-    std::size_t size = vec.size();
+    const std::size_t size = vec.size();
 
     // Sort the std::vector
     std::sort(vec.begin(), vec.end());
