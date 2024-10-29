@@ -8,10 +8,10 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import numpy as np
 from os.path import exists, join, dirname
 from os import makedirs, name
-from FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels
+from FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampel_filter
 import read5
 import multiprocessing as mp
-from hampel import hampel
+# from hampel import hampel
 from datetime import datetime
 from collections import deque
 import pysam
@@ -166,7 +166,8 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         except:
                             noMatchingReadid+=1
                             continue
-                        signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+                        # signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+                        signal = hampel_filter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         mp_items.append([signal, seq[::-1], transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, readid])
                         training_readids.append(readid)
 

@@ -14,9 +14,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
-from dynamont.FileIO import feedSegmentation, SegmentationError
+from dynamont.FileIO import feedSegmentation, SegmentationError, hampel_filter
 import read5
-from hampel import hampel
 import pysam
 from scipy.stats import median_abs_deviation as mad
 
@@ -230,7 +229,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             scale = basecalled_read.get_tag("sd")
             signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(np.float32)
             normSignal = (signal - shift) / scale
-            normSignal = hampel(normSignal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+            normSignal = hampel_filter(normSignal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
             segmentRead(normSignal, ts, seq[::-1], basecalled_read.query_name, outdir, mode, modelpath, probability, pore)

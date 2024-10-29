@@ -8,7 +8,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name
 import read5.AbstractFileReader
-from FileIO import feedSegmentationAsynchronous
+from FileIO import feedSegmentationAsynchronous, hampel_filter
 import read5
 import multiprocessing as mp
 import pysam
@@ -57,6 +57,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     r5 = read5.read(rawFile)
     signal = r5.getpASignal(readid)[start:end]
     signal = (signal - shift) / scale
+    signal = hampel_filter(signal)
     
     feedSegmentationAsynchronous(
                 script,

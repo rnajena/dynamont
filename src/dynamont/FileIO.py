@@ -16,6 +16,41 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from multiprocessing import Queue
 
+def hampel_filter(signal, window_size=3, n_sigmas=3):
+    """
+    Apply Hampel filter to detect and replace outliers in a signal.
+
+    Parameters:
+        signal (np.ndarray): The input signal (1D array).
+        window_size (int): The size of the sliding window. Defaults to 3.
+        n_sigmas (float): The threshold in terms of standard deviations (MAD).
+                          Defaults to 3, which is commonly used.
+
+    Returns:
+        np.ndarray: The filtered signal with outliers replaced.
+    """
+    # Copy the signal to avoid modifying the original
+    filtered_signal = signal.copy()
+    
+    # Half window size for sliding
+    k = 1.4826  # Constant to convert MAD to standard deviation
+    half_window = window_size // 2
+    
+    # Loop over the signal with a sliding window
+    for i in range(half_window, len(signal) - half_window):
+        # Define the current window around the ith element
+        window = signal[i - half_window : i + half_window + 1]
+        
+        # Calculate the median and MAD of the window
+        median = np.median(window)
+        mad = k * np.median(np.abs(window - median))
+        
+        # Identify and replace outliers
+        if np.abs(signal[i] - median) > n_sigmas * mad:
+            filtered_signal[i] = median  # Replace with the median value
+    
+    return filtered_signal
+
 class SegmentationError(Exception):
     """Raised when no segmentation was calculated for a read"""
     def __init__(self, read) -> None:
