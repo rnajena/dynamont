@@ -139,10 +139,10 @@ void funcM(const std::size_t t, const std::size_t n, const dproxy* M, const dpro
     const double score = M[t*N+n];
     const double logScore = LPM[t*N+n];
     segProb.push_back(exp(logScore));
-    if (t<=1 && n<=1) [[unlikely]] { // Start value
-        segString->push_front("M0,0," + std::to_string(calculateMedian(segProb)) + ";"); // n-1 because N is 1 larger than the sequences
-        return;
-    }
+    // if (t<=1 && n<=1) [[unlikely]] { // Start value
+    //     segString->push_front("M0,0," + std::to_string(calculateMedian(segProb)) + ";"); // n-1 because N is 1 larger than the sequences
+    //     return;
+    // }
     if (t>0 && n>0 && score == E[(t-1)*N+(n-1)] + logScore) [[likely]] {
         segString->push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + ";");
         segProb.clear();
@@ -224,7 +224,7 @@ std::tuple<double*, double*> trainEmission(const double* sig, const int* kmer_se
             s = logPlus(s, G[t*N+n]);
         }
         for (std::size_t n=0; n<=t && n<N; ++n){
-            if (!isinf(s)) {
+            if (!std::isinf(s)) {
                 G[t*N+n] -= s;
             }
         }
@@ -400,7 +400,7 @@ int main(int argc, char* argv[]) {
     const double Zb = backE[0];
 
     // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-    if (abs(Zf-Zb)/TN > EPSILON || isinf(Zf) || isinf(Zb)) {
+    if (abs(Zf-Zb)/TN > EPSILON || std::isinf(Zf) || std::isinf(Zb)) {
         std::cerr<<"Z values between matrices do not match! Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/(TN)<<" > "<<EPSILON<<std::endl;
         exit(11);
     }

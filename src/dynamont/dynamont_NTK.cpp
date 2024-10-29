@@ -663,10 +663,10 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const 
     const double score = APSEI.at(currentIdx)[0];
     const double logScore = logAPSEI.at(currentIdx)[0];
     segProb.push_back(exp(logScore));
-    if (t<=1 && n<=1){ // Start value
-        segString->push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
-        return;
-    }
+    // if (t<=1 && n<=1){ // Start value
+    //     segString->push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+    //     return;
+    // }
     for(std::size_t preKmer=precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
         if (t>1 && n>1) {
             // Check match with E state
