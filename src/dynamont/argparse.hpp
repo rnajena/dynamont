@@ -996,7 +996,6 @@ public:
    */
   void validate() const {
     if (m_is_optional) {
-      // TODO: check if an implicit value was programmed for this argument
       if (!m_is_used && !m_default_value.has_value() && m_is_required) {
         throw_required_arg_not_used_error();
       }
