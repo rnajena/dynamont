@@ -52,11 +52,11 @@ std::unordered_map<std::string, double> transitions = {
 // necessary for INFINITY usage
 static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
 
-void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb);
-void funcP(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb);
-void funcS(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb);
-void funcE(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb);
-void funcI(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb);
+void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+void funcP(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+void funcS(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+void funcE(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+void funcI(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
 
 // ===============================================================
 // ===============================================================
@@ -148,7 +148,7 @@ std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logP(const std::unor
     return logAPSEI;
 }
 
-double* logP(const dproxy* forM, const dproxy* backM, const dproxy* forE, const dproxy* backE, const std::size_t N, const std::size_t T, const double Z){
+double* logP(const dproxy *forM, const dproxy *backM, const dproxy *forE, const dproxy *backE, const std::size_t N, const std::size_t T, const double Z){
     double* LP = new double[T*N];
     for(std::size_t tn=0; tn<T*N; ++tn){
         const double valM = forM[tn] + backM[tn] - Z;
@@ -173,7 +173,7 @@ double* logP(const dproxy* forM, const dproxy* backM, const dproxy* forE, const 
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-std::tuple<dproxy*, dproxy*> ppForTN(const double* sig, const int* kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model){
+std::tuple<dproxy*, dproxy*> ppForTN(const double *sig, const int *kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model){
     dproxy* M = new dproxy[T*N];
     dproxy* E = new dproxy[T*N];
     E[0] = 0;
@@ -198,7 +198,7 @@ std::tuple<dproxy*, dproxy*> ppForTN(const double* sig, const int* kmer_seq, con
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-std::tuple<dproxy*, dproxy*> ppBackTN(const double* sig, const int* kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model) {
+std::tuple<dproxy*, dproxy*> ppBackTN(const double *sig, const int *kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model) {
     dproxy* M = new dproxy[T*N];
     dproxy* E = new dproxy[T*N];
     E[T*N-1] = 0;
@@ -229,7 +229,7 @@ std::tuple<dproxy*, dproxy*> ppBackTN(const double* sig, const int* kmer_seq, co
  * @param K number of allowed kmers
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-std::tuple<dproxy*, dproxy*> ppForTK(const double* sig, const std::size_t T, const std::size_t K, const std::vector<std::tuple<double, double>> &model){
+std::tuple<dproxy*, dproxy*> ppForTK(const double *sig, const std::size_t T, const std::size_t K, const std::vector<std::tuple<double, double>> &model){
     dproxy* M = new dproxy[T*K];
     dproxy* E = new dproxy[T*K];
     
@@ -263,7 +263,7 @@ std::tuple<dproxy*, dproxy*> ppForTK(const double* sig, const std::size_t T, con
  * @param K number of allowed kmers
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-std::tuple<dproxy*, dproxy*> ppBackTK(const double* sig, const std::size_t T, const std::size_t K, const std::vector<std::tuple<double, double>> &model) {
+std::tuple<dproxy*, dproxy*> ppBackTK(const double *sig, const std::size_t T, const std::size_t K, const std::vector<std::tuple<double, double>> &model) {
     dproxy* M = new dproxy[T*K];
     dproxy* E = new dproxy[T*K];
 
@@ -651,12 +651,12 @@ std::list<std::string> getBorders(const std::unordered_map<std::size_t, std::arr
 
     std::list<std::string> segString;
     std::vector<double> segProb;
-    funcE(T-1, N-1, hk, APSEI, logAPSEI, &segString, K, segProb);
+    funcE(T-1, N-1, hk, APSEI, logAPSEI, segString, K, segProb);
     APSEI.clear();
     return segString;
 }
 
-void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb){
+void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb){
     const std::size_t currentIdx = t*NK+n*K+k;
     const std::size_t prevIdx  = (t-1)*NK+(n-1)*K;
     // Cache the score value to avoid redundant lookups
@@ -664,20 +664,20 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const 
     const double logScore = logAPSEI.at(currentIdx)[0];
     segProb.push_back(exp(logScore));
     // if (t<=1 && n<=1){ // Start value
-    //     segString->push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+    //     segString.push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
     //     return;
     // }
     for(std::size_t preKmer=precessingKmer(k, 0, stepSize, alphabet_size); preKmer<K; preKmer+=stepSize) {
         if (t>1 && n>1) {
             // Check match with E state
             if (score == APSEI.at(prevIdx+preKmer)[3] + logScore){
-                segString->push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcE(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI.at(prevIdx+preKmer)[4] + logScore){
-                segString->push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcI(t-1, n-1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
@@ -687,7 +687,7 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, const 
     std::cerr<<"Error in backtracing funcA!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
-void funcE(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb){
+void funcE(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb){
     const std::size_t currentIdx = NK*t+n*K+k;
     const std::size_t prevIdx  = NK*(t-1)+n*K+k;
     // Cache the score value to avoid redundant lookups
@@ -719,7 +719,7 @@ void funcE(const std::size_t t, const std::size_t n, const std::size_t k, const 
     std::cerr<<"Error in backtracing funcE!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
-void funcP(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb) {
+void funcP(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb) {
     // Precompute commonly used indices and values
     const std::size_t currentIdx = t*NK+n*K+k;
     const double score = APSEI.at(currentIdx)[1];
@@ -731,19 +731,19 @@ void funcP(const std::size_t t, const std::size_t n, const std::size_t k, const 
             const std::size_t prevIdx = prevBaseIdx + preKmer;
             // Check match with E state
             if (score == APSEI.at(prevIdx)[3] + logScore) {
-                segString->push_front("P" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("P" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcE(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with S state
             if (score == APSEI.at(prevIdx)[2] + logScore) {
-                segString->push_front("P" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("P" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcS(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI.at(prevIdx)[4] + logScore) {
-                segString->push_front("P" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("P" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
                 segProb.clear();
                 return funcI(t-1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
@@ -753,7 +753,7 @@ void funcP(const std::size_t t, const std::size_t n, const std::size_t k, const 
     std::cerr << "Error in backtracing funcP!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
-void funcS(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb) {
+void funcS(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb) {
     const std::size_t currentIdx = NK*t+n*K+k;
     const std::size_t prevIdx = NK*(t-1)+(n-1)*K+k;
     // Cache score and logScore to avoid repeated map lookups
@@ -763,17 +763,17 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, const 
     if (t>0 && n>0) {
         // Check match with E state
         if (score == APSEI.at(prevIdx)[3] + logScore) {
-            // segString->push_front("S" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcE(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with P state
         if (score == APSEI.at(prevIdx)[1] + logScore) {
-            // segString->push_front("S" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcP(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with I state
         if (score == APSEI.at(prevIdx)[4] + logScore) {
-            // segString->push_front("S" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcI(t-1, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -781,7 +781,7 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, const 
     std::cerr << "Error in backtracing funcS!: t: "<<t<<", n: "<<n<<", k: "<<k<<"\n";
 }
 
-void funcI(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string>* segString, const std::size_t K, std::vector<double> &segProb) {
+void funcI(const std::size_t t, const std::size_t n, const std::size_t k, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb) {
     const std::size_t currentIdx = NK*t+n*K+k;
     const std::size_t prevIdx = NK*t+(n-1)*K+k;
     // Cache the score and logScore to avoid repeated lookups
@@ -791,12 +791,12 @@ void funcI(const std::size_t t, const std::size_t n, const std::size_t k, const 
     if (t>0 && n>0) {
         // Check match with I state
         if (score == APSEI.at(prevIdx)[4] + logScore) {
-            // segString->push_front("I" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("I" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcI(t, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         } 
         // Check match with E state
         if (score == APSEI.at(prevIdx)[3] + logScore) {
-            // segString->push_front("I" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("I" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcE(t, n-1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -900,7 +900,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
 /**
  * Train emission parameter with baum welch algorithm
 */
-std::tuple<double*, double*> trainEmission(const double* sig, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K) {
+std::tuple<double*, double*> trainEmission(const double *sig, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K) {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
