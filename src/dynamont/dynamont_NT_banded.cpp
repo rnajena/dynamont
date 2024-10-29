@@ -21,8 +21,8 @@
 
 // using namespace std;
 
-void funcM(const std::size_t t, const std::size_t n, const dproxy* M, const dproxy* E, const double* LPM, const double* LPE, std::list<std::string>* segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
-void funcE(const std::size_t t, const std::size_t n, const dproxy* M, const dproxy* E, const double* LPM, const double* LPE, std::list<std::string>* segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
+void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
+void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
 
 inline constexpr double EPSILON = 1e-2; // chose by eye just to distinguish real errors from numeric errors
 inline constexpr std::size_t BANDEDDPWINDOW = 150; // Banded DP approach: Window size around the maximum, adjust as needed
@@ -46,7 +46,7 @@ static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-std::tuple<dproxy*, dproxy*> logF(const double* sig, const int* kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>>& model){
+std::tuple<dproxy*, dproxy*> logF(const double *sig, const int *kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model){
     dproxy* M = new dproxy[T*N];
     dproxy* E = new dproxy[T*N];
     E[0] = 0;
@@ -92,7 +92,7 @@ std::tuple<dproxy*, dproxy*> logF(const double* sig, const int* kmer_seq, const 
  * @param N length of nucleotide sequence + 1
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  */
-std::tuple<dproxy*, dproxy*> logB(const double* sig, const int* kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>>& model) {
+std::tuple<dproxy*, dproxy*> logB(const double *sig, const int *kmer_seq, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model) {
     dproxy* M = new dproxy[T*N];
     dproxy* E = new dproxy[T*N];
     E[T*N-1] = 0;
@@ -163,7 +163,7 @@ double* logP(const dproxy* FOR, const dproxy* BACK, const double Z, const std::s
  * Calculate the maximum a posteriori path through LP
  *
  */
-std::list<std::string> getBorders(const double* LPM, const double* LPE, const std::size_t T, const std::size_t N, const int kmerSize){
+std::list<std::string> getBorders(const double *LPM, const double *LPE, const std::size_t T, const std::size_t N, const int kmerSize){
     dproxy* M = new dproxy[T*N];
     dproxy* E = new dproxy[T*N];
 
@@ -176,28 +176,28 @@ std::list<std::string> getBorders(const double* LPM, const double* LPE, const st
     }
     std::list<std::string> segString;
     std::vector<double> segProb;
-    funcE(T-1, N-1, M, E, LPM, LPE, &segString, N, segProb, kmerSize);
+    funcE(T-1, N-1, M, E, LPM, LPE, segString, N, segProb, kmerSize);
     delete[] M;
     delete[] E;
     return segString;
 }
 
-void funcM(const std::size_t t, const std::size_t n, const dproxy* M, const dproxy* E, const double* LPM, const double* LPE, std::list<std::string>* segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize){
+void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize){
     const double score = M[t*N+n];
     const double logScore = LPM[t*N+n];
     segProb.push_back(exp(logScore));
     // if (t<=0 && n<=0){ // Start value
-    //     segString->push_front("M0,0," + std::to_string(calculateMedian(segProb)) + ";"); // n-1 because N is 1 larger than the sequences
+    //     segString.push_front("M0,0," + std::to_string(calculateMedian(segProb)) + ";"); // n-1 because N is 1 larger than the sequences
     //     return;
     // }
     if (t>0 && n>0 && score == E[(t-1)*N+(n-1)] + logScore){
-        segString->push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + ";");
+        segString.push_front("M" + std::to_string(n-1+kmerSize/2) + "," + std::to_string(t-1) + "," + std::to_string(calculateMedian(segProb)) + ";");
         segProb.clear();
         return funcE(t-1, n-1, M, E, LPM, LPE, segString, N, segProb, kmerSize);
     }
 }
 
-void funcE(const std::size_t t, const std::size_t n, const dproxy* M, const dproxy* E, const double* LPM, const double* LPE, std::list<std::string>* segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize){
+void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize){
     const double score = E[t*N+n];
     const double logScore = LPE[t*N+n];
     segProb.push_back(exp(logScore));
@@ -214,7 +214,7 @@ void funcE(const std::size_t t, const std::size_t n, const dproxy* M, const dpro
 /**
  * Train transition parameter with baum welch algorithm
 */
-std::tuple<double, double, double> trainTransition(const double* sig, const int* kmer_seq, const dproxy* forM, const dproxy* forE, const dproxy* backM, const dproxy* backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>>& model) {
+std::tuple<double, double, double> trainTransition(const double *sig, const int *kmer_seq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model) {
     // Transition parameters
     double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
 
@@ -245,7 +245,7 @@ std::tuple<double, double, double> trainTransition(const double* sig, const int*
 /**
  * Train emission parameter with baum welch algorithm
 */
-std::tuple<double*, double*> trainEmission(const double* sig, const int* kmer_seq, const dproxy* forM, const dproxy* forE, const dproxy* backM, const dproxy* backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>>& model, const int numKmers) {
+std::tuple<double*, double*> trainEmission(const double *sig, const int *kmer_seq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model, const int numKmers) {
 
     // TODO: calculate this with LP matrices
     // see notes
@@ -330,7 +330,7 @@ std::tuple<double*, double*> trainEmission(const double* sig, const int* kmer_se
     return std::tuple<double*, double*>({means, stdevs});
 }
 
-void trainParams(const double* sig, const int* kmer_seq, const dproxy* forM, const dproxy* forE, const dproxy* backM, const dproxy* backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>>& model, const int alphabet_size, const int numKmers, const int kmerSize) {
+void trainParams(const double *sig, const int *kmer_seq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model, const int alphabet_size, const int numKmers, const int kmerSize) {
     const auto [newM, newE1, newE2] = trainTransition(sig, kmer_seq, forM, forE, backM, backE, T, N, model);
     std::cout<<"m1:"<<newM<<";e1:"<<newE1<<";e2:"<<newE2<<std::endl;
 
@@ -481,8 +481,8 @@ int main(int argc, char* argv[]) {
             std::cout<<"Z:"<<Z<<std::endl;
 
         } else {
-            const double* LPM = logP(forM, backM, Z, TN); // log probs for segmentation
-            const double* LPE = logP(forE, backE, Z, TN); // log probs for extension
+            const double *LPM = logP(forM, backM, Z, TN); // log probs for segmentation
+            const double *LPE = logP(forE, backE, Z, TN); // log probs for extension
             const std::list<std::string> segString = getBorders(LPM, LPE, T, N, kmerSize);
 
             for (const auto& seg : segString) {
