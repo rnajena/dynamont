@@ -14,11 +14,11 @@
 #include <unordered_map>
 #include <vector>
 #include <array>
-#include <fstream> // file io
-#include <sstream> // file io
-#include <cmath> //log1p
+#include <fstream>   // file io
+#include <sstream>   // file io
+#include <cmath>     //log1p
 #include <algorithm> //stable_sort
-#include <numeric> //iota
+#include <numeric>   //iota
 #include <set>
 
 // default params for NTK
@@ -36,8 +36,7 @@ const std::unordered_map<std::string, double> NTK_rna_r9_transitions = {
     {"e3", 0.9552290685034269},
     {"e4", 0.9792321612614708},
     {"i1", 7.208408117990252e-05},
-    {"i2", 0.08645733058947891}
-};
+    {"i2", 0.08645733058947891}};
 const std::unordered_map<std::string, double> NTK_rna_rp4_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
@@ -52,8 +51,7 @@ const std::unordered_map<std::string, double> NTK_rna_rp4_transitions = {
     {"e3", 1.0},
     {"e4", 1.0},
     {"i1", 1.0},
-    {"i2", 1.0}
-};
+    {"i2", 1.0}};
 const std::unordered_map<std::string, double> NTK_dna_r9_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
@@ -68,8 +66,7 @@ const std::unordered_map<std::string, double> NTK_dna_r9_transitions = {
     {"e3", 1.0},
     {"e4", 1.0},
     {"i1", 1.0},
-    {"i2", 1.0}
-};
+    {"i2", 1.0}};
 const std::unordered_map<std::string, double> NTK_dna_r10_260bps_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
@@ -84,8 +81,7 @@ const std::unordered_map<std::string, double> NTK_dna_r10_260bps_transitions = {
     {"e3", 1.0},
     {"e4", 1.0},
     {"i1", 1.0},
-    {"i2", 1.0}
-};
+    {"i2", 1.0}};
 const std::unordered_map<std::string, double> NTK_dna_r10_400bps_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
@@ -100,35 +96,29 @@ const std::unordered_map<std::string, double> NTK_dna_r10_400bps_transitions = {
     {"e3", 1.0},
     {"e4", 1.0},
     {"i1", 1.0},
-    {"i2", 1.0}
-};
+    {"i2", 1.0}};
 
 // default params for NT
 const std::unordered_map<std::string, double> NT_rna_r9_transitions = {
     {"m1", 0.03},
     {"e1", 1.0},
-    {"e2", 0.97}
-};
+    {"e2", 0.97}};
 const std::unordered_map<std::string, double> NT_rna_rp4_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
-    {"e2", 1.0}
-};
+    {"e2", 1.0}};
 const std::unordered_map<std::string, double> NT_dna_r9_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
-    {"e2", 1.0}
-};
+    {"e2", 1.0}};
 const std::unordered_map<std::string, double> NT_dna_r10_260bps_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
-    {"e2", 1.0}
-};
+    {"e2", 1.0}};
 const std::unordered_map<std::string, double> NT_dna_r10_400bps_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
-    {"e2", 1.0}
-};
+    {"e2", 1.0}};
 
 const std::unordered_map<char, int> BASE2ID = {
     {'A', 0},
@@ -142,35 +132,35 @@ const std::unordered_map<char, int> BASE2ID = {
     {'U', 3},
     {'u', 3},
     {'N', 4},
-    {'n', 4}
-}; // Nucleotide : Token map
+    {'n', 4}}; // Nucleotide : Token map
 const std::unordered_map<int, char> ID2BASE = {
     {'0', 'A'},
     {'1', 'C'},
     {'2', 'G'},
     {'3', 'T'},
-    {'4', 'N'}
-}; // Token : Nucleotide map
+    {'4', 'N'}}; // Token : Nucleotide map
 
 // https://stackoverflow.com/questions/72807569/set-default-value-of-unordered-map-if-key-doesnt-exist/72807851#72807851
 // workaround to change default double value in map from 0 to -INFINITY
-class dproxy {
+class dproxy
+{
     double value_;
+
 public:
     dproxy(double value = -INFINITY)
-    : value_{value} {}
-    operator double () { return value_; }
-    operator double const () const { return value_; }
+        : value_{value} {}
+    operator double() { return value_; }
+    operator double const() const { return value_; }
 };
 
 /**
  * Sorts the column indices of a row-major-indexed double matrix.
  * Complexity is O(C * log(C)), see https://en.cppreference.com/w/cpp/algorithm/stable_sort.
- * 
+ *
  * @param matrix a double matrix in row major order
  * @param C column size
  * @param t the column to sort for
- * 
+ *
  * @return std::size_t std::vector with the sorted index of column in descending order
  */
 std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t C, const std::size_t t);
@@ -180,24 +170,24 @@ std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t 
  * Contributions from Stuart Lowe, Ray-Yuan Sheu,
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
- * 
+ *
  * Converts a decimal to number to a number of base alphabet_size.
  * TODO Works for base between 2 and 16 (included)
- * 
+ *
  * Returns kmer in reversed direction!
- * 
+ *
  * @param value input number in decimal to convert to base
  * @param alphabet_size number of allowed characters in alphabet
  * @param kmerSize length of kmer
  * @returns kmer as reversed std::string, should be 5' - 3' direction
-*/
+ */
 std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize);
 
 /**
  * Converts the kmers of the model file to the integer representation using the BASE2ID map
  *
- * @param s kmer containing nucleotides 
- * @param BASE2ID base to id map 
+ * @param s kmer containing nucleotides
+ * @param BASE2ID base to id map
  * @param alphabet_size
  * @returns integer representation of the given kmer
  */
@@ -220,47 +210,52 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
 /**
  * Calculate addition of a+b in log space as efficiently as possible
  * with x + log1p(exp(y-x)) : x>y
- * 
+ *
  * @param a first value
  * @param b second value
  * @return log(exp(a) + exp(b))
  */
-inline double logPlus(const double x, const double y) {
-    if (std::isinf(x) && std::isinf(y)) {
+inline double logPlus(const double x, const double y)
+{
+    if (std::isinf(x) && std::isinf(y))
+    {
         return x;
     }
-    if (x>=y){
-        return x + log1p(exp(y-x));
+    if (x >= y)
+    {
+        return x + log1p(exp(y - x));
     }
-    return y + log1p(exp(x-y));
+    return y + log1p(exp(x - y));
 }
 
 /**
  * Calculates the integer representation of the successing kmer given the current kmer and the upcoming nucleotide
  * k_i+1 = (k_i mod base^(kmerSize-1)) * base + value(nextNt, base)
- * 
+ *
  * @param currentKmer current kmer in decimal representation
  * @param nextNt successing nucleotide as a token
  * @param alphabet_size number of accepted characters
  * @param stepSize equals alphabet_size ^ (kmerSize - 1)
  * @return successing Kmer as integer representation in the current base
  */
-inline std::size_t successingKmer(const std::size_t currentKmer, const int nextNt, const int stepSize, const int alphabet_size) {
+inline std::size_t successingKmer(const std::size_t currentKmer, const int nextNt, const int stepSize, const int alphabet_size)
+{
     return (currentKmer % stepSize) * alphabet_size + nextNt;
 }
 
 /**
  * Calculates the integer representation of the precessor kmer given the current kmer and the precessing nucleotide
  * k_i-1 = int(k_i/base) + value(priorNt, base) * base^(kmerSize-1)
- * 
+ *
  * @param currentKmer current kmer in decimal representation
  * @param priorNt precessing nucleotide as a token
  * @param alphabet_size number of accepted characters
  * @param stepSize equals alphabet_size ^ (kmerSize - 1)
  * @return precessing Kmer as integer representation in the current base
  */
-inline std::size_t precessingKmer(const std::size_t currentKmer, const int priorNt, const int stepSize, const int alphabet_size) {
-    return (currentKmer/alphabet_size) + (priorNt * stepSize);
+inline std::size_t precessingKmer(const std::size_t currentKmer, const int priorNt, const int stepSize, const int alphabet_size)
+{
+    return (currentKmer / alphabet_size) + (priorNt * stepSize);
 }
 
 // ===============================================================
@@ -274,40 +269,44 @@ inline constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI
 // https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
 /**
  * Calculate log pdf for a given x, mean and standard deviation
- * 
+ *
  * @param x value
  * @param m mean
- * @param s standard deviation 
+ * @param s standard deviation
  * @return probabily density at position x for N~(m, s²)
-*/
-inline double log_normal_pdf(const double x, const double m, const double s) {
-    if (s == 0.0) {
+ */
+inline double log_normal_pdf(const double x, const double m, const double s)
+{
+    if (s == 0.0)
+    {
         return -INFINITY; // Handling edge case where standard deviation is 0
     }
-    
+
     const double variance = s * s;
     const double diff = x - m;
-    
+
     return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
 }
 
 // https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
 /**
  * Calculate log pdf for a given x, mean and standard deviation
- * 
+ *
  * @param x value
  * @param m mean
- * @param s standard deviation 
+ * @param s standard deviation
  * @return probabily density at position x for N~(m, s²)
-*/
-inline double log_normal_pdf(const float x, const double m, const double s) {
-    if (s == 0.0) {
+ */
+inline double log_normal_pdf(const float x, const double m, const double s)
+{
+    if (s == 0.0)
+    {
         return -INFINITY; // Handling edge case where standard deviation is 0
     }
-    
+
     const double variance = s * s;
     const double diff = x - m;
-    
+
     return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
 }
 
@@ -319,7 +318,8 @@ inline double log_normal_pdf(const float x, const double m, const double s) {
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return log probability density value for x in the given normal distribution
  */
-inline double scoreKmer(const double signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model) {
+inline double scoreKmer(const double signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model)
+{
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
     return log_normal_pdf(signal, mean, stddev);
@@ -333,7 +333,8 @@ inline double scoreKmer(const double signal, const std::size_t kmer, const std::
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return log probability density value for x in the given normal distribution
  */
-inline double scoreKmer(const float signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model) {
+inline double scoreKmer(const float signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model)
+{
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
     return log_normal_pdf(signal, mean, stddev);
@@ -345,7 +346,7 @@ inline double scoreKmer(const float signal, const std::size_t kmer, const std::v
  * This function checks each transition in the `transitions` map. If a transition value is `-1`, it updates
  * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
  * Otherwise, it applies the logarithm directly to the existing transition value.
- * 
+ *
  * @param default_transitions_vals A map containing default transition values (std::string keys and double values).
  *                                 These default values are used when a transition value is set to `-1`.
  * @param transitions A map containing current transition values (std::string keys and double values).
