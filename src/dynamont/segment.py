@@ -12,7 +12,6 @@ from FileIO import feedSegmentationAsynchronous, hampel_filter
 import read5
 import multiprocessing as mp
 import pysam
-from numpy import float32
 
 TERM_STRING = "$"
 
@@ -24,33 +23,28 @@ def parse() -> Namespace:
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'banded', 'resquiggle'], help='Segmentation algorithm used for segmentation')
-    parser.add_argument('--processes', type=int, default=None, help='Number of processes to use for segmentation')
+    parser.add_argument('--processes', type=int, default=mp.cpu_count()-1, help='Number of processes to use for segmentation')
     parser.add_argument('--model_path', type=str, required=True, help='Which kmer model to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], default="rna_r9", help='Pore generation used to sequence the data')
     parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
     return parser.parse_args()
 
-def listener(q : mp.Queue, outfile : str):
+def listener(q : mp.Queue, outfile : str, lock, counter) -> None:
     '''listens for messages on the q, writes to file. '''
-    with open(outfile, 'w') as f:
-        f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
-
-        i = 0
-
-        while 1:
+    with open(outfile, 'a') as f:
+        while True:
             m = q.get()
-
+            
             if m == 'kill':
                 break
-
-            i+=1
-
-            # if i%100==0:
-            print(f"Segmented {i} reads", end='\r')
-
-            f.write(m)
-
-    print(f'Segmented {i} reads\n')
+            
+            with lock:
+                f.write(m)
+                f.flush()
+                
+            with counter.get_lock():
+                counter.value += 1
+                print(f"Reads written: {counter.value}", end='\r')
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     
@@ -63,7 +57,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
                 script,
                 {'m': modelpath, 'r' : pore},
                 signal,
-                read[::-1],
+                read[::-1], # change direction from 5' - 3' to 3' - 5'
                 start,
                 readid,
                 signalid,
@@ -73,16 +67,19 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     r5.close()
 
 def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
-
-    if processes is None:
-        processes = 2 # mp.cpu_count()-1
+    
     print(f"Using {processes} processes in segmentation.")
-    pool = mp.Pool(processes)
+    pool = mp.Pool(max(2, processes))
+    lock = mp.Lock()
     queue = mp.Manager().Queue()
-    watcher = pool.apply_async(listener, (queue, outfile))
+    counter = mp.Value('i', 0)  # Shared counter, initialized to 0
+    with open(outfile, 'w') as f:
+        f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
+    pool.apply_async(listener, (queue, outfile, lock, counter))
+    # pool.apply_async(listener, (queue, outfile, lock, counter))
     qualSkipped = 0
-    # noMatchingReadid = 0
     jobs = [None for _ in range(processes)]
+    important_tags = ['pi', 'ts', 'ns', 'sp', 'fn', 'sm', 'sd']
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
         for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
@@ -97,7 +94,7 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
             readid = basecalled_read.query_name
             # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
             signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-            seq = basecalled_read.query_sequence # change direction from 5' - 3' to 3' - 5'
+            seq = basecalled_read.query_sequence
             ts = basecalled_read.get_tag("ts")
             ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling for this readid
             sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
@@ -128,10 +125,13 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
         
     # tell queue to terminate
     queue.put("kill")
-    watcher.get()
+    # queue.put("kill")
+    
+    # Close the pool and wait for processes to finish
     pool.close()
     pool.join()
     
+    print(f"Reads written: {counter.value}")
     print(f"Skipped reads: low quality: {qualSkipped}")
 
 def main() -> None:
