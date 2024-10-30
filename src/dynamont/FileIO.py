@@ -4,10 +4,7 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-TERM_STRING = "$"
-
 from subprocess import PIPE, Popen
-import re
 import numpy as np
 from pathlib import Path
 from os.path import join
@@ -230,7 +227,7 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     result : str
     '''
     signal = ",".join([f'{x:.5f}' for x in signal])
-    cookie = f"{signal}\n{read}\n{TERM_STRING}\n{TERM_STRING}\n"
+    cookie = f"{signal}\n{read}\n"
     result = pipe.communicate(input=cookie)[0]
     return result
 

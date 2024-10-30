@@ -13,8 +13,6 @@ import read5
 import multiprocessing as mp
 import pysam
 
-TERM_STRING = "$"
-
 def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
@@ -35,8 +33,6 @@ def listener(q : mp.Queue, outfile : str) -> None:
         f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
         i = 0
         while True:
-            print(f"Reads written: {i}", end='\r')
-            i+=1
             m = q.get()
             
             if m == 'kill':
@@ -44,11 +40,18 @@ def listener(q : mp.Queue, outfile : str) -> None:
 
             f.write(m)
             f.flush()
+            
+            i+=1
+            print(f"Reads written: {i}", end='\r')
+    
+    print(f"Reads written: {i}")
+    
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     
     r5 = read5.read(rawFile)
-    signal = r5.getpASignal(readid)[start:end]
+    signal = r5.getpASignal(signalid)[start:end]
+    r5.close()
     signal = (signal - shift) / scale
     signal = hampel_filter(signal)
     
@@ -63,15 +66,12 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
                 q
                 )
 
-    r5.close()
-
 def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
     
     processes = max(2, processes)
     print(f"Using {processes} processes in segmentation.")
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
-    counter = mp.Value('i', 0)  # Shared counter, initialized to 0
     pool.apply_async(listener, (queue, outfile))
     qualSkipped = 0
     jobs = [None for _ in range(processes)]
@@ -79,7 +79,6 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
         print("Starting segmentation.")
         for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
-            
             # skip low qual reads if activated
             qs = basecalled_read.get_tag("qs")
             if minQual and qs < minQual:
@@ -126,8 +125,6 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
     # Close the pool and wait for processes to finish
     pool.close()
     pool.join()
-    
-    print(f"Reads written: {counter.value}")
     print(f"Skipped reads: low quality: {qualSkipped}")
 
 def main() -> None:
