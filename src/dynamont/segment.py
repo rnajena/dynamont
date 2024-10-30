@@ -29,22 +29,21 @@ def parse() -> Namespace:
     parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
     return parser.parse_args()
 
-def listener(q : mp.Queue, outfile : str, lock, counter) -> None:
+def listener(q : mp.Queue, outfile : str) -> None:
     '''listens for messages on the q, writes to file. '''
-    with open(outfile, 'a') as f:
+    with open(outfile, 'w') as f:
+        f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
+        i = 0
         while True:
+            print(f"Reads written: {i}", end='\r')
+            i+=1
             m = q.get()
             
             if m == 'kill':
                 break
-            
-            with lock:
-                f.write(m)
-                f.flush()
-                
-            with counter.get_lock():
-                counter.value += 1
-                print(f"Reads written: {counter.value}", end='\r')
+
+            f.write(m)
+            f.flush()
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     
@@ -68,20 +67,17 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
 
 def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
     
+    processes = max(2, processes)
     print(f"Using {processes} processes in segmentation.")
-    pool = mp.Pool(max(2, processes))
-    lock = mp.Lock()
+    pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     counter = mp.Value('i', 0)  # Shared counter, initialized to 0
-    with open(outfile, 'w') as f:
-        f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
-    pool.apply_async(listener, (queue, outfile, lock, counter))
-    # pool.apply_async(listener, (queue, outfile, lock, counter))
+    pool.apply_async(listener, (queue, outfile))
     qualSkipped = 0
     jobs = [None for _ in range(processes)]
-    important_tags = ['pi', 'ts', 'ns', 'sp', 'fn', 'sm', 'sd']
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
+        print("Starting segmentation.")
         for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
             
             # skip low qual reads if activated
