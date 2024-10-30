@@ -452,7 +452,7 @@ int main(int argc, char *argv[])
     // assert(fabs(exp(transitions["m1"]) + exp(transitions["e2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: m1 and e1 must approximately 1.0");
 
     // std::vector<std::tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
-    assert(!modelpath.empty() && "Please provide a modelpath!");
+    assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide valid a modelpath!");
     const auto result = readKmerModel(modelpath, kmerSize);
     const std::vector<std::tuple<double, double>> model = std::get<0>(result);
     const int alphabet_size = std::get<1>(result);

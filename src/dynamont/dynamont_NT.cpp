@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
         return 3;
     }
 
-    assert(!modelpath.empty() && "Please provide a modelpath!");
+    assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide a valid modelpath!");
     auto result = readKmerModel(modelpath, kmerSize);
     std::vector<std::tuple<double, double>> model = std::get<0>(result);
     const int alphabet_size = std::get<1>(result);

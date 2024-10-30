@@ -1172,7 +1172,7 @@ int main(int argc, char *argv[])
     halfKmerSize = kmerSize / 2;
 
     // polishing dimension K = number of possible kmers
-    assert(!modelpath.empty() && "Please provide a modelpath!");
+    assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide a valid modelpath!");
     auto result = readKmerModel(modelpath, kmerSize);
     std::vector<std::tuple<double, double>> model = std::get<0>(result);
     alphabet_size = std::get<1>(result);
