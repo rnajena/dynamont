@@ -154,16 +154,6 @@ void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI,
     }
 }
 
-void logP(double *LP, const double *forM, const double *backM, const double *forE, const double *backE, const std::size_t S, const double Z)
-{
-    for (std::size_t s = 0; s < S; ++s)
-    {
-        const double valM = forM[s] + backM[s] - Z;
-        const double valE = forE[s] + backE[s] - Z;
-        LP[s] = logPlus(valM, valE);
-    }
-}
-
 void logP(double *LP, const dproxy *forM, const dproxy *backM, const dproxy *forE, const dproxy *backE, const std::size_t S, const double Z)
 {
     for (std::size_t s = 0; s < S; ++s)
@@ -400,7 +390,6 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
     logP(LP, forM, backM, forE, backE, TK, Zb);
 
     // extract indices with highest probability per column, until SPARSE_THRESHOLD is reached
-    std::size_t c = 0;
     for (std::size_t t = 0; t < T; ++t)
     {
         const std::size_t tK = t * K;
@@ -410,7 +399,6 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
         {
             // collect key pairs with highest value per column t
             // allowedKeys.push_back(t*K+k);
-            ++c;
             tkMap[t].insert(k);
             s = logPlus(s, LP[tK + k]);
             // stop if threshold is reached
@@ -455,22 +443,6 @@ void preProcTNK(const double *sig, const int *kmer_seq, std::vector<std::size_t>
         }
     }
 
-    // combine both preprocessings using OR
-    // for (std::size_t t=0; t<T; t++) {
-    //     for (std::size_t n : tnMap[t]) {
-    //         for (std::size_t k=0; k<K; ++k) {
-    //             allowedKeys.push_back(t * NK + n * K + k);
-    //         }
-    //     }
-    //     for (std::size_t k: tkMap[t]) {
-    //         for (std::size_t n=0; n<N; ++n) {
-    //             allowedKeys.push_back(t * NK + n * K + k);
-    //         }
-    //     }
-    // }
-
-    // tnMap.clear();
-    // tkMap.clear();
     // erase duplicates
     std::sort(allowedKeys.begin(), allowedKeys.end());
     allowedKeys.erase(std::unique(allowedKeys.begin(), allowedKeys.end()), allowedKeys.end());
@@ -656,6 +628,7 @@ void logB(const double *sig, const int *kmer_seq, std::unordered_map<std::size_t
 void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
 {
     std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> APSEI;
+    std::size_t idx;
     for (const std::size_t &tnk : allowedKeys)
     {
         // tnk = t*NK+n*K+k
@@ -683,15 +656,15 @@ void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_
             for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer < K; preKmer += stepSize)
             {
                 // (t-1)*NK+(n-1)*K+k'
-                const std::size_t idx1 = baseIdx1 + preKmer;
-                a = std::max(a, APSEI[idx1][3] + logAPSEIRef[0]);
-                a = std::max(a, APSEI[idx1][4] + logAPSEIRef[0]);
+                idx = baseIdx1 + preKmer;
+                a = std::max(a, APSEI[idx][3] + logAPSEIRef[0]);
+                a = std::max(a, APSEI[idx][4] + logAPSEIRef[0]);
 
                 // (t-1)*NK+n*K+k'
-                const std::size_t idx2 = baseIdx2 + preKmer;
-                p = std::max(p, APSEI[idx2][2] + logAPSEIRef[1]);
-                p = std::max(p, APSEI[idx2][3] + logAPSEIRef[1]);
-                p = std::max(p, APSEI[idx2][4] + logAPSEIRef[1]);
+                idx = baseIdx2 + preKmer;
+                p = std::max(p, APSEI[idx][2] + logAPSEIRef[1]);
+                p = std::max(p, APSEI[idx][3] + logAPSEIRef[1]);
+                p = std::max(p, APSEI[idx][4] + logAPSEIRef[1]);
             }
             // (t-1)*NK+(n-1)*K+k
             s = std::max(s, APSEI[baseIdx3][1] + logAPSEIRef[2]);
@@ -737,25 +710,28 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
     segProb.push_back(exp(logScore));
     // if (t <= 1 && n <= 1)
     // {
-    // Start value
-    // segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
-    // return;
+    //     // Start value
+    //     segString.push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+    //     return;
     // }
     for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer < K; preKmer += stepSize)
     {
-        // Check match with E state
-        if (score == APSEI[prevIdx + preKmer][3] + logScore)
+        if (t > 1 && n > 1)
         {
-            segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
-            segProb.clear();
-            return funcE(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with I state
-        if (score == APSEI[prevIdx + preKmer][4] + logScore)
-        {
-            segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
-            segProb.clear();
-            return funcI(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
+            // Check match with E state
+            if (score == APSEI[prevIdx + preKmer][3] + logScore)
+            {
+                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segProb.clear();
+                return funcE(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
+            }
+            // Check match with I state
+            if (score == APSEI[prevIdx + preKmer][4] + logScore)
+            {
+                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segProb.clear();
+                return funcI(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
+            }
         }
     }
     // If no match is found, output an error
@@ -795,6 +771,8 @@ void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::u
     }
     else [[unlikely]]
     { // Start value with t==0 && n==0
+        segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+        segProb.clear();
         return;
     }
     // If no match is found, output an error
@@ -854,19 +832,19 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore)
         {
-            segString.push_front("S" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcE(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore)
         {
-            segString.push_front("S" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcP(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore)
         {
-            segString.push_front("S" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcI(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -887,13 +865,13 @@ void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore)
         {
-            segString.push_front("I" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcI(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore)
         {
-            segString.push_front("I" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
             return funcE(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -1222,10 +1200,10 @@ int main(int argc, char *argv[])
 
     // process signal T: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
-    const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
-    TNK = T * NK;
+    const std::size_t N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
     NK = N * K;
-
+    TNK = T * NK;
+    
     double *sig = new double[T - 1];
     std::string value;
     std::stringstream ss(signal);
@@ -1234,8 +1212,8 @@ int main(int argc, char *argv[])
     {
         sig[i++] = stod(value);
     }
-
     // process read N: convert std::string to int std::array
+
     int *kmer_seq = new int[N - 1];
     for (std::size_t n = 0; n < N - 1; ++n)
     {
@@ -1311,7 +1289,7 @@ int main(int argc, char *argv[])
             if (prob)
             {
                 double sum = -INFINITY;
-                int lastT = -1, t;
+                std::size_t lastT = T, t;
                 for (const std::size_t &tnk : allowedKeys)
                 {
                     t = tnk / NK;
