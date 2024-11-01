@@ -354,5 +354,22 @@ inline double scoreKmer(const float signal, const std::size_t kmer, const std::v
  */
 void updateTransitions(const std::unordered_map<std::string, double> &default_transitions_vals, std::unordered_map<std::string, double> &transitions);
 
-// Function to calculate the median of a std::vector
+/**
+ * @brief Calculates the median of a given std::vector of double values.
+ *
+ * This function takes a std::vector of double values as input and returns the median value.
+ * If the input std::vector is empty, it throws a std::out_of_range exception.
+ *
+ * @param vec A reference to the std::vector of double values.
+ * @return The median value of the input std::vector.
+ *
+ * @throws std::out_of_range If the input std::vector is empty.
+ *
+ * @note The function sorts the input std::vector before calculating the median.
+ *
+ * @example
+ * std::vector<double> values = {1.0, 2.0, 3.0, 4.0, 5.0};
+ * double median = calculateMedian(values);
+ * // median will be 3.0
+ */
 double calculateMedian(std::vector<double> &vec);
