@@ -172,16 +172,17 @@ std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t 
  * and Brian Hunt
  *
  * Converts a decimal to number to a number of base alphabet_size.
- * TODO Works for base between 2 and 16 (included)
+ * TODO: Works for base between 2 and 16 (included)
  *
  * Returns kmer in reversed direction!
  *
  * @param value input number in decimal to convert to base
  * @param alphabet_size number of allowed characters in alphabet
  * @param kmerSize length of kmer
+ * @param rna true if input is RNA sequence, false if DNA sequence
  * @returns kmer as reversed std::string, should be 5' - 3' direction
  */
-std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize);
+std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize, const bool rna);
 
 /**
  * Converts the kmers of the model file to the integer representation using the BASE2ID map
@@ -199,12 +200,13 @@ int kmer2int(const std::string &s, const int alphabet_size);
  *
  * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
  * @param kmerSize   The size of the kmers (length of the kmers in the file).
+ * @param rna        True if input is RNA sequence, false if DNA sequence
  * @returns          A std::tuple containing:
  *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
  *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
  */
-std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize);
+std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**

@@ -44,14 +44,17 @@ std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t 
  * and Brian Hunt
  *
  * Converts a decimal to number to a number of base alphabet_size.
- * TODO Works for base between 2 and 16 (included)
+ * TODO: Works for base between 2 and 16 (included)
  *
  * Returns kmer in reversed direction!
  *
  * @param value input number in decimal to convert to base
+ * @param alphabet_size number of allowed characters in alphabet
+ * @param kmerSize length of kmer
+ * @param rna true if input is RNA sequence, false if DNA sequence
  * @returns kmer as reversed std::string, should be 5' - 3' direction
  */
-std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize)
+std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize, const bool rna)
 {
     std::string buf;
     const int base = alphabet_size;
@@ -83,8 +86,11 @@ std::string itoa(const std::size_t value, const int alphabet_size, const int kme
         buf += ID2BASE.at('0');
     }
 
-    // skip this so kmer is in 5' - 3' direction for output
-    // reverse( buf.begin(), buf.end() );
+    // skip this for RNA so kmer is in 5' - 3' direction for output
+    if (!rna)
+        // for DNA this must be reversed to output 5' - 3' direction
+        reverse(buf.begin(), buf.end());
+
     return buf;
 }
 
@@ -115,12 +121,13 @@ int kmer2int(const std::string &s, const int alphabet_size)
  *
  * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
  * @param kmerSize   The size of the kmers (length of the kmers in the file).
+ * @param rna        True if input is RNA sequence, false if DNA sequence
  * @returns          A std::tuple containing:
  *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer std::set).
  *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
  */
-std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize)
+std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna)
 {
     std::string line, kmer, tmp;
 
@@ -156,11 +163,10 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
     {                                   // read line
         std::stringstream buffer(line); // parse line to std::stringstream for getline
         getline(buffer, kmer, '\t');
-        // legacy models are stored from 3' - 5'
-        // https://github.com/nanoporetech/kmer_models
-        // new models are stored in 5' - 3'
-        reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
-        getline(buffer, tmp, '\t');        // level_mean
+        // models are stored in 5' - 3'
+        if (rna)
+            reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
+        getline(buffer, tmp, '\t');            // level_mean
         const double mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
         const double stdev = stod(tmp);

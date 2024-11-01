@@ -29,6 +29,7 @@ inline constexpr double AFFINE_COST = 0;              // log(0.05), currently sw
 std::size_t TNK, NK;
 double ppTNm, ppTNe, ppTKm, ppTKe;
 int alphabet_size, kmerSize, halfKmerSize, stepSize;
+bool rna;
 
 std::unordered_map<std::string, double> transitions = {
     {"a1", -1.0},
@@ -711,7 +712,7 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
     // if (t <= 1 && n <= 1)
     // {
     //     // Start value
-    //     segString.push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";"); // n-1 because N is 1 larger than the sequences
+    //     segString.push_front("M" + std::to_string(0) + "," + std::to_string(0) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";"); // n-1 because N is 1 larger than the sequences
     //     return;
     // }
     for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabet_size); preKmer < K; preKmer += stepSize)
@@ -721,14 +722,14 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
             // Check match with E state
             if (score == APSEI[prevIdx + preKmer][3] + logScore)
             {
-                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
                 segProb.clear();
                 return funcE(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI[prevIdx + preKmer][4] + logScore)
             {
-                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
                 segProb.clear();
                 return funcI(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
@@ -771,7 +772,7 @@ void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::u
     }
     else [[unlikely]]
     { // Start value with t==0 && n==0
-        segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+        segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
         segProb.clear();
         return;
     }
@@ -795,21 +796,21 @@ void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::u
             // Check match with E state
             if (score == APSEI[prevIdx][3] + logScore)
             {
-                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
                 segProb.clear();
                 return funcE(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with S state
             if (score == APSEI[prevIdx][2] + logScore)
             {
-                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
                 segProb.clear();
                 return funcS(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
             // Check match with I state
             if (score == APSEI[prevIdx][4] + logScore)
             {
-                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + std::to_string(calculateMedian(segProb)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
                 segProb.clear();
                 return funcI(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
             }
@@ -832,19 +833,19 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore)
         {
-            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
             return funcE(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with P state
         if (score == APSEI[prevIdx][1] + logScore)
         {
-            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
             return funcP(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore)
         {
-            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
             return funcI(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -865,13 +866,13 @@ void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::u
         // Check match with I state
         if (score == APSEI[prevIdx][4] + logScore)
         {
-            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
             return funcI(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
         // Check match with E state
         if (score == APSEI[prevIdx][3] + logScore)
         {
-            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize) + ";");
+            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
             return funcE(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
         }
     }
@@ -1078,7 +1079,7 @@ void trainParams(const double *sig, const int *kmer_seq, std::unordered_map<std:
     {
         if ((newStdevs[k] != 0.0) & (!std::isnan(newStdevs[k])))
         {
-            std::cout << itoa(k, alphabet_size, kmerSize) << ":" << newMeans[k] << "," << newStdevs[k] << ";";
+            std::cout << itoa(k, alphabet_size, kmerSize, rna) << ":" << newMeans[k] << "," << newStdevs[k] << ";";
         }
     }
     std::cout << "\n";
@@ -1133,6 +1134,7 @@ int main(int argc, char *argv[])
     if (pore == "rna_r9")
     {
         kmerSize = 5;
+        rna = true;
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_rna_r9_transitions.at("m1")), ppTNe = log(NT_rna_r9_transitions.at("e2"));
         ppTKm = log(NT_rna_r9_transitions.at("m1")), ppTKe = log(NT_rna_r9_transitions.at("e2"));
@@ -1141,6 +1143,7 @@ int main(int argc, char *argv[])
     else if (pore == "dna_r9")
     {
         kmerSize = 5;
+        rna = false;
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_dna_r9_transitions.at("m1")), ppTNe = log(NT_dna_r9_transitions.at("e2"));
         ppTKm = log(NT_dna_r9_transitions.at("m1")), ppTKe = log(NT_dna_r9_transitions.at("e2"));
@@ -1149,6 +1152,7 @@ int main(int argc, char *argv[])
     else if (pore == "rna_rp4")
     {
         kmerSize = 9;
+        rna = true;
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_rna_rp4_transitions.at("m1")), ppTNe = log(NT_rna_rp4_transitions.at("e2"));
         ppTKm = log(NT_rna_rp4_transitions.at("m1")), ppTKe = log(NT_rna_rp4_transitions.at("e2"));
@@ -1157,6 +1161,7 @@ int main(int argc, char *argv[])
     else if (pore == "dna_r10_260bps")
     {
         kmerSize = 9;
+        rna = false;
         ppTNm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_260bps_transitions.at("e2"));
         ppTKm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_260bps_transitions.at("e2"));
         updateTransitions(NTK_dna_r10_260bps_transitions, transitions);
@@ -1164,6 +1169,7 @@ int main(int argc, char *argv[])
     else if (pore == "dna_r10_400bps")
     {
         kmerSize = 9;
+        rna = false;
         ppTNm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_400bps_transitions.at("e2"));
         ppTKm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_400bps_transitions.at("e2"));
         updateTransitions(NTK_dna_r10_400bps_transitions, transitions);
@@ -1172,7 +1178,7 @@ int main(int argc, char *argv[])
 
     // polishing dimension K = number of possible kmers
     assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide a valid modelpath!");
-    auto result = readKmerModel(modelpath, kmerSize);
+    auto result = readKmerModel(modelpath, kmerSize, rna);
     std::vector<std::tuple<double, double>> model = std::get<0>(result);
     alphabet_size = std::get<1>(result);
     const std::size_t K = std::get<2>(result);

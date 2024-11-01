@@ -54,12 +54,14 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     r5.close()
     signal = (signal - shift) / scale
     signal = hampel_filter(signal)
+    if "rna" in pore:
+        read = read[::-1] # change direction from 5' - 3' to 3' - 5'
     
     feedSegmentationAsynchronous(
                 script,
                 {'m': modelpath, 'r' : pore},
                 signal,
-                read[::-1], # change direction from 5' - 3' to 3' - 5'
+                read,
                 start,
                 readid,
                 signalid,

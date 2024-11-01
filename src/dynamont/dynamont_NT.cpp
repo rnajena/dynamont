@@ -23,6 +23,7 @@ void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dpro
 void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
 
 constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
+bool rna;
 
 std::unordered_map<std::string, double> transitions = {
     {"m1", -1.0},
@@ -303,7 +304,7 @@ void trainParams(const double *sig, const int *kmer_seq, const dproxy *forM, con
     {
         if (newStdevs[i] != 0.0) [[likely]]
         {
-            std::cout << itoa(i, alphabet_size, kmerSize) << ":" << newMeans[i] << "," << newStdevs[i] << ";";
+            std::cout << itoa(i, alphabet_size, kmerSize, rna) << ":" << newMeans[i] << "," << newStdevs[i] << ";";
         }
     }
     std::cout << std::endl;
@@ -353,29 +354,34 @@ int main(int argc, char *argv[])
     if (pore == "rna_r9")
     {
         kmerSize = 5;
+        rna = true;
         // taken from the trained NT version of dynamont
         updateTransitions(NT_rna_r9_transitions, transitions);
     }
     else if (pore == "dna_r9")
     {
         kmerSize = 5;
+        rna = false;
         // taken from the trained NT version of dynamont
         updateTransitions(NT_dna_r9_transitions, transitions);
     }
     else if (pore == "rna_rp4")
     {
         kmerSize = 9;
+        rna = true;
         // taken from the trained NT version of dynamont
         updateTransitions(NT_rna_rp4_transitions, transitions);
     }
     else if (pore == "dna_r10_260bps")
     {
         kmerSize = 9;
+        rna = false;
         updateTransitions(NT_dna_r10_260bps_transitions, transitions);
     }
     else if (pore == "dna_r10_400bps")
     {
         kmerSize = 9;
+        rna = false;
         updateTransitions(NT_dna_r10_400bps_transitions, transitions);
     }
     else
@@ -385,7 +391,7 @@ int main(int argc, char *argv[])
     }
 
     assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide a valid modelpath!");
-    auto result = readKmerModel(modelpath, kmerSize);
+    auto result = readKmerModel(modelpath, kmerSize, rna);
     std::vector<std::tuple<double, double>> model = std::get<0>(result);
     const int alphabet_size = std::get<1>(result);
     const int numKmers = std::get<2>(result);

@@ -194,7 +194,10 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     with open(join(outdir, readid + '.txt'), 'w') as w:
         w.write('\n'.join(list(map(str, segments))))
 
-    plotBorders(normSignal, ts, read[::-1], segments, borderProbs, readid, outdir, kmermodels, probability)
+    if "rna" in pore: # change orientation back from 3'-5' to 5'-3'
+        read = read[::-1]
+
+    plotBorders(normSignal, ts, read, segments, borderProbs, readid, outdir, kmermodels, probability)
 
 def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str) -> tuple:
 
@@ -232,7 +235,10 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             normSignal = hampel_filter(normSignal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
-            segmentRead(normSignal, ts, seq[::-1], basecalled_read.query_name, outdir, mode, modelpath, probability, pore)
+            if "rna" in pore:
+                seq = seq[::-1]
+                
+            segmentRead(normSignal, ts, seq, basecalled_read.query_name, outdir, mode, modelpath, probability, pore)
 
 def main() -> None:
     args = parse()
