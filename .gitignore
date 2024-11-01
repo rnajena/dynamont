@@ -67,3 +67,4 @@ src/edgeDetection/edgeWavelet.svg
 old/
 test/__pycache__/
 test/#.codiumai.toml
+test/test
