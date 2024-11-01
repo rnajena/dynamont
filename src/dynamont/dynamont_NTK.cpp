@@ -891,14 +891,13 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
     double newe1 = 1, newe2 = -INFINITY, newe3 = -INFINITY, newe4 = -INFINITY;
     double newi1 = -INFINITY, newi2 = -INFINITY;
     double sc, pv;
-    std::size_t t, n, k;
 
     for (const std::size_t &tnk : allowedKeys)
     { //<int>::iterator iter = allowedKeys.begin(); iter<allowedKeys.end(); iter++){
         // tnk = t*NK+n*K+k
-        t = tnk / NK;
-        n = (tnk % NK) / K;
-        k = tnk % K;
+        const std::size_t t = tnk / NK;
+        const std::size_t n = (tnk % NK) / K;
+        const std::size_t k = tnk % K;
         // Cache results to avoid recomputation
         auto &forAPSEI_tnk = forAPSEI[tnk];
 
@@ -1200,10 +1199,10 @@ int main(int argc, char *argv[])
 
     // process signal T: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
-    const std::size_t N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
+    const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
     NK = N * K;
     TNK = T * NK;
-    
+
     double *sig = new double[T - 1];
     std::string value;
     std::stringstream ss(signal);
