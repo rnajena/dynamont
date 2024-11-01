@@ -11,7 +11,7 @@ class TestSum(unittest.TestCase):
         signal = np.array([1.23456, 2.34567, 3.45678])
         read = "test_read"
         result = feedPipe(signal, read, mock_pipe)
-        expected_cookie = "1.23456,2.34567,3.45678\ntest_read\n$\n$\n"
+        expected_cookie = "1.23456,2.34567,3.45678\ntest_read\n"
         # Assert the communicate method was called with the expected input
         mock_pipe.communicate.assert_called_once_with(input=expected_cookie)
         # Use self.assertEqual for consistency with unittest
