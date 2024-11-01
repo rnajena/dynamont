@@ -178,7 +178,7 @@ void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dpro
 std::tuple<double, double, double> trainTransition(const double *sig, const int *kmer_seq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::vector<std::tuple<double, double>> &model)
 {
     // Transition parameters
-    double newM1 = -INFINITY, newE1 = 1, newE2 = -INFINITY;
+    double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
 
     for (std::size_t t = 0; t < T - 1; ++t)
     {
@@ -202,9 +202,15 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
     // double Am = newE1;
     // newE1 = newE1 - Am;
     const double Ae = logPlus(newE2, newM1);
-    newM1 = exp(newM1 - Ae);
-    newE2 = exp(newE2 - Ae);
-    return std::make_tuple(newM1, newE1, newE2);
+    if (!std::isinf(Ae))
+    {
+        newM1 = newM1 - Ae;
+        newE2 = newE2 - Ae;
+    }
+    return std::make_tuple(
+        exp(newM1),
+        exp(newE1),
+        exp(newE2));
 }
 
 /**

@@ -889,7 +889,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
     double newa1 = -INFINITY, newa2 = -INFINITY;
     double newp1 = -INFINITY, newp2 = -INFINITY, newp3 = -INFINITY;
     double news1 = -INFINITY, news2 = -INFINITY, news3 = -INFINITY;
-    double newe1 = 1, newe2 = -INFINITY, newe3 = -INFINITY, newe4 = -INFINITY;
+    double newe1 = 0, newe2 = -INFINITY, newe3 = -INFINITY, newe4 = -INFINITY;
     double newi1 = -INFINITY, newi2 = -INFINITY;
     double sc, pv;
 
@@ -961,24 +961,50 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
     // Final normalization and averaging of transition parameters
     // newe1=exp(newe1-newe1);
     const double Ae = logPlus(logPlus(logPlus(newa1, news2), logPlus(newe4, newi1)), newp2);
-    newa1 = exp(newa1 - Ae);
-    news2 = exp(news2 - Ae);
-    newe4 = exp(newe4 - Ae);
-    newi1 = exp(newi1 - Ae);
-    newp2 = exp(newp2 - Ae);
+    if (!std::isinf(Ae))
+    {
+        newa1 = newa1 - Ae;
+        news2 = news2 - Ae;
+        newe4 = newe4 - Ae;
+        newi1 = newi1 - Ae;
+        newp2 = newp2 - Ae;
+    }
     const double As = logPlus(newe3, newp1);
-    newe3 = exp(newe3 - As);
-    newp1 = exp(newp1 - As);
+    if (!std::isinf(As))
+    {
+        newe3 = newe3 - As;
+        newp1 = newp1 - As;
+    }
     const double Ap = logPlus(newe2, news1);
-    newe2 = exp(newe2 - Ap);
-    news1 = exp(news1 - Ap);
+    if (!std::isinf(Ap))
+    {
+        newe2 = newe2 - Ap;
+        news1 = news1 - Ap;
+    }
     const double Ai = logPlus(logPlus(newa2, newi2), logPlus(newp3, news3));
-    newa2 = exp(newa2 - Ai);
-    newi2 = exp(newi2 - Ai);
-    newp3 = exp(newp3 - Ai);
-    news3 = exp(news3 - Ai);
+    if (!std::isinf(Ai))
+    {
+        newa2 = newa2 - Ai;
+        newi2 = newi2 - Ai;
+        newp3 = newp3 - Ai;
+        news3 = news3 - Ai;
+    }
 
-    return std::make_tuple(newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2);
+    return std::make_tuple(
+        exp(newa1),
+        exp(newa2),
+        exp(newp1),
+        exp(newp2),
+        exp(newp3),
+        exp(news1),
+        exp(news2),
+        exp(news3),
+        exp(newe1),
+        exp(newe2),
+        exp(newe3),
+        exp(newe4),
+        exp(newi1),
+        exp(newi2));
 }
 
 /**

@@ -252,8 +252,11 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
     // double Am = newE1;
     // newE1 = newE1 - Am;
     const double Ae = logPlus(newE2, newM1);
-    newM1 = newM1 - Ae;
-    newE2 = newE2 - Ae;
+    if (!std::isinf(Ae))
+    {
+        newM1 = newM1 - Ae;
+        newE2 = newE2 - Ae;
+    }
 
     return std::tuple<double, double, double>({exp(newM1), exp(newE1), exp(newE2)});
 }
