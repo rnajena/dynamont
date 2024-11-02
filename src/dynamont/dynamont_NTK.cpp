@@ -1232,10 +1232,12 @@ int main(int argc, char *argv[])
     // process signal T: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
     const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
+    assert(T > 1 && "Signal must contain more than one value!");
+    assert(N > 1 && "Read must contain more than one value!");
     NK = N * K;
     TNK = T * NK;
 
-    double *sig = new double[T - 1];
+     double *sig = new double[T - 1];
     std::string value;
     std::stringstream ss(signal);
     int i = 0;
