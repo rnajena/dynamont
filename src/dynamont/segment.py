@@ -8,12 +8,18 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name
 import read5.AbstractFileReader
-from FileIO import feedSegmentationAsynchronous, hampel_filter
+from FileIO import feedSegmentationAsynchronous, hampelFilter
 import read5
 import multiprocessing as mp
 import pysam
 
 def parse() -> Namespace:
+    """
+    Parse command line arguments for segmentation.
+
+    Returns:
+        Namespace: Containing the specified command line arguments
+    """
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
@@ -28,32 +34,82 @@ def parse() -> Namespace:
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str) -> None:
-    '''listens for messages on the q, writes to file. '''
+    """
+    Listens to a queue and writes segmentation results to a file.
+
+    Takes a mp.Queue and a file path to write the results to. The function
+    will run until it receives 'kill' from the queue. If any error occurs it
+    will be printed and counted.
+
+    Parameters
+    ----------
+    q : mp.Queue
+        The queue to listen to
+    outfile : str
+        The path to write the results to
+    """
     with open(outfile, 'w') as f:
         f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
         i = 0
+        e = 0
         while True:
             m = q.get()
             
             if m == 'kill':
                 break
-
-            f.write(m)
-            f.flush()
+            elif m.startswith('error'):
+                print(m)
+                e+=1
+            else:
+                i+=1
+                f.write(m)
+                f.flush()
             
-            i+=1
-            print(f"Reads written: {i}", end='\r')
+            print(f"Reads segmented: {i}", f"Errors: {e}", end='\r')
     
-    print(f"Reads written: {i}")
+    print(f"Reads segmented: {i}", f"Errors: {e}")
     
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
-    
+    """
+    Asynchronously segments a raw signal using a C++ script and places the results in a queue.
+
+    Parameters
+    ----------
+    q : mp.Queue
+        Queue to store segmentation results or errors.
+    script : str
+        Path to the C++ segmentation script.
+    modelpath : str
+        Path to the kmer model file used for segmentation.
+    pore : str
+        Pore generation used, affects signal processing direction.
+    rawFile : str
+        Path to the file containing raw signal data.
+    shift : float
+        Signal shift value for normalization.
+    scale : float
+        Signal scale value for normalization.
+    start : int
+        Start index for the signal segment.
+    end : int
+        End index for the signal segment.
+    read : str
+        Nucleotide sequence in 5' -> 3' direction.
+    readid : str
+        Identifier for the read within the basecall file.
+    signalid : str
+        Signal identifier within the basecall file.
+
+    Returns
+    -------
+    None
+    """
     r5 = read5.read(rawFile)
     signal = r5.getpASignal(signalid)[start:end]
     r5.close()
     signal = (signal - shift) / scale
-    signal = hampel_filter(signal)
+    signal = hampelFilter(signal)
     if "rna" in pore:
         read = read[::-1] # change direction from 5' - 3' to 3' - 5'
     
@@ -68,8 +124,33 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
                 q
                 )
 
-def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
-    
+def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
+    """
+    Segment a set of reads using a C++ script in parallel.
+
+    Parameters
+    ----------
+    dataPath : str
+        Path to the directory containing raw ONT data.
+    basecalls : str
+        Path to the basecalls file in BAM format.
+    processes : int
+        Number of processes to use for segmentation.
+    SCRIPT : str
+        Path to the C++ script to use for segmentation.
+    outfile : str
+        Path to write the segmentation results to.
+    modelpath : str
+        Path to the kmer model file used for segmentation.
+    pore : str
+        Pore generation used, affects signal processing direction.
+    minQual : float, optional
+        If set, reads with a quality score below this threshold will be skipped.
+
+    Returns
+    -------
+    None
+    """
     processes = max(2, processes)
     print(f"Using {processes} processes in segmentation.")
     pool = mp.Pool(processes)
@@ -92,8 +173,8 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
             # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
             signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
             seq = basecalled_read.query_sequence
-            ts = basecalled_read.get_tag("ts")
-            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling for this readid
+            ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+            ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
             sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
             rawFile = join(dataPath, basecalled_read.get_tag("fn"))
             shift = basecalled_read.get_tag("sm")
@@ -102,7 +183,7 @@ def segment(dataPath : str, basecalls : str, processes : int, CPP_SCRIPT : str, 
             jobs[bi % processes] = pool.apply_async(
                 asyncSegmentation, (
                     queue,
-                    CPP_SCRIPT,
+                    SCRIPT,
                     modelpath,
                     pore,
                     rawFile,
@@ -138,16 +219,16 @@ def main() -> None:
 
     match args.mode:
         case "basic":
-            CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT')
+            SCRIPT = join(dirname(__file__), 'dynamont_NT')
         case "banded":
-            CPP_SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
+            SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
         case "resquiggle":
-            CPP_SCRIPT = join(dirname(__file__), 'dynamont_NTK')
+            SCRIPT = join(dirname(__file__), 'dynamont_NTK')
 
     if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
+        SCRIPT+='.exe'
 
-    segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, args.model_path, args.pore, args.qscore)
+    segment(args.raw, args.basecalls, args.processes, SCRIPT, outfile, args.model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
     main()

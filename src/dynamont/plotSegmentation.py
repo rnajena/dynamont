@@ -4,9 +4,6 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-import sys
-sys.path.append('/home/yi98suv/projects/dynamont/src')
-
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pandas as pd
 import numpy as np
@@ -14,10 +11,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
-from dynamont.FileIO import feedSegmentation, SegmentationError, hampel_filter
+from FileIO import feedSegmentation, SegmentationError, hampelFilter
 import read5
 import pysam
-from scipy.stats import median_abs_deviation as mad
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -35,7 +31,7 @@ def parse() -> Namespace:
     
     return parser.parse_args()
 
-def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, kmermodels : pd.DataFrame, probability : bool):
+def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, kmerModels : pd.DataFrame, prob : bool):
     '''
     Input
     -----
@@ -50,7 +46,7 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
     read : str
         in 5' -> 3' orientation
     '''
-    basecolors = {
+    baesColors = {
         'A':'#377eb8',
         'a':'#377eb8',
         'C':'#ff7f00',
@@ -97,15 +93,15 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
         motif = motif.replace('U', 'T')
         width = segment[1] - segment[0]
 
-        plt.vlines([int(segment[0])], ymin=-6, ymax=3, colors=basecolors[base], linestyles='--', linewidth=0.7)
+        plt.vlines([int(segment[0])], ymin=-6, ymax=3, colors=baesColors[base], linestyles='--', linewidth=0.7)
         ax = plt.gca()
-        ax.add_patch(Rectangle((int(segment[0]), -6), width, 9, alpha=0.4, facecolor=basecolors[base]))
+        ax.add_patch(Rectangle((int(segment[0]), -6), width, 9, alpha=0.4, facecolor=baesColors[base]))
 
         match segment[5]:
             # for 3D: move in t and k, but not n
             # for 2D: move in t and n
             case 'M' | 'P':
-                mean, stdev = kmermodels.loc[motif][['level_mean', 'level_stdv']]
+                mean, stdev = kmerModels.loc[motif][['level_mean', 'level_stdv']]
                 height = 3.92*stdev # 1.96 * 2 * stdev
                 ax.add_patch(Rectangle((segment[0], mean-1.96*stdev), width, height, alpha=0.4, facecolor="grey"))
                 # write motif
@@ -120,13 +116,13 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
             # case 'S':
             #     pass
 
-    plt.vlines([int(segment[0])], ymin=20, ymax=150, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "Dynamont Segmentation")
+    plt.vlines([int(segment[0])], ymin=20, ymax=150, colors=baesColors[base], linestyles='--', linewidth=0.7, label = "Dynamont Segmentation")
     plt.hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="Model Mean")
     plt.hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
     plt.plot([0, 0.1], [-6.1, -6], c='blue', label='log(Border Probability)')
     plt.legend()
 
-    if probability:
+    if prob:
         plt.twinx()
         # print(x, polyAend, probs)
         plt.plot(np.arange(ts, ts+len(probs)), probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
@@ -138,13 +134,13 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
     plt.savefig(join(outpath, readid + '.svg'), dpi=500)
     plt.savefig(join(outpath, readid + '.pdf'), dpi=500)
 
-def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str):
+def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, outdir : str, mode : str, modelPath : str, probability : bool, pore : str):
     '''
     Takes read in 3' -> 5' direction
     '''
     print(f"Segmenting {readid}")
 
-    kmermodels = pd.read_csv(modelpath, sep='\t', index_col = "kmer")
+    kmerModels = pd.read_csv(modelPath, sep='\t', index_col = "kmer")
 
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
@@ -179,7 +175,7 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     
     CPP_SCRIPT = join(dirname(__file__), f'{mode}')
 
-    PARAMS['m'] = modelpath
+    PARAMS['m'] = modelPath
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
@@ -197,26 +193,26 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     if "rna" in pore: # change orientation back from 3'-5' to 5'-3'
         read = read[::-1]
 
-    plotBorders(normSignal, ts, read, segments, borderProbs, readid, outdir, kmermodels, probability)
+    plotBorders(normSignal, ts, read, segments, borderProbs, readid, outdir, kmerModels, probability)
 
 def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str) -> tuple:
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-        for basecalled_read in samfile.fetch(until_eof=True):
+        for basecalledRead in samfile.fetch(until_eof=True):
 
             # init read, sometimes a read got split by the basecaller and got a new id
-            readid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else basecalled_read.query_name
+            readid = basecalledRead.get_tag("pi") if basecalledRead.has_tag("pi") else basecalledRead.query_name
             
             # print(readid)
             if readid != targetID:
                 continue
-            seq = basecalled_read.query_sequence
+            seq = basecalledRead.query_sequence
             # qs = basecalled_read.get_tag("qs") # quality score
-            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # split start of the signal
-            ts = basecalled_read.get_tag("ts") # transcript start
-            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
+            sp = basecalledRead.get_tag("sp") if basecalledRead.has_tag("sp") else 0 # if split read get start offset of the signal
+            ts = basecalledRead.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
+            ns = basecalledRead.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
 
-            rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+            rawFile = join(dataPath, basecalledRead.get_tag("fn"))
             r5 = read5.read(rawFile)
 
             # print(basecalled_read.get_tag('sm'), basecalled_read.get_tag('sd'))
@@ -228,17 +224,17 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             # print('mean sp+ts:sp+ns', np.mean(r5.getpASignal(readid)[sp+ts:sp+ns]), np.std(r5.getpASignal(readid)[sp+ts:sp+ns]))
 
             # normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float32)
-            shift = basecalled_read.get_tag("sm")
-            scale = basecalled_read.get_tag("sd")
+            shift = basecalledRead.get_tag("sm")
+            scale = basecalledRead.get_tag("sd")
             signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(np.float32)
             normSignal = (signal - shift) / scale
-            normSignal = hampel_filter(normSignal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+            normSignal = hampelFilter(normSignal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
             if "rna" in pore:
                 seq = seq[::-1]
                 
-            segmentRead(normSignal, ts, seq, basecalled_read.query_name, outdir, mode, modelpath, probability, pore)
+            segmentRead(normSignal, ts, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore)
 
 def main() -> None:
     args = parse()

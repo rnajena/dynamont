@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from multiprocessing import Queue
 
-def hampel_filter(signal, window_size=3, n_sigmas=3):
+def hampelFilter(signal, wSize=3, nSigmas=3):
     """
     Apply Hampel filter to detect and replace outliers in a signal.
 
@@ -27,26 +27,26 @@ def hampel_filter(signal, window_size=3, n_sigmas=3):
         np.ndarray: The filtered signal with outliers replaced.
     """
     # Copy the signal to avoid modifying the original
-    filtered_signal = signal.copy()
+    filtSignal = signal.copy()
     
     # Half window size for sliding
     k = 1.4826  # Constant to convert MAD to standard deviation
-    half_window = window_size // 2
+    hwSize = wSize // 2
     
     # Loop over the signal with a sliding window
-    for i in range(half_window, len(signal) - half_window):
+    for i in range(hwSize, len(signal) - hwSize):
         # Define the current window around the ith element
-        window = signal[i - half_window : i + half_window + 1]
+        window = signal[i - hwSize : i + hwSize + 1]
         
         # Calculate the median and MAD of the window
         median = np.median(window)
         mad = k * np.median(np.abs(window - median))
         
         # Identify and replace outliers
-        if np.abs(signal[i] - median) > n_sigmas * mad:
-            filtered_signal[i] = median  # Replace with the median value
+        if np.abs(signal[i] - median) > nSigmas * mad:
+            filtSignal[i] = median  # Replace with the median value
     
-    return filtered_signal
+    return filtSignal
 
 class SegmentationError(Exception):
     """Raised when no segmentation was calculated for a read"""
@@ -108,20 +108,29 @@ def getFiles(filepath : str, rec : bool) -> list:
 
     return files
 
-def openCPPScript(cpp_script : str) -> Popen:
+def openCPPScript(script : str) -> Popen:
     '''
-    Popen([cpp_script], shell=True, stdout=PIPE, stdin=PIPE)
+    Opens a subprocess of the given script.
+
+    Parameters
+    ----------
+    script : str
+        Path of script
+
+    Returns
+    -------
+    subprocess : Popen
     '''
     # print("Popen call:", ' '.join(cpp_script))
-    return Popen(cpp_script, stdout=PIPE, stdin=PIPE, text=True)
+    return Popen(script, stdout=PIPE, stdin=PIPE, stderr=PIPE, text=True)
 
-def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
+def openCPPScriptATrain(script : str, params : dict) -> Popen:
     '''
     Open cpp script with transition params in transition-training mode
 
     Parameters
     ----------
-    cpp_script : str
+    script : str
         Path of script
     params : dict
         {str : float}
@@ -130,19 +139,19 @@ def openCPPScriptATrain(cpp_script : str, params : dict) -> Popen:
     -------
     subprocess : Popen
     '''
-    script = [cpp_script]
+    script = [script]
     for param in params:
         script.extend([f"-{param}", str(params[param])])
     script.append("--atrain")
     return openCPPScript(script)
 
-def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str) -> Popen:
+def openCPPScriptTrain(script : str, params : dict, model_file : str) -> Popen:
     '''
     Open cpp script with transition params in training mode
 
     Parameters
     ----------
-    cpp_script : str
+    script : str
         Path of script
     params : dict
         {str : float}
@@ -151,19 +160,19 @@ def openCPPScriptTrain(cpp_script : str, params : dict, model_file : str) -> Pop
     -------
     subprocess : Popen
     '''
-    script = [cpp_script]
+    script = [script]
     for param in params:
         script.extend([f"-{param}", str(params[param])])
     script.extend(["--train", "--model", model_file])
     return openCPPScript(script)
 
-def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
+def openCPPScriptParams(script : str, params : dict) -> Popen:
     '''
     Open cpp script with transition params
 
     Parameters
     ----------
-    cpp_script : str
+    script : str
         Path of script
     params : dict
         {str : float}
@@ -172,7 +181,7 @@ def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
     -------
     subprocess : Popen
     '''
-    script = [cpp_script]
+    script = [script]
     for param in params:
         if param == 'p':
             script.extend(['-p'])
@@ -180,13 +189,13 @@ def openCPPScriptParams(cpp_script : str, params : dict) -> Popen:
             script.extend([f"-{param}", str(params[param])])
     return openCPPScript(script)
 
-def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None) -> Popen:
+def openCPPScriptCalcZ(script : str, params : dict, model : str = None) -> Popen:
     '''
     Open cpp script with transition params in calculate-Z mode
 
     Parameters
     ----------
-    cpp_script : str
+    scrip : str
         Path of script
     params : dict
         {str : float}
@@ -195,20 +204,21 @@ def openCPPScriptCalcZ(cpp_script : str, params : dict, model_file : str = None)
     -------
     subprocess : Popen
     '''
-    script = [cpp_script]
+    script = [script]
     for param in params:
         script.extend([f"-{param}", str(params[param])])
     script.append("--calcZ")
-    if model_file is not None:
-        script.extend(["--model", model_file])
+    if model is not None:
+        script.extend(["--model", model])
     return openCPPScript(script)
 
-def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model_file : str = None, readid : str = None) -> float:
-    pipe = openCPPScriptCalcZ(script, params, model_file)
-    try:
-        Z = float(feedPipe(signal, read, pipe).strip())
-    except:
+def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : str = None, readid : str = None) -> float:
+    pipe = openCPPScriptCalcZ(script, params, model)
+    result, errors = feedPipe(signal, read, pipe)
+    if errors:
+        print(errors)
         return readid
+    Z = float(result)
     return Z
 
 def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
@@ -228,19 +238,21 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     '''
     signal = ",".join([f'{x:.5f}' for x in signal])
     cookie = f"{signal}\n{read}\n"
-    result = pipe.communicate(input=cookie)[0]
-    return result
+    results, errors = pipe.communicate(input=cookie)
+    # print(result)
+    return results.strip(), errors.strip()
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model_file : str, readid : str) -> tuple|str:
+def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model : str, readid : str) -> tuple|str:
     '''
     Parse & feed signal & read to the C++ segmentation script.
 
     Parameters
     ----------
     signal : np.ndarray
+        orientation must match with read
     read : str
-        in 3' -> 5' direction
+        orientation must match with signal
     stream
         Open stdin stream of the C++ segmentation algorithm
 
@@ -252,16 +264,19 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
         {str : float}
     Z : float
     '''
-    pipe = openCPPScriptTrain(script, params, model_file)
-    try:
-        result = feedPipe(signal, read, pipe).split('\n')
-        transitionParams, modelParams, Z, _ = result
-    except:
+    pipe = openCPPScriptTrain(script, params, model)
+    
+    print(len(signal), len(read))
+
+    result, errors = feedPipe(signal, read, pipe)
+    if errors:
         print(f"ERROR while extracting result in {readid}, {result}")
         # with open("failed_input.txt", 'w') as w:
         #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
         # raise SegmentationError(readid)
         return readid
+    transitionParams, modelParams, Z = result.split('\n')
+
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in transitionParams.split(";")}
     except:
@@ -277,29 +292,22 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offset : int, params : dict = None) -> tuple:
+def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : int, params : dict = None) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Opens and closes a pipe to the given script.
 
     Parameters
     ----------
-    segmentation : np.ndarray
-        numpy array of marking the borders
-        format: [[start : int, end : int, readpos : int, state : str] ...]
-            start : signal idx
-            end : signal idx
-            readpos : base position within 5' - 3' read
-            state: {'M', 'I', 'D'}
-                'M' : match
-                'I' : insertion of a base
-                'D' : deletion of a base
+    signal : np.ndarray
+        orientation must match with read
     read : str
-        in 3' -> 5' direction
+        orientation must match with signal
     script : str
         script file name
+    signal_offset : int
     params : dict
-        params for the c++ script in short form: e.g. {-m : "model_path"}
+        params for the c++ script in short form: e.g. {-m : "model"}
 
     Returns
     -------
@@ -320,16 +328,29 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offse
         pipe = openCPPScript(script)
     else:
         pipe = openCPPScriptParams(script, params)
-    result = feedPipe(signal, read, pipe)
+    result, errors = feedPipe(signal, read, pipe)
     
+    if errors:
+        print(f"ERROR appeared for {read}")
+        print(signal)
+        print(read)
+        print(errors)
+        with open("failed_input.txt", "w") as w:
+            w.write(str(np.around(signal, 4).tolist()).replace(' ', '').replace('[', '').replace(']', ''))
+            w.write('\n')
+            w.write(read)
+            w.write('\n')
+        exit(1)
+
     try:
-        output, probs, _ = result.split('\n')
+        output, probs = result.split('\n')
         probs = np.array(list(map(float, probs.split(',')[:-1])))[1:]
     except:
         try:
-            output, _  = result.split('\n')
+            output  = result.split('\n')
             probs = None
         except:
+            print("ERROR while extracting result in {read}")
             print(signal)
             print(read)
             with open("failed_input.txt", "w") as w:
@@ -339,13 +360,8 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, signal_offse
                 w.write('\n')
             exit(1)
 
-    # receive segmentation result
-    # format output into np.ndarray
-    # try:
-    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
-    # except:
-        # some error during segmentation - no proper output
-        # return np.array([])
+    # receive segmentation result and format output into np.ndarray
+    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1])
     return segments, probs
 
 def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, queue : Queue) -> None:
@@ -369,11 +385,16 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     queue : Queue
     '''
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
-    output = feedPipe(signal, read, pipe)
+    output, errors = feedPipe(signal, read, pipe)
+    if errors:
+        queue.put("error: " + errors)
+        return
     segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
-    queue.put(formatSegmentation(readid, signalid, segments))
+    out = formatSegmentation(readid, signalid, segments)
+    if out:
+        queue.put(out)
 
-def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int, read : str) -> np.ndarray:
+def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
 
@@ -399,7 +420,7 @@ def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int,
             state : match, extend, etc
     '''
     segments = []
-    output = output.strip().split(';')[:-1]
+    output = output.split(';')[:-1]
     for i, segment in enumerate(output):
         # split segment state
         state = segment[0]
@@ -412,8 +433,8 @@ def formatSegmentationOutput(output : str, signal_offset : int, lastIndex : int,
             basepos, start, prob = segment.split(',')
             polish = 'NA'
 
-        start = int(start) + signal_offset
-        end = int(output[i+1][1:].split(',')[1]) + signal_offset if i < len(output)-1 else lastIndex
+        start = int(start) + sigOffset
+        end = int(output[i+1][1:].split(',')[1]) + sigOffset if i < len(output)-1 else lastIndex
 
         # convert basepos to 5' -> 3' direction
         pos = len(read) - int(basepos) - 1
@@ -442,10 +463,29 @@ def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) 
     return '\n'.join(lines) + '\n'
 
 def stopFeeding(pipe : Popen) -> None:
+    '''
+    Stop feeding a pipe with data
+
+    Parameters
+    ----------
+    pipe : Popen
+        the pipe to stop feeding
+    '''
     pipe.kill()
     return None
 
 def plotParameters(param_file : str, outdir : str) -> None:
+    '''
+    Generate line plots for each parameter in the given CSV file over training batches, 
+    saving them as PDF files in the specified output directory.
+
+    Parameters
+    ----------
+    param_file : str
+        Path to the CSV file containing parameter data with columns for 'epoch', 'batch', and parameters.
+    outdir : str
+        Directory to save the output PDF files.
+    '''
     import matplotlib
     matplotlib.use('Agg') # Use non-interactive backend (no GUI)
     df = pd.read_csv(param_file, sep=',')

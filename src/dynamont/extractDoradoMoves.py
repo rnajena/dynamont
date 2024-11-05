@@ -5,8 +5,6 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-import os
-import numpy as np
 import pysam
 
 def parse() -> Namespace:
@@ -17,15 +15,15 @@ def parse() -> Namespace:
     parser.add_argument('-o', '--outfile', default='moves.tsv', help='output file')
     return parser.parse_args()
 
-def extract_mv_positions_from_sam(sam_file_path : str, outfile : str, write_batch_size=1000):
+def extractMoves(bamFile : str, outfile : str, writeBatchSize=1000):
     """Extracts the positions where mv:B:c tag has 1s and maps them to base positions for each read."""
     
     # Open the SAM file using pysam
     with open(outfile, 'a') as out:
         # Open the SAM or BAM file
-        with pysam.AlignmentFile(sam_file_path, "r" if sam_file_path.endswith('.sam') else "rb", check_sq=False) as samfile:
+        with pysam.AlignmentFile(bamFile, "r" if bamFile.endswith('.sam') else "rb", check_sq=False) as bamFile:
             batch = []
-            for read in samfile.fetch(until_eof=True):
+            for read in bamFile.fetch(until_eof=True):
                 # Check if the mv tag exists in the read
                 if read.has_tag("mv"):
                     mv = read.get_tag("mv")
@@ -58,7 +56,7 @@ def extract_mv_positions_from_sam(sam_file_path : str, outfile : str, write_batc
                         batch.append('\t'.join([rid, str(pos), base, motif, str(start), str(end)]) + '\n')
 
                         # Write in batches to minimize file I/O
-                        if len(batch) >= write_batch_size:
+                        if len(batch) >= writeBatchSize:
                             out.writelines(batch)
                             batch.clear()
                     
@@ -79,7 +77,7 @@ def main() -> None:
 
     for fi, file in enumerate(files):
         print(f'Extracting segmentation from file {fi}/{len(files)}', end='\r')
-        extract_mv_positions_from_sam(file, outfile)
+        extractMoves(file, outfile)
 
 if __name__ == '__main__':
     main()

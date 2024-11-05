@@ -8,10 +8,9 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import numpy as np
 from os.path import exists, join, dirname
 from os import makedirs, name
-from FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampel_filter
+from FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
 import read5
 import multiprocessing as mp
-# from hampel import hampel
 from datetime import datetime
 from collections import deque
 import pysam
@@ -64,13 +63,13 @@ def parse() -> Namespace:
     parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
     return parser.parse_args()
 
-def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, max_batches : int, pore : str, minQual : float = None) -> None:
+def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, maxBatch : int, pore : str, minQual : float = None) -> None:
 
     kmerModels = readKmerModels(model_path)
     trainedModels = join(dirname(param_file), 'trained_0_0.model')
     writeKmerModels(trainedModels, kmerModels)
     
-    param_writer = open(param_file, 'w')
+    paramWriter = open(param_file, 'w')
 
     if mode == 'basic':
         mode = 'dynamont_NT'
@@ -116,10 +115,10 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     paramCollector = {kmer:(ManagedList([kmerModels[kmer][0]]), ManagedList([kmerModels[kmer][1]])) for kmer in kmerModels}
     paramCollector = paramCollector | {param : ManagedList([transitionParams[param]]) for param in transitionParams}
     kmerSeen = set()
-    param_writer.write("epoch,batch,read,")
+    paramWriter.write("epoch,batch,read,")
     for param in transitionParams:
-        param_writer.write(param+',')
-    param_writer.write("Zchange\n")
+        paramWriter.write(param+',')
+    paramWriter.write("Zchange\n")
     i = 0
     qualSkipped = 0
     noMatchingReadid = 0
@@ -127,60 +126,59 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     with mp.Pool(batch_size) as p:
 
         for e in range(epochs):
-            mp_items = []
-            training_readids = []
-            batch_num = 0
+            mpItems = []
+            trainIDs = []
+            batchNum = 0
             oldFile = None
 
             with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-                for basecalled_read in samfile.fetch(until_eof=True):
+                for basecalledRead in samfile.fetch(until_eof=True):
                     
                     # skip low qual reads if activated
-                    qual = basecalled_read.get_tag("qs")
+                    qual = basecalledRead.get_tag("qs")
                     if minQual and qual < minQual:
                         qualSkipped+=1
                         continue
 
                     # init read
-                    seq = basecalled_read.query_sequence
+                    seq = basecalledRead.query_sequence
                     # init read, sometimes a read got split by the basecaller and got a new id
-                    readid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else basecalled_read.query_name
-                    sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0
-                    ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
-                    ts = basecalled_read.get_tag("ts")
-                    rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+                    readid = basecalledRead.get_tag("pi") if basecalledRead.has_tag("pi") else basecalledRead.query_name
+                    sp = basecalledRead.get_tag("sp") if basecalledRead.has_tag("sp") else 0 # if split read get start offset of the signal
+                    ns = basecalledRead.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+                    ts = basecalledRead.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
+                    rawFile = join(dataPath, basecalledRead.get_tag("fn"))
 
                     if oldFile != rawFile:
                         oldFile = rawFile
                         r5 = read5.read(rawFile)
 
                     # fill batch
-                    if len(mp_items) < batch_size:
+                    if len(mpItems) < batch_size:
                         # saw more consistency for short reads when using the mean
                         try:
-                            # signal = r5.getZNormSignal(readid, "median")[sp+ts:sp+ns].astype(np.float32)
-                            shift = basecalled_read.get_tag("sm")
-                            scale = basecalled_read.get_tag("sd")
-                            signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(np.float32)
+                            shift = basecalledRead.get_tag("sm")
+                            scale = basecalledRead.get_tag("sd")
+                            signal = r5.getpASignal(readid)[sp+ts:sp+ns]
                             signal = (signal - shift) / scale
                         except:
                             noMatchingReadid+=1
                             continue
                         # signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
-                        signal = hampel_filter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+                        signal = hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         if "rna" in pore:
                             seq = seq[::-1]
-                        mp_items.append([signal, seq, transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, readid])
-                        training_readids.append(readid)
+                        mpItems.append([signal, seq, transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, readid])
+                        trainIDs.append(readid)
 
-                    if len(mp_items) == batch_size:
+                    if len(mpItems) == batch_size:
                         print("============================")
-                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {batch_num}\n{transitionParams}")
-                        print("Training with read:", training_readids)
-                        batch_num += 1
-                        preTrainZ = np.zeros(batch_size)
+                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {batchNum}\n{transitionParams}")
+                        print("Training with read:", trainIDs)
+                        batchNum += 1
+                        preZ = np.zeros(batch_size)
 
-                        for readid, result in enumerate(p.starmap(trainTransitionsEmissions, mp_items)):
+                        for readid, result in enumerate(p.starmap(trainTransitionsEmissions, mpItems)):
                             if isinstance(result, str):
                                 print(f"No segmentation calculated for {result} in {e}: {trainedModels}.")
                                 # del mp_items[readid]
@@ -188,7 +186,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
                             trainedParams, newModels, Z = result
                             i += 1
-                            preTrainZ[readid] = Z
+                            preZ[readid] = Z
 
                             for param in trainedParams:
                                 paramCollector[param].add(trainedParams[param])
@@ -198,52 +196,52 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                                 paramCollector[kmer][0].add(newModels[kmer][0])
                                 paramCollector[kmer][1].add(newModels[kmer][1])
 
-                        print(f"Zs: {preTrainZ}")
+                        print(f"Zs: {preZ}")
 
                         # update parameters
-                        param_writer.write(f'{e},{batch_num},{i},') # log
+                        paramWriter.write(f'{e},{batchNum},{i},') # log
                         for param in transitionParams:
                             try:
                                 transitionParams[param] = paramCollector[param].mean()
                             except:
                                 print(param, paramCollector[param].get_list())
                                 exit(1)
-                            param_writer.write(f'{transitionParams[param]},') # log
+                            paramWriter.write(f'{transitionParams[param]},') # log
 
                         for kmer in kmerSeen:
                             kmerModels[kmer] = [paramCollector[kmer][0].mean(), paramCollector[kmer][1].mean()]
 
-                        trainedModels = join(dirname(trainedModels), f"trained_{e}_{batch_num}.model")
+                        trainedModels = join(dirname(trainedModels), f"trained_{e}_{batchNum}.model")
                         writeKmerModels(trainedModels, kmerModels)
-                        param_writer.flush()
+                        paramWriter.flush()
 
                         # rerun with new parameters to compare Zs
-                        for j in range(len(mp_items)):
-                            mp_items[j][2] = transitionParams
-                            mp_items[j][4] = trainedModels
-                        postTrainZ = np.zeros(batch_size)
-                        for j, result in enumerate(p.starmap(calcZ, mp_items)):
+                        for j in range(len(mpItems)):
+                            mpItems[j][2] = transitionParams
+                            mpItems[j][4] = trainedModels
+                        postZ = np.zeros(batch_size)
+                        for j, result in enumerate(p.starmap(calcZ, mpItems)):
                             if isinstance(result, str):
                                 print(f"No segmentation calculated for {result} in {e} calcZ.")
                                 continue
                             Z = result
-                            postTrainZ[j] = Z
+                            postZ[j] = Z
 
-                        Zchange = postTrainZ - preTrainZ
+                        dZ = postZ - preZ
 
-                        print(f"Z changes: {Zchange}")
-                        deltaZ = np.mean(Zchange)
-                        param_writer.write(f'{deltaZ}\n') # log
-                        param_writer.flush() # log
+                        print(f"Z changes: {dZ}")
+                        deltaZ = np.mean(dZ)
+                        paramWriter.write(f'{deltaZ}\n') # log
+                        paramWriter.flush() # log
                         # initialize new batch
                         kmerSeen = set()
-                        mp_items = []
-                        training_readids = []
+                        mpItems = []
+                        trainIDs = []
 
-                        if max_batches is not None and batch_num >= max_batches:
+                        if maxBatch is not None and batchNum >= maxBatch:
                             break
 
-        param_writer.close()
+        paramWriter.close()
         print("Done training")
         print(f"Skipped reads due to low quality: {qualSkipped}")
 
@@ -255,10 +253,10 @@ def main() -> None:
     if not exists(outdir):
         makedirs(outdir)
 
-    param_file = join(outdir, 'params.csv')
+    paramFile = join(outdir, 'params.csv')
 
-    train(args.raw, args.basecalls, args.batch_size, args.epochs, param_file, args.mode, args.model_path, args.max_batches, args.pore, args.qscore)
-    plotParameters(param_file, outdir)
+    train(args.raw, args.basecalls, args.batch_size, args.epochs, paramFile, args.mode, args.model_path, args.max_batches, args.pore, args.qscore)
+    plotParameters(paramFile, outdir)
 
 if __name__ == '__main__':
     main()
