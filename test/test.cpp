@@ -9,44 +9,44 @@
 
 TEST(Scorehd, shouldComputeCorrectScoreHDFor5merValues)
 {
-    alphabet_size = 4; // Example alphabet size
-    kmerSize = 5;      // Example kmer size
+    alphabetSize = 4; // Example alphabet size
+    kmerSize = 5;     // Example kmer size
 
-    std::size_t kmer_N = 94;  // 94_base10 = 1132_base4 = ACCTG
-    std::size_t kmer_K = 594; // 594_base10 = 21102_base4 = GCCAG
+    std::size_t kmerN = 94;  // 94_base10 = 1132_base4 = ACCTG
+    std::size_t kmerK = 594; // 594_base10 = 21102_base4 = GCCAG
 
-    int expected_score = -2 * 2; // Expected score based on manual calculation
-    int actual_score = scoreHD(kmer_N, kmer_K);
+    int expectedScore = -2 * 2; // Expected score based on manual calculation
+    int actualScore = scoreHD(kmerN, kmerK);
 
-    ASSERT_EQ(expected_score, actual_score);
+    ASSERT_EQ(expectedScore, actualScore);
 }
 
 TEST(Scorehd, shouldComputeCorrectScoreHDFor9merValues)
 {
-    alphabet_size = 4; // Example alphabet size
-    kmerSize = 9;      // Example kmer size
+    alphabetSize = 4; // Example alphabet size
+    kmerSize = 9;     // Example kmer size
 
-    std::size_t kmer_N = 23438;  // 23438_base10  = 011232032_base4 = ACCGTGATG
-    std::size_t kmer_K = 180132; // 180132_base10 = 223332210_base4 = GGTTTGGCA
+    std::size_t kmerN = 23438;  // 23438_base10  = 011232032_base4 = ACCGTGATG
+    std::size_t kmerK = 180132; // 180132_base10 = 223332210_base4 = GGTTTGGCA
 
-    int expected_score = -2 * 7; // Expected score based on manual calculation
-    int actual_score = scoreHD(kmer_N, kmer_K);
+    int expectedScore = -2 * 7; // Expected score based on manual calculation
+    int actualScore = scoreHD(kmerN, kmerK);
 
-    ASSERT_EQ(expected_score, actual_score);
+    ASSERT_EQ(expectedScore, actualScore);
 }
 
 TEST(Scorehd, shouldHandleZeroKmerValues)
 {
-    alphabet_size = 4; // Example alphabet size
-    kmerSize = 5;      // Example kmer size
+    alphabetSize = 4; // Example alphabet size
+    kmerSize = 5;     // Example kmer size
 
-    std::size_t kmer_N = 0;
-    std::size_t kmer_K = 0;
+    std::size_t kmerN = 0;
+    std::size_t kmerK = 0;
 
-    int expected_score = 0; // Both kmers are zero, so no differences
-    int actual_score = scoreHD(kmer_N, kmer_K);
+    int expectedScore = 0; // Both kmers are zero, so no differences
+    int actualScore = scoreHD(kmerN, kmerK);
 
-    ASSERT_EQ(expected_score, actual_score);
+    ASSERT_EQ(expectedScore, actualScore);
 }
 
 TEST(ColumnArgsort, shouldSortIndicesInDescendingOrderWhenGivenAValidMatrixAndColumn)
@@ -56,7 +56,7 @@ TEST(ColumnArgsort, shouldSortIndicesInDescendingOrderWhenGivenAValidMatrixAndCo
     const double matrix[] = {1.0, 3.0, 2.0, 4.0, 6.0, 5.0};
 
     std::vector<std::size_t> expected = {1, 2, 0};
-    std::vector<std::size_t> result = column_argsort(matrix, C, t);
+    std::vector<std::size_t> result = columnArgsort(matrix, C, t);
 
     EXPECT_EQ(result, expected);
 }
@@ -119,10 +119,10 @@ TEST(Successingkmer, ValidInputs)
     std::size_t currentKmer = 5; // AAACC
     int nextNt = 2;              // + G = AACCG
     int stepSize = 256;
-    int alphabet_size = 4;
+    int alphabetSize = 4;
 
     // When
-    std::size_t result = successingKmer(currentKmer, nextNt, stepSize, alphabet_size);
+    std::size_t result = successingKmer(currentKmer, nextNt, stepSize, alphabetSize);
 
     // Then
     EXPECT_EQ(result, 22);
@@ -135,10 +135,10 @@ TEST(Precessingkmer, ValidInputs)
     std::size_t currentKmer = 10; // AAAGG
     int priorNt = 2;              // + G = GAAAG
     int stepSize = 256;
-    int alphabet_size = 4;
+    int alphabetSize = 4;
 
     // When
-    std::size_t result = precessingKmer(currentKmer, priorNt, stepSize, alphabet_size);
+    std::size_t result = precessingKmer(currentKmer, priorNt, stepSize, alphabetSize);
 
     // Then
     EXPECT_EQ(result, 514);
@@ -153,7 +153,7 @@ TEST(LogNormalPdf, shouldUseLog2PiConstantCorrectlyInCalculations)
     const double s = 1.0;
 
     // When
-    double result = log_normal_pdf(x, m, s);
+    double result = logNormalPdf(x, m, s);
 
     // Then
     EXPECT_NEAR(result, -1.4189385332046727, 1e-9);
@@ -167,7 +167,7 @@ TEST(LogNormalPdf, shouldReturnNegativeInfinityWhenStandardDeviationIsZero)
     const double s = 0.0;
 
     // When
-    double result = log_normal_pdf(x, m, s);
+    double result = logNormalPdf(x, m, s);
 
     // Then
     EXPECT_EQ(result, -INFINITY);
@@ -181,46 +181,102 @@ TEST(LogNormalPdf, shouldHandleVerySmallPositiveStandardDeviationValues)
     const double s = 1e-10;
 
     // When
-    double result = log_normal_pdf(x, m, s);
+    double result = logNormalPdf(x, m, s);
 
     // Then
     EXPECT_NE(result, -INFINITY);
 }
 
 // Converts a positive integer to a string representation using a valid base
-TEST(Itoa, shouldConvertPositiveIntegerToStringWhenBaseIsValid)
+TEST(Itoa, check5merRNA)
 {
     // Given
     std::size_t value = 10; // AAAGG
-    int alphabet_size = 4;
+    int alphabetSize = 4;
     int kmerSize = 5;
+    bool rna = true;
 
     // When
-    std::string result = itoa(value, alphabet_size, kmerSize);
+    std::string result = itoa(value, alphabetSize, kmerSize, rna);
 
     // Then
     EXPECT_EQ(result, "GGAAA");
 
     value = 0;
-    result = itoa(value, alphabet_size, kmerSize);
+    result = itoa(value, alphabetSize, kmerSize, rna);
     EXPECT_EQ(result, "AAAAA");
 
-    value = pow(alphabet_size, kmerSize) - 1;
-    result = itoa(value, alphabet_size, kmerSize);
+    value = pow(alphabetSize, kmerSize) - 1;
+    result = itoa(value, alphabetSize, kmerSize, rna);
     EXPECT_EQ(result, "TTTTT");
+}
 
-    kmerSize = 9;
+TEST(Itoa, check9merRNA)
+{
+    // Given
+    std::size_t value = 10; // AAAGG
+    int alphabetSize = 4;
+    int kmerSize = 9;
+    bool rna = true;
 
-    value = 10;
-    result = itoa(value, alphabet_size, kmerSize);
+    // When
+    std::string result = itoa(value, alphabetSize, kmerSize, rna);
+
+    // Then
     EXPECT_EQ(result, "GGAAAAAAA");
 
     value = 0;
-    result = itoa(value, alphabet_size, kmerSize);
+    result = itoa(value, alphabetSize, kmerSize, rna);
     EXPECT_EQ(result, "AAAAAAAAA");
 
-    value = pow(alphabet_size, kmerSize) - 1;
-    result = itoa(value, alphabet_size, kmerSize);
+    value = pow(alphabetSize, kmerSize) - 1;
+    result = itoa(value, alphabetSize, kmerSize, rna);
+    EXPECT_EQ(result, "TTTTTTTTT");
+}
+
+TEST(Itoa, check5merDNA)
+{
+    // Given
+    std::size_t value = 10; // AAAGG
+    int alphabetSize = 4;
+    int kmerSize = 5;
+    bool rna = false;
+
+    // When
+    std::string result = itoa(value, alphabetSize, kmerSize, rna);
+
+    // Then
+    EXPECT_EQ(result, "AAAGG");
+
+    value = 0;
+    result = itoa(value, alphabetSize, kmerSize, rna);
+    EXPECT_EQ(result, "AAAAA");
+
+    value = pow(alphabetSize, kmerSize) - 1;
+    result = itoa(value, alphabetSize, kmerSize, rna);
+    EXPECT_EQ(result, "TTTTT");
+}
+
+TEST(Itoa, check9merDNA)
+{
+    // Given
+    std::size_t value = 10; // AAAGG
+    int alphabetSize = 4;
+    int kmerSize = 9;
+    bool rna = false;
+
+    // When
+    std::string result = itoa(value, alphabetSize, kmerSize, rna);
+
+    // Then
+    EXPECT_EQ(result, "AAAAAAAGG");
+
+    value = 0;
+    result = itoa(value, alphabetSize, kmerSize, rna);
+    EXPECT_EQ(result, "AAAAAAAAA");
+
+    value = pow(alphabetSize, kmerSize) - 1;
+    result = itoa(value, alphabetSize, kmerSize, rna);
     EXPECT_EQ(result, "TTTTTTTTT");
 }
 
@@ -229,41 +285,41 @@ TEST(Kmer2int, shouldConvertValid5merStringToInteger)
 {
     // Given
     std::string kmer = "ACGTG";
-    int alphabet_size = 4;
+    int alphabetSize = 4;
 
     // When
-    int result = kmer2int(kmer, alphabet_size);
+    int result = kmer2int(kmer, alphabetSize);
 
     // Then
     EXPECT_EQ(result,
-              0 * pow(alphabet_size, 4) +
-                  1 * pow(alphabet_size, 3) +
-                  2 * pow(alphabet_size, 2) +
-                  3 * pow(alphabet_size, 1) +
-                  2 * pow(alphabet_size, 0));
+              0 * pow(alphabetSize, 4) +
+                  1 * pow(alphabetSize, 3) +
+                  2 * pow(alphabetSize, 2) +
+                  3 * pow(alphabetSize, 1) +
+                  2 * pow(alphabetSize, 0));
 }
 
 // Converts a valid 9-mer string to an integer using the BASE2ID map
 TEST(Kmer2int, shouldConvertValid9merStringToInteger)
 {
     // Given
-    int alphabet_size = 9;
+    int alphabetSize = 9;
     std::string kmer = "ACGTTTGCA";
 
     // When
-    int result = kmer2int(kmer, alphabet_size);
+    int result = kmer2int(kmer, alphabetSize);
 
     // Then
     EXPECT_EQ(result,
-              0 * pow(alphabet_size, 8) +
-                  1 * pow(alphabet_size, 7) +
-                  2 * pow(alphabet_size, 6) +
-                  3 * pow(alphabet_size, 5) +
-                  3 * pow(alphabet_size, 4) +
-                  3 * pow(alphabet_size, 3) +
-                  2 * pow(alphabet_size, 2) +
-                  1 * pow(alphabet_size, 1) +
-                  0 * pow(alphabet_size, 0));
+              0 * pow(alphabetSize, 8) +
+                  1 * pow(alphabetSize, 7) +
+                  2 * pow(alphabetSize, 6) +
+                  3 * pow(alphabetSize, 5) +
+                  3 * pow(alphabetSize, 4) +
+                  3 * pow(alphabetSize, 3) +
+                  2 * pow(alphabetSize, 2) +
+                  1 * pow(alphabetSize, 1) +
+                  0 * pow(alphabetSize, 0));
 }
 
 // Calculates median for an odd-sized vector
@@ -302,15 +358,15 @@ TEST(Calculatemedian, EmptyVector)
     EXPECT_THROW(calculateMedian(vec), std::out_of_range);
 }
 
-// Correctly fetches default values from default_transitions_vals
+// Correctly fetches default values from defaultVals
 TEST(Updatetransitions, ShouldFetchDefaultValuesCorrectlyFromDefaultTransitionsVals)
 {
     // Given
-    std::unordered_map<std::string, double> default_transitions_vals = {{"a", 5.0}, {"b", 6.0}};
+    std::unordered_map<std::string, double> defaultVals = {{"a", 5.0}, {"b", 6.0}};
     std::unordered_map<std::string, double> transitions = {{"a", -1.0}, {"b", -1.0}};
 
     // When
-    updateTransitions(default_transitions_vals, transitions);
+    updateTransitions(defaultVals, transitions);
 
     // Then
     EXPECT_DOUBLE_EQ(transitions["a"], log(5.0));
@@ -321,11 +377,11 @@ TEST(Updatetransitions, ShouldFetchDefaultValuesCorrectlyFromDefaultTransitionsV
 TEST(Updatetransitions, ShouldApplyLogarithmicTransformationToAllTransitionValues)
 {
     // Given
-    std::unordered_map<std::string, double> default_transitions_vals = {{"a", 2.0}, {"b", 3.0}};
+    std::unordered_map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
     std::unordered_map<std::string, double> transitions = {{"a", 4.0}, {"b", 9.0}};
 
     // When
-    updateTransitions(default_transitions_vals, transitions);
+    updateTransitions(defaultVals, transitions);
 
     // Then
     EXPECT_DOUBLE_EQ(transitions["a"], log(4.0));
@@ -336,11 +392,11 @@ TEST(Updatetransitions, ShouldApplyLogarithmicTransformationToAllTransitionValue
 TEST(Updatetransitions, ShouldHandleEmptyTransitionsMapWithoutErrors)
 {
     // Given
-    std::unordered_map<std::string, double> default_transitions_vals = {{"a", 2.0}, {"b", 3.0}};
+    std::unordered_map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
     std::unordered_map<std::string, double> transitions;
 
     // When
-    updateTransitions(default_transitions_vals, transitions);
+    updateTransitions(defaultVals, transitions);
 
     // Then
     EXPECT_TRUE(transitions.empty());
@@ -372,18 +428,18 @@ TEST(Ppfortn, ValidInputs)
 {
     // Given: A valid signal array, kmer sequence, and model vector
     const double sig[] = {0.5, 1.0, 1.5};
-    const int kmer_seq[] = {0, 1, 2};
+    const int kmerSeq[] = {0, 1, 2};
     dproxy M[16];
     dproxy E[16];
-    std::vector<std::tuple<double, double>> model = {{0.5, 0.1}, {1.0, 0.2}, {1.5, 0.3}};
+    std::tuple<double, double> model[] = {{0.5, 0.1}, {1.0, 0.2}, {1.5, 0.3}};
     // When : ppForTN is called
-    ppForTN(sig, kmer_seq, M, E, 4, 4, model);
-    double expected_value_M4 = 1.3836465597893728;
-    double expected_value_E4 = -INFINITY;
+    ppForTN(sig, kmerSeq, M, E, 4, 4, model);
+    double expectedValM4 = 1.3836465597893728;
+    double expectedValE4 = -INFINITY;
     double tolerance = 1e-9;
     // Then : M and E arrays should be computed correctly
-    EXPECT_NEAR(static_cast<double>(M[5]), expected_value_M4, tolerance);
-    EXPECT_EQ(static_cast<double>(E[4]), expected_value_E4);
+    EXPECT_NEAR(static_cast<double>(M[5]), expectedValM4, tolerance);
+    EXPECT_EQ(static_cast<double>(E[4]), expectedValE4);
 }
 
 // Correctly initializes E[0] to 0
@@ -391,12 +447,12 @@ TEST(Ppfortn, InitializeEZero)
 {
     // Given: Any valid input parameters
     const double sig[] = {0.5};
-    const int kmer_seq[] = {0};
+    const int kmerSeq[] = {0};
     dproxy M[4];
     dproxy E[4];
-    std::vector<std::tuple<double, double>> model = {{0.5, 0.1}};
+    std::tuple<double, double> model[] = {{0.5, 0.1}};
     // When : ppForTN is called
-    ppForTN(sig, kmer_seq, M, E, 2, 2, model);
+    ppForTN(sig, kmerSeq, M, E, 2, 2, model);
     // Then : E[0] should be initialized to zero
     EXPECT_EQ(static_cast<double>(E[0]), 0);
 }
@@ -406,12 +462,12 @@ TEST(Ppbacktn, InitializeEZero)
 {
     // Given: Any valid input parameters
     const double sig[] = {0.5};
-    const int kmer_seq[] = {0};
+    const int kmerSeq[] = {0};
     dproxy M[4];
     dproxy E[4];
-    std::vector<std::tuple<double, double>> model = {{0.5, 0.1}};
+    std::tuple<double, double> model[] = {{0.5, 0.1}};
     // When : ppForTN is called
-    ppBackTN(sig, kmer_seq, M, E, 2, 2, model);
+    ppBackTN(sig, kmerSeq, M, E, 2, 2, model);
     // Then : E[0] should be initialized to zero
     EXPECT_EQ(static_cast<double>(E[3]), 0);
 }
@@ -420,17 +476,17 @@ TEST(Ppforbacktn, Zmatches)
 {
     // Given: A valid signal array, kmer sequence, and model vector
     const double sig[] = {0.5, 0.5, 1.0, 1.0, 1.5, 1.5};
-    const int kmer_seq[] = {0, 1, 2};
+    const int kmerSeq[] = {0, 1, 2};
     const int T = 7;
     const int N = 4;
-    std::vector<std::tuple<double, double>> model = {{0.5, 0.1}, {1.0, 0.2}, {1.5, 0.3}};
+    std::tuple<double, double> model[] = {{0.5, 0.1}, {1.0, 0.2}, {1.5, 0.3}};
     dproxy fM[T * N];
     dproxy fE[T * N];
     dproxy bM[T * N];
     dproxy bE[T * N];
     // When : ppForTN is called
-    ppForTN(sig, kmer_seq, fM, fE, 7, 4, model);
-    ppBackTN(sig, kmer_seq, bM, bE, 7, 4, model);
+    ppForTN(sig, kmerSeq, fM, fE, 7, 4, model);
+    ppBackTN(sig, kmerSeq, bM, bE, 7, 4, model);
     // Then : M and E arrays should be computed correctly
     EXPECT_EQ(static_cast<double>(fE[T * N - 1]), static_cast<double>(bE[0]));
 }
@@ -441,14 +497,18 @@ TEST(Ppforbacktk, Zmatches)
     const double sig[] = {0.5, 0.5, 0.5, 0.5, 0.5, 0.5};
     const int T = 7;
     const int K = 1024;
-    std::vector<std::tuple<double, double>> model(K, {0.5, 0.1});
+    std::tuple<double, double> *model = new std::tuple<double, double>[K];
+    for (int k = 0; k < K; ++k)
+    {
+        model[k] = {0.5, 0.1};
+    }
     dproxy fM[T * K];
     dproxy fE[T * K];
     dproxy bM[T * K];
     dproxy bE[T * K];
-    alphabet_size = 4;
+    alphabetSize = 4;
     kmerSize = 5;
-    stepSize = pow(alphabet_size, kmerSize - 1);
+    stepSize = pow(alphabetSize, kmerSize - 1);
     // When : ppForTN is called
     ppForTK(sig, fM, fE, T, K, model);
     ppBackTK(sig, bM, bE, T, K, model);

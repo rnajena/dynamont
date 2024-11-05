@@ -1,1 +1,1 @@
-g++ -DUNIT_TESTING -I /home/yi98suv/miniconda3/envs/science/pkgs/gtest-1.15.2-h434a139_0/include/ -I ../src/dynamont/ test.cpp ../src/dynamont/utils.cpp -L /home/yi98suv/miniconda3/envs/science/pkgs/gtest-1.15.2-h434a139_0/lib/ -lgtest -lgtest_main -pthread -o test
+g++ -std=c++20 -DUNIT_TESTING -I /home/yi98suv/miniconda3/envs/science/pkgs/gtest-1.15.2-h434a139_0/include/ -I ../src/dynamont/ test.cpp ../src/dynamont/utils.cpp -L /home/yi98suv/miniconda3/envs/science/pkgs/gtest-1.15.2-h434a139_0/lib/ -lgtest -lgtest_main -pthread -o test
