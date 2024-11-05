@@ -20,6 +20,7 @@
 #include <algorithm> //stable_sort
 #include <numeric>   //iota
 #include <set>
+#include <iomanip> //setprecision
 
 // default params for NTK
 const std::unordered_map<std::string, double> NTK_rna_r9_transitions = {
@@ -147,6 +148,11 @@ class dproxy
     double value_;
 
 public:
+    /**
+     * A proxy class for setting default value of double to -INFINITY
+     *
+     * @param value the default value for the double
+     */
     dproxy(double value = -INFINITY)
         : value_{value} {}
     operator double() { return value_; }
@@ -163,7 +169,7 @@ public:
  *
  * @return std::size_t std::vector with the sorted index of column in descending order
  */
-std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t C, const std::size_t t);
+std::vector<std::size_t> columnArgsort(const double *matrix, const std::size_t C, const std::size_t t);
 
 /**
  * C++ version 0.4 std::std::string style "itoa":
@@ -171,28 +177,28 @@ std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t 
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
  *
- * Converts a decimal to number to a number of base alphabet_size.
+ * Converts a decimal to number to a number of base alphabetSize.
  * TODO: Works for base between 2 and 16 (included)
  *
  * Returns kmer in reversed direction!
  *
  * @param value input number in decimal to convert to base
- * @param alphabet_size number of allowed characters in alphabet
+ * @param alphabetSize number of allowed characters in alphabet
  * @param kmerSize length of kmer
  * @param rna true if input is RNA sequence, false if DNA sequence
  * @returns kmer as reversed std::string, should be 5' - 3' direction
  */
-std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize, const bool rna);
+std::string itoa(const std::size_t value, const int alphabetSize, const int kmerSize, const bool rna);
 
 /**
  * Converts the kmers of the model file to the integer representation using the BASE2ID map
  *
  * @param s kmer containing nucleotides
  * @param BASE2ID base to id map
- * @param alphabet_size
+ * @param alphabetSize
  * @returns integer representation of the given kmer
  */
-int kmer2int(const std::string &s, const int alphabet_size);
+int kmer2int(const std::string &s, const int alphabetSize);
 
 /**
  * Reads the normal distribution parameters from a given TSV file,
@@ -204,9 +210,9 @@ int kmer2int(const std::string &s, const int alphabet_size);
  * @returns          A std::tuple containing:
  *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
- *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
+ *                   3. The total number of possible kmers (calculated as alphabetSize^kmerSize).
  */
-std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna);
+std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**
@@ -236,13 +242,13 @@ inline double logPlus(const double x, const double y)
  *
  * @param currentKmer current kmer in decimal representation
  * @param nextNt successing nucleotide as a token
- * @param alphabet_size number of accepted characters
- * @param stepSize equals alphabet_size ^ (kmerSize - 1)
+ * @param alphabetSize number of accepted characters
+ * @param stepSize equals alphabetSize ^ (kmerSize - 1)
  * @return successing Kmer as integer representation in the current base
  */
-inline std::size_t successingKmer(const std::size_t currentKmer, const int nextNt, const int stepSize, const int alphabet_size)
+inline std::size_t successingKmer(const std::size_t currentKmer, const int nextNt, const int stepSize, const int alphabetSize)
 {
-    return (currentKmer % stepSize) * alphabet_size + nextNt;
+    return (currentKmer % stepSize) * alphabetSize + nextNt;
 }
 
 /**
@@ -251,13 +257,13 @@ inline std::size_t successingKmer(const std::size_t currentKmer, const int nextN
  *
  * @param currentKmer current kmer in decimal representation
  * @param priorNt precessing nucleotide as a token
- * @param alphabet_size number of accepted characters
- * @param stepSize equals alphabet_size ^ (kmerSize - 1)
+ * @param alphabetSize number of accepted characters
+ * @param stepSize equals alphabetSize ^ (kmerSize - 1)
  * @return precessing Kmer as integer representation in the current base
  */
-inline std::size_t precessingKmer(const std::size_t currentKmer, const int priorNt, const int stepSize, const int alphabet_size)
+inline std::size_t precessingKmer(const std::size_t currentKmer, const int priorNt, const int stepSize, const int alphabetSize)
 {
-    return (currentKmer / alphabet_size) + (priorNt * stepSize);
+    return (currentKmer / alphabetSize) + (priorNt * stepSize);
 }
 
 // ===============================================================
@@ -277,7 +283,7 @@ inline constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI
  * @param s standard deviation
  * @return probabily density at position x for N~(m, s²)
  */
-inline double log_normal_pdf(const double x, const double m, const double s)
+inline double logNormalPdf(const double x, const double m, const double s)
 {
     if (s == 0.0)
     {
@@ -299,7 +305,7 @@ inline double log_normal_pdf(const double x, const double m, const double s)
  * @param s standard deviation
  * @return probabily density at position x for N~(m, s²)
  */
-inline double log_normal_pdf(const float x, const double m, const double s)
+inline double logNormalPdf(const float x, const double m, const double s)
 {
     if (s == 0.0)
     {
@@ -320,11 +326,11 @@ inline double log_normal_pdf(const float x, const double m, const double s)
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return log probability density value for x in the given normal distribution
  */
-inline double scoreKmer(const double signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model)
+inline double scoreKmer(const double signal, const std::size_t kmer, const std::tuple<double, double> *model)
 {
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
-    return log_normal_pdf(signal, mean, stddev);
+    return logNormalPdf(signal, mean, stddev);
 }
 
 /**
@@ -335,26 +341,26 @@ inline double scoreKmer(const double signal, const std::size_t kmer, const std::
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return log probability density value for x in the given normal distribution
  */
-inline double scoreKmer(const float signal, const std::size_t kmer, const std::vector<std::tuple<double, double>> &model)
+inline double scoreKmer(const float signal, const std::size_t kmer, const std::tuple<double, double> *model)
 {
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
-    return log_normal_pdf(signal, mean, stddev);
+    return logNormalPdf(signal, mean, stddev);
 }
 
 /**
  * @brief Updates the transition probabilities by applying logarithmic values.
  *
  * This function checks each transition in the `transitions` map. If a transition value is `-1`, it updates
- * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
+ * the transition value with the logarithmic value of the corresponding entry from the `defaultVals` map.
  * Otherwise, it applies the logarithm directly to the existing transition value.
  *
- * @param default_transitions_vals A map containing default transition values (std::string keys and double values).
+ * @param defaultVals A map containing default transition values (std::string keys and double values).
  *                                 These default values are used when a transition value is set to `-1`.
  * @param transitions A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double> &default_transitions_vals, std::unordered_map<std::string, double> &transitions);
+void updateTransitions(const std::unordered_map<std::string, double> &defaultVals, std::unordered_map<std::string, double> &transitions);
 
 /**
  * @brief Calculates the median of a given std::vector of double values.
@@ -372,6 +378,24 @@ void updateTransitions(const std::unordered_map<std::string, double> &default_tr
  * @example
  * std::vector<double> values = {1.0, 2.0, 3.0, 4.0, 5.0};
  * double median = calculateMedian(values);
- * // median will be 3.0
+ * # median will be 3.0
  */
 double calculateMedian(std::vector<double> &vec);
+
+/**
+ * @brief Calculates the median of a given std::vector of double values and formats it as a string.
+ *
+ * This function takes a std::vector of double values as input, calculates the median value using
+ * the `calculateMedian` function, and formats the median as a string with a fixed precision of 5.
+ *
+ * @param vec A reference to the std::vector of double values.
+ * @return A std::string containing the median value formatted with a fixed precision of 5.
+ *
+ * @throws std::out_of_range If the input std::vector is empty.
+ *
+ * @example
+ * std::vector<double> values = {1.0, 2.0, 3.0, 4.0, 5.0};
+ * std::string medianStr = formattedMedian(values);
+ * // medianStr will be "3.00000"
+ */
+std::string formattedMedian(std::vector<double> &vec);

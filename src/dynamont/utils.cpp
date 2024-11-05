@@ -21,7 +21,7 @@
  *
  * @return std::size_t std::vector with the sorted index of column in descending order
  */
-std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t C, const std::size_t t)
+std::vector<std::size_t> columnArgsort(const double *matrix, const std::size_t C, const std::size_t t)
 {
     // Initialize original index locations (indices correspond to C)
     std::vector<std::size_t> idx(C);
@@ -43,21 +43,21 @@ std::vector<std::size_t> column_argsort(const double *matrix, const std::size_t 
  * Rodrigo de Salvo Braz, Luc Gallant, John Maloney
  * and Brian Hunt
  *
- * Converts a decimal to number to a number of base alphabet_size.
+ * Converts a decimal to number to a number of base alphabetSize.
  * TODO: Works for base between 2 and 16 (included)
  *
  * Returns kmer in reversed direction!
  *
  * @param value input number in decimal to convert to base
- * @param alphabet_size number of allowed characters in alphabet
+ * @param alphabetSize number of allowed characters in alphabet
  * @param kmerSize length of kmer
  * @param rna true if input is RNA sequence, false if DNA sequence
  * @returns kmer as reversed std::string, should be 5' - 3' direction
  */
-std::string itoa(const std::size_t value, const int alphabet_size, const int kmerSize, const bool rna)
+std::string itoa(const std::size_t value, const int alphabetSize, const int kmerSize, const bool rna)
 {
     std::string buf;
-    const int base = alphabet_size;
+    const int base = alphabetSize;
 
     // check that the base if valid
     if (base < 2 || base > 16)
@@ -99,16 +99,16 @@ std::string itoa(const std::size_t value, const int alphabet_size, const int kme
  *
  * @param s kmer containing nucleotides
  * @param BASE2ID base to id map
- * @param alphabet_size
+ * @param alphabetSize
  * @returns integer representation of the given kmer
  */
-int kmer2int(const std::string &s, const int alphabet_size)
+int kmer2int(const std::string &s, const int alphabetSize)
 {
     int ret = 0;
     for (const char &c : s)
     {
         // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
-        ret *= alphabet_size; // move the number in base to the left
+        ret *= alphabetSize; // move the number in base to the left
         ret += BASE2ID.at(c);
     }
     return ret;
@@ -125,9 +125,9 @@ int kmer2int(const std::string &s, const int alphabet_size)
  * @returns          A std::tuple containing:
  *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer std::set).
- *                   3. The total number of possible kmers (calculated as alphabet_size^kmerSize).
+ *                   3. The total number of possible kmers (calculated as alphabetSize^kmerSize).
  */
-std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna)
+std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna)
 {
     std::string line, kmer, tmp;
 
@@ -149,11 +149,11 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
     }
     inputFile.close();
 
-    const int alphabet_size = (int)uniqueChars.size();
-    const std::size_t numKmers = pow(alphabet_size, kmerSize);
+    const int alphabetSize = (int)uniqueChars.size();
+    const std::size_t numKmers = pow(alphabetSize, kmerSize);
     uniqueChars.clear(); // Clear the unique character std::set (no longer needed) to free up memory
 
-    std::vector<std::tuple<double, double>> model(numKmers);
+    std::tuple<double, double> *model = new std::tuple<double, double>[numKmers];
     inputFile.open(file); // Reopen the file for the second pass
 
     // Read through the file to populate the model with (mean, stdev) for each kmer
@@ -170,31 +170,30 @@ std::tuple<std::vector<std::tuple<double, double>>, int, std::size_t> readKmerMo
         const double mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
         const double stdev = stod(tmp);
-        // model.push_back(std::make_tuple(mean, stdev));
-        model[kmer2int(kmer, alphabet_size)] = std::make_tuple(mean, stdev);
+        model[kmer2int(kmer, alphabetSize)] = std::make_tuple(mean, stdev);
     }
     inputFile.close();
 
     // Return a std::tuple containing:
     // 1. The model array (containing kmers and their (mean, stdev) tuples)
     // 2. The alphabet size (number of unique characters in the kmers)
-    // 3. The total number of kmers (alphabet_size^kmerSize)
-    return std::make_tuple(model, alphabet_size, numKmers);
+    // 3. The total number of kmers (alphabetSize^kmerSize)
+    return std::make_tuple(model, alphabetSize, numKmers);
 }
 
 /**
  * @brief Updates the transition probabilities by applying logarithmic values.
  *
  * This function checks each transition in the `transitions` map. If a transition value is `-1`, it updates
- * the transition value with the logarithmic value of the corresponding entry from the `default_transitions_vals` map.
+ * the transition value with the logarithmic value of the corresponding entry from the `defaultVals` map.
  * Otherwise, it applies the logarithm directly to the existing transition value.
  *
- * @param default_transitions_vals A map containing default transition values (std::string keys and double values).
+ * @param defaultVals A map containing default transition values (std::string keys and double values).
  *                                 These default values are used when a transition value is std::set to `-1`.
  * @param transitions A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double> &default_transitions_vals, std::unordered_map<std::string, double> &transitions)
+void updateTransitions(const std::unordered_map<std::string, double> &defaultVals, std::unordered_map<std::string, double> &transitions)
 {
     // Iterate over each transition in the 'transitions' std::unordered_map
     for (const auto &[param, value] : transitions)
@@ -203,7 +202,7 @@ void updateTransitions(const std::unordered_map<std::string, double> &default_tr
         if (value == -1.0)
         {
             // Fetch the default value for this key, and store the value in the transition map
-            transitions[param] = default_transitions_vals.at(param);
+            transitions[param] = defaultVals.at(param);
         }
         // Apply the logarithmic value to the current transition value
         transitions[param] = log(value);
@@ -250,4 +249,32 @@ double calculateMedian(std::vector<double> &vec)
     {
         return (vec[size / 2 - 1] + vec[size / 2]) / 2.0;
     }
+}
+
+/**
+ * @brief Calculates the median of a given std::vector of double values and formats it as a string.
+ *
+ * This function takes a std::vector of double values as input, calculates the median value using
+ * the `calculateMedian` function, and formats the median as a string with a fixed precision of 5.
+ *
+ * @param vec A reference to the std::vector of double values.
+ * @return A std::string containing the median value formatted with a fixed precision of 5.
+ *
+ * @throws std::out_of_range If the input std::vector is empty.
+ *
+ * @example
+ * std::vector<double> values = {1.0, 2.0, 3.0, 4.0, 5.0};
+ * std::string medianStr = formattedMedian(values);
+ * // medianStr will be "3.00000"
+ */
+std::string formattedMedian(std::vector<double> &vec)
+{
+    double median = calculateMedian(vec);
+    const int precision = 5;
+
+    // Create a string stream to format the double
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(precision) << median;
+
+    return out.str();
 }
