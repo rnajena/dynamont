@@ -8,11 +8,11 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import h5py
 import numpy as np
 import read5
-from hampel import hampel
 import pysam
 import pywt
 from os.path import join
 import multiprocessing as mp
+from src.dynamont.FileIO import hampelFilter
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -85,11 +85,11 @@ def writer(h5file : str, q : mp.Queue) -> None:
 def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, queue : mp.Queue) -> None:
     r5 = read5.read(rawFile)
     signal = r5.getpASignal(signalid).astype(np.float32)
-    filtered = hampel(signal, 6, 5.).filtered_data
+    filtered = hampelFilter(signal, 6, 5.)
     waveletEdges = waveletPeaks(filtered[start:end], 'gaus1', threshold) + start
     queue.put((signalid, waveletEdges))
         
-def wavelet(raw : str, basecalls : str, output_file: str, processes : int) -> None:
+def wavelet(raw : str, basecalls : str, outfile: str, processes : int) -> None:
     """
     Processes raw signal data and basecalls to detect edges using the wavelet transform and stores the results in an HDF5 file.
 
@@ -97,7 +97,7 @@ def wavelet(raw : str, basecalls : str, output_file: str, processes : int) -> No
     ---
     - raw (str): Path to the directory containing raw signal files.
     - basecalls (str): Path to the basecalls file in BAM format.
-    - output_file (str): Path to the output HDF5 file where the detected wavelet edges will be stored.
+    - outfile (str): Path to the output HDF5 file where the detected wavelet edges will be stored.
 
     Returns
     ---
@@ -106,16 +106,16 @@ def wavelet(raw : str, basecalls : str, output_file: str, processes : int) -> No
     # processes = 40
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
-    watcher = pool.apply_async(writer, (output_file, queue))
+    watcher = pool.apply_async(writer, (outfile, queue))
     jobs = [None for _ in range(processes - 1)]
     
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
         for i, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
             readid = basecalled_read.query_name
             signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # start sample of split read by the basecaller
-            ns = basecalled_read.get_tag("ns") # numbers of samples used in basecalling
-            ts = basecalled_read.get_tag("ts") # start sample of basecalling
+            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
+            ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+            ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
             rawFile = join(raw, basecalled_read.get_tag("fn"))
             # shift = basecalled_read.get_tag("sm")
             scale = basecalled_read.get_tag("sd")
