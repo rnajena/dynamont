@@ -281,14 +281,17 @@ inline constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI
  * @param x value
  * @param m mean
  * @param s standard deviation
- * @return probabily density at position x for N~(m, s²)
+ * @return probability density at position x for N~(m, s²)
  */
 inline double logNormalPdf(const double x, const double m, const double s)
 {
-    if (s == 0.0)
-    {
-        return -INFINITY; // Handling edge case where standard deviation is 0
-    }
+    // if (!s)
+    // {
+    //     return -INFINITY; // Handling edge case where standard deviation is 0
+    // }
+
+    // TODO: use a faster emission calculation here
+    // TODO: maybe an approximation of the PDF could work?
 
     const double variance = s * s;
     const double diff = x - m;
@@ -303,14 +306,17 @@ inline double logNormalPdf(const double x, const double m, const double s)
  * @param x value
  * @param m mean
  * @param s standard deviation
- * @return probabily density at position x for N~(m, s²)
+ * @return probability density at position x for N~(m, s²)
  */
 inline double logNormalPdf(const float x, const double m, const double s)
 {
-    if (s == 0.0)
-    {
-        return -INFINITY; // Handling edge case where standard deviation is 0
-    }
+    // if (!s)
+    // {
+    //     return -INFINITY; // Handling edge case where standard deviation is 0
+    // }
+
+    // TODO: use a faster emission calculation here
+    // TODO: maybe an approximation of the PDF could work?
 
     const double variance = s * s;
     const double diff = x - m;

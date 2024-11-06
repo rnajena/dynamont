@@ -49,8 +49,7 @@ std::unordered_map<std::string, double> transitions = {
     {"i2", -1.0},
     {"e1", -1.0}};
 
-// Asserts doubleing point compatibility at compile time
-// necessary for INFINITY usage
+// Asserts double point compatibility at compile time necessary for INFINITY usage
 static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
 
 void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
@@ -74,6 +73,8 @@ void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  */
 inline int scoreHD(const std::size_t kmerN, const std::size_t kmerK)
 {
+    // TODO: maybe creating an alphabet class with a precalculated distance lookup table would be faster here, depending on how much memory this class/lookup table consumes, only need half the table and maybe a pattern exists that can be used to faster calculate d = -2 * HD(x, y)
+    // TODO: lookup table can be combined with model object storing the mean and stddev values
     int acc = 0;
     div_t dv_N{};
     dv_N.quot = kmerN;
@@ -314,11 +315,11 @@ void ppBackTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, cons
         E[(T - 1) * K + k] = 0.0;
     }
     for (std::size_t t = T - 1; t-- > 0;)
-    { // T-2, ..., 0
+    {
         const std::size_t tK = t * K;
         const std::size_t nexttK = tK + K; // (t+1)*K
         for (std::size_t k = K; k-- > 0;)
-        { // K-1, ..., 0
+        {
             double ext = -INFINITY;
 
             const std::size_t startKmer = successingKmer(k, 0, stepSize, alphabetSize);
