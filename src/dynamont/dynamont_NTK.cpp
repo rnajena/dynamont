@@ -75,6 +75,11 @@ inline int scoreHD(const std::size_t kmerN, const std::size_t kmerK)
 {
     // TODO: maybe creating an alphabet class with a precalculated distance lookup table would be faster here, depending on how much memory this class/lookup table consumes, only need half the table and maybe a pattern exists that can be used to faster calculate d = -2 * HD(x, y)
     // TODO: lookup table can be combined with model object storing the mean and stddev values
+
+    // no calculation needed if same kmer, should happen often with sparse matrix, accurate basecaller and accurate kmer model
+    if (kmerN == kmerK)
+        return 0;
+
     int acc = 0;
     div_t dv_N{};
     dv_N.quot = kmerN;
