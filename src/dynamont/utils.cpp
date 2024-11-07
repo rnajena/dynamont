@@ -107,7 +107,6 @@ int kmer2int(const std::string &s, const int alphabetSize)
     int ret = 0;
     for (const char &c : s)
     {
-        // assert (BASE2ID.at(c)>=0); // check if nucleotide is known
         ret *= alphabetSize; // move the number in base to the left
         ret += BASE2ID.at(c);
     }
@@ -145,6 +144,11 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
         for (char c : kmer)
         {
             uniqueChars.insert(c);
+        }
+        if (kmer.length() != kmerSize)
+        {
+            std::cerr << kmer << " kmer length in model " << file << " does not match kmerSize " << kmerSize << " of pore given pore type" << std::endl;
+            exit(6);
         }
     }
     inputFile.close();
