@@ -80,16 +80,20 @@ inline int scoreHD(const std::size_t kmerN, const std::size_t kmerK)
     if (kmerN == kmerK)
         return 0;
 
+    // https://www.codeproject.com/Tips/1274380/Cplusplus11-std-div-Benchmark
+    // modulus and integer division is faster than std div
     int acc = 0;
-    div_t dv_N{};
-    dv_N.quot = kmerN;
-    div_t dv_K{};
-    dv_K.quot = kmerK;
+    std::size_t n = kmerN;
+    std::size_t k = kmerK;
     for (int i = 0; i < kmerSize; ++i)
     {
-        dv_N = div(dv_N.quot, alphabetSize);
-        dv_K = div(dv_K.quot, alphabetSize);
-        acc += (dv_N.rem != dv_K.rem);
+        // Perform modulus operation
+        const int remN = n % alphabetSize;
+        const int remK = k % alphabetSize;
+        acc += (remN != remK);
+        // Perform integer division
+        n /= alphabetSize;
+        k /= alphabetSize;
     }
     return -2 * acc; // log(e^(−k×HD)), maybe use k=10 for r9 RNA error rate of roughly 10 %
 }
@@ -1384,7 +1388,7 @@ int main(int argc, char *argv[])
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
-    program.add_argument("-r", "--pore").help("Pore used to sequence the data").default_value("rna_r9").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
+    program.add_argument("-r", "--pore").help("Pore used to sequence the data").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
     // unused, just here to match the other modes
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob); //.store_into(prob);
 
