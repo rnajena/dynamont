@@ -121,7 +121,7 @@ def openCPPScript(script : str) -> Popen:
     -------
     subprocess : Popen
     '''
-    # print("Popen call:", ' '.join(cpp_script))
+    # print("Popen call:", ' '.join(script))
     return Popen(script, stdout=PIPE, stdin=PIPE, stderr=PIPE, text=True)
 
 def openCPPScriptATrain(script : str, params : dict) -> Popen:
@@ -238,6 +238,9 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     '''
     signal = ",".join([f'{x:.5f}' for x in signal])
     cookie = f"{signal}\n{read}\n"
+    # with open("cookie.txt", 'w') as w:
+    #     w.write(cookie)
+    # print("Written Cookie")
     results, errors = pipe.communicate(input=cookie)
     # print(result)
     return results.strip(), errors.strip()
@@ -266,11 +269,12 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     '''
     pipe = openCPPScriptTrain(script, params, model)
     
-    print(len(signal), len(read))
+    # print(len(signal), len(read))
 
     result, errors = feedPipe(signal, read, pipe)
     if errors:
-        print(f"ERROR while extracting result in {readid}, {result}")
+        print(errors)
+        print(f"ERROR while extracting result in {readid}")
         # with open("failed_input.txt", 'w') as w:
         #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
         # raise SegmentationError(readid)
