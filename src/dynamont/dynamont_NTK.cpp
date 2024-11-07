@@ -158,7 +158,7 @@ inline double score(const double signal, const std::size_t kmerN, const std::siz
  *
  * @return Posterior probabilities for each state in the HMM.
  */
-void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, const double Z, const std::span<std::size_t> allowedKeys)
+void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, const double Z, const std::vector<std::size_t> &allowedKeys)
 {
     for (const std::size_t &tnk : allowedKeys)
     {
@@ -491,7 +491,7 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
  * @param model Array containing tuples of model parameters for each k-mer.
  * @return Pointer to the array of allowed k-mer keys.
  */
-std::span<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
+std::vector<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
 {
     std::vector<std::size_t> allowedKeys;
     // perform preprocessing on partial 2d problems
@@ -520,8 +520,7 @@ std::span<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const s
     // erase duplicates
     std::sort(allowedKeys.begin(), allowedKeys.end());
     allowedKeys.erase(std::unique(allowedKeys.begin(), allowedKeys.end()), allowedKeys.end());
-    // no more need for vector overhead, convert to lightweight span
-    return std::span<std::size_t>(allowedKeys.data(), allowedKeys.size());
+    return allowedKeys;
 }
 
 // ===============================================================
@@ -541,7 +540,7 @@ std::span<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const s
  * @param K The number of k-mers.
  * @param model array containing tuples of model parameters.
  */
-void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::span<std::size_t> allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
+void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
 {
     std::array<dproxy, NUMMAT> forAPSEIRef;
     for (const std::size_t &tnk : allowedKeys)
@@ -621,7 +620,7 @@ void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
  * @param K The number of k-mers.
  * @param model Array containing tuples of model parameters.
  */
-void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, std::span<std::size_t> allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
+void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
 {
     double pv, sc;
     for (auto tnk = allowedKeys.rbegin(); tnk != allowedKeys.rend(); ++tnk)
@@ -721,7 +720,7 @@ void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
  * @param N Length of nucleotide sequence + 1.
  * @param K Number of k-mers.
  */
-void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::span<std::size_t> allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
+void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
 {
     std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> APSEI;
     std::size_t idx;
@@ -1088,7 +1087,7 @@ void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * @return A tuple containing the transition probabilities for different states
  *         in the HMM.
  */
-std::tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double> trainTransition(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, std::span<std::size_t> allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
+std::tuple<double, double, double, double, double, double, double, double, double, double, double, double, double, double> trainTransition(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
 {
     // Transition parameters
     double newa1 = -INFINITY, newa2 = -INFINITY;
@@ -1224,7 +1223,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
  *
  * Outputs the trained emission parameters to the console.
  */
-std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::span<std::size_t> allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
+std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
 {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
@@ -1322,7 +1321,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_m
  *
  * Outputs the trained parameters to the console.
  */
-void trainParams(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::span<std::size_t> allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, std::tuple<double, double> *model)
+void trainParams(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, std::tuple<double, double> *model)
 {
 
     // newa1, newa2, newp1, newp2, newp3, news1, news2, news3, newe1, newe2, newe3, newe4, newi1, newi2
@@ -1472,6 +1471,7 @@ int main(int argc, char *argv[])
     const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
     assert(T > 1 && "Signal must contain more than one value!");
     assert(N > 1 && "Read must contain more than one value!");
+    // std::cerr << "T: " << T << ", " << "N: " << N << ", " << "K: " << K << ", " << "inputsize: " << TNK << "\n";
     NK = N * K;
     TNK = T * NK;
 
@@ -1497,9 +1497,7 @@ int main(int argc, char *argv[])
     read.erase();
     value.erase();
 
-    // std::cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"K: "<<K<<", "<<"inputsize: "<<TNK<<"\n";
-
-    std::span<std::size_t> allowedKeys = preProcTNK(sig, kmerSeq, T, N, K, model);
+    std::vector<std::size_t> allowedKeys = preProcTNK(sig, kmerSeq, T, N, K, model);
     // std::cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<"\n"; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<"\n";
     std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> forAPSEI;
 
