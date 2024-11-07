@@ -217,7 +217,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
                         # rerun with new parameters to compare Zs
                         for j in range(len(mpItems)):
-                            mpItems[j][2] = transitionParams
+                            mpItems[j][2] = transitionParams | {'r' : pore}
                             mpItems[j][4] = trainedModels
                         postZ = np.zeros(batch_size)
                         for j, result in enumerate(p.starmap(calcZ, mpItems)):
