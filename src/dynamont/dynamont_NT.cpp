@@ -306,12 +306,12 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
     // Initialize memory
     const std::size_t TN = T * N;
-    double G[TN];
-    double kmers[N];
-    double d[N];
-    double means[numKmers];
-    double stdevs[numKmers];
-    int counts[numKmers];
+    double *G = new double[TN];
+    double *kmers = new double[N];
+    double *d = new double[N];
+    double *means = new double[numKmers];
+    double *stdevs = new double[numKmers];
+    int *counts = new int[numKmers];
 
     // init everything with zero
     for (std::size_t i = 0; i < N; i++)
@@ -386,6 +386,11 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
         // transform vars to stdevs
         stdevs[kmerSeq[n - 1]] = sqrt(stdevs[kmerSeq[n - 1]]);
     }
+
+    delete[] G;
+    delete[] kmers;
+    delete[] counts;
+    delete[] d;
     return std::tuple<double *, double *>({means, stdevs});
 }
 
@@ -418,6 +423,8 @@ void trainParams(const double *sig, const int *kmerSeq, const dproxy *forM, cons
         }
     }
     std::cout << std::endl;
+    delete[] newMeans;
+    delete[] newStdevs;
 }
 
 /**
@@ -448,13 +455,14 @@ int main(int argc, char *argv[])
     // Argparser
     argparse::ArgumentParser program("dynamont basic", "0.1");
     // parameters for DP
+    program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
+    program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
+
     program.add_argument("-m1", "--matchscore1").help("Segment transition probability, should be close to (expected number of nucleotdes)/(signal length). Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions["m1"]);
     program.add_argument("-e1", "--extendscore1").help("First extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions["e1"]);
     program.add_argument("-e2", "--extendscore2").help("Further extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions["e2"]);
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
-    program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
-    program.add_argument("-r", "--pore").help("Pore used to sequence the data").default_value("rna_r9").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob);
 
     program.parse_args(argc, argv);
