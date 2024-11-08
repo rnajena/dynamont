@@ -863,7 +863,7 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * @param APSEI The 2D array of scores.
  * @param logAPSEI The 2D array of log scores.
  * @param segString The list to store the segment strings.
- * @param K number of kemrs
+ * @param K number of k-mers
  * @param segProb The vector to store the segment probabilities.
  *
  * @details
