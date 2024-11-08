@@ -89,7 +89,7 @@ std::string itoa(const std::size_t value, const int alphabetSize, const int kmer
     // skip this for RNA so kmer is in 5' - 3' direction for output
     if (!rna)
         // for DNA this must be reversed to output 5' - 3' direction
-        reverse(buf.begin(), buf.end());
+        std::reverse(buf.begin(), buf.end());
 
     return buf;
 }
@@ -169,8 +169,8 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
         getline(buffer, kmer, '\t');
         // models are stored in 5' - 3'
         if (rna)
-            reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
-        getline(buffer, tmp, '\t');            // level_mean
+            std::reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
+        getline(buffer, tmp, '\t');                 // level_mean
         const double mean = stod(tmp);
         getline(buffer, tmp, '\t'); // level_stdv
         const double stdev = stod(tmp);
@@ -209,7 +209,7 @@ void updateTransitions(const std::unordered_map<std::string, double> &defaultVal
             transitions[param] = defaultVals.at(param);
         }
         // Apply the logarithmic value to the current transition value
-        transitions[param] = log(value);
+        transitions[param] = std::log(value);
     }
 }
 

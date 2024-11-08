@@ -16,8 +16,8 @@
 #include <array>
 #include <fstream>   // file io
 #include <sstream>   // file io
-#include <cmath>     //log1p
-#include <algorithm> //stable_sort
+#include <cmath>     //std::log1p
+#include <algorithm> //std::stable_sort, std::reverse
 #include <numeric>   //iota
 #include <set>
 #include <iomanip> //setprecision
@@ -217,7 +217,7 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
 // https://en.wikipedia.org/wiki/Log_probability
 /**
  * Calculate addition of a+b in log space as efficiently as possible
- * with x + log1p(exp(y-x)) : x>y
+ * with x + std::log1p(exp(y-x)) : x>y
  *
  * @param a first value
  * @param b second value
@@ -231,9 +231,9 @@ inline double logPlus(const double x, const double y)
     }
     if (x >= y)
     {
-        return x + log1p(exp(y - x));
+        return x + std::log1p(exp(y - x));
     }
-    return y + log1p(exp(x - y));
+    return y + std::log1p(exp(x - y));
 }
 
 /**
@@ -272,8 +272,6 @@ inline std::size_t precessingKmer(const std::size_t currentKmer, const int prior
 // ===============================================================
 // ===============================================================
 
-inline constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI)
-
 // https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
 /**
  * Calculate log pdf for a given x, mean and standard deviation
@@ -285,43 +283,21 @@ inline constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI
  */
 inline double logNormalPdf(const double x, const double m, const double s)
 {
-    // if (!s)
-    // {
-    //     return -INFINITY; // Handling edge case where standard deviation is 0
-    // }
+    // if (s <= 0) return -INFINITY; // Handle invalid standard deviation
 
-    // TODO: use a faster emission calculation here
-    // TODO: maybe an approximation of the PDF could work?
+    constexpr double log2Pi = 1.8378770664093453; // Precomputed log(2 * M_PI)
 
-    const double variance = s * s;
+    // Compute s² and its inverse once for repeated calls with similar `s`
+    const double s_inv = 1.0 / s;
+    const double invVar = s_inv * s_inv;   // 1 / variance = 1 / (s * s)
+    const double logVar = 2 * std::log(s); // log(s^2) = 2 * log(s)
+
+    // Difference
     const double diff = x - m;
+    const double diffSq = diff * diff;
 
-    return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
-}
-
-// https://ethz.ch/content/dam/ethz/special-interest/mavt/dynamic-systems-n-control/idsc-dam/Lectures/Stochastic-Systems/Statistical_Methods.pdf
-/**
- * Calculate log pdf for a given x, mean and standard deviation
- *
- * @param x value
- * @param m mean
- * @param s standard deviation
- * @return probability density at position x for N~(m, s²)
- */
-inline double logNormalPdf(const float x, const double m, const double s)
-{
-    // if (!s)
-    // {
-    //     return -INFINITY; // Handling edge case where standard deviation is 0
-    // }
-
-    // TODO: use a faster emission calculation here
-    // TODO: maybe an approximation of the PDF could work?
-
-    const double variance = s * s;
-    const double diff = x - m;
-
-    return -0.5 * (log2Pi + log(variance) + (diff * diff) / variance);
+    // Return log PDF
+    return -0.5 * (log2Pi + logVar + diffSq * invVar);
 }
 
 /**
@@ -333,21 +309,6 @@ inline double logNormalPdf(const float x, const double m, const double s)
  * @return log probability density value for x in the given normal distribution
  */
 inline double scoreKmer(const double signal, const std::size_t kmer, const std::tuple<double, double> *model)
-{
-    // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
-    const auto &[mean, stddev] = model[kmer];
-    return logNormalPdf(signal, mean, stddev);
-}
-
-/**
- * Return log probability density for a given value and a given normal distribution
- *
- * @param signal point to calculate probability density
- * @param kmer key for the model kmer:(mean, stdev) map
- * @param model map containing kmers as keys and (mean, stdev) tuples as values
- * @return log probability density value for x in the given normal distribution
- */
-inline double scoreKmer(const float signal, const std::size_t kmer, const std::tuple<double, double> *model)
 {
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];

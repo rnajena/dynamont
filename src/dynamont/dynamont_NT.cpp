@@ -10,12 +10,12 @@
 #include <string>
 #include <map> // dictionary
 #include <tuple>
-#include <bits/stdc++.h> // reverse strings
 #include <vector>
 #include <cmath> // exp
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstddef>
 #include <algorithm>
+#include <filesystem> // std::filesystem::exists
 #include "argparse.hpp"
 #include "utils.hpp"
 
@@ -252,7 +252,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
         { // speed up, due to rules no need to look at upper triangle of matrices
             if (n + 1 < N) [[likely]]
             {
-                // m1:                 forward(i)    a                      e(i+1)                                  backward(i+1)
+                // m1:                 forward(i)        a                      e(i+1)                                 backward(i+1)
                 newM1 = logPlus(newM1, forE[t * N + n] + transitions.at("m1") + scoreKmer(sig[t], kmerSeq[n], model) + backM[(t + 1) * N + (n + 1)]);
             }
 

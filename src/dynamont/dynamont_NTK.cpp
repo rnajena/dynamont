@@ -13,19 +13,18 @@
 #include <vector>
 #include <array>
 #include <unordered_map>
+#include <unordered_set>
 #include <tuple>
-#include <bits/stdc++.h> // reverse strings
-#include <cmath>         // exp, pow, log1p, INFINITY
-#include <assert.h>
-#include <stdlib.h>
-#include <span> // requires c++20
+#include <cmath> // exp, pow, log1p, INFINITY
+#include <cassert>
+#include <cstddef>
+#include <filesystem> // std::filesystem::exists
 #include "argparse.hpp"
 #include "utils.hpp"
 
 inline constexpr int NUMMAT = 5;
 inline constexpr double SPARSETHRESHOLD = log(0.95); // using paths with top X% of probability per T
 inline constexpr double EPSILON = 1e-8;              // chose by eye just to distinguish real errors from numeric errors
-// inline constexpr double AFFINECOST = 0;              // log(0.05), !! currently switched off !! with log(1), but left this in the code to play around in the future
 
 std::size_t TNK, NK;
 double ppTNm, ppTNe, ppTKm, ppTKe;
@@ -97,31 +96,6 @@ inline int scoreHD(const std::size_t kmerN, const std::size_t kmerK)
     }
     return -2 * acc; // log(e^(−k×HD)), maybe use k=10 for r9 RNA error rate of roughly 10 %
 }
-
-// /**
-//  * Return log probability density for a given value and a given normal distribution.
-//  * affineScale = log(0.05) -> https://bmcgenomics.biomedcentral.com/articles/10.1186/s12864-024-10440-w#Fig1
-//  *
-//  * @param signal point to calculate probability density
-//  * @param kmerN key for kmer N the model kmer:(mean, stdev) map
-//  * @param kmerK key for kmer K the model kmer:(mean, stdev) map
-//  * @param affineScale affine cost for NK comparison
-//  * @param model map containing kmers as keys and (mean, stdev) tuples as values
-//  * @return log probability density value for x in the given normal distribution
-//  */
-// inline double score(const double signal, const std::size_t kmerN, const std::size_t kmerK, const double affineScale, const std::tuple<double, double> *model)
-// {
-//     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
-//     const auto &[meanN, stdN] = model[kmerN];
-//     const auto &[meanK, stdK] = model[kmerK];
-
-//     // Precompute the scores for the individual kmers and their distance
-//     const double scoreNT = logNormalPdf(signal, meanN, stdN);
-//     const double scoreKT = logNormalPdf(signal, meanK, stdK);
-//     const double scoreNK = scoreHD(kmerN, kmerK) + affineScale; // -HD * affineCost
-
-//     return scoreNT + scoreKT + scoreNK;
-// }
 
 /**
  * Return combined log probability density for a given value and a given normal distribution
@@ -561,8 +535,6 @@ void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
         else if (t > 0 && n > 0) [[likely]]
         {
             // Precompute expensive values
-            // const double extendScore = score(sig[t - 1], kmerSeq[n - 1], k, model);
-            // const double openScore = score(sig[t - 1], kmerSeq[n - 1], k, AFFINECOST, model);
             const double sc = score(sig[t - 1], kmerSeq[n - 1], k, model);
             const std::size_t baseIdx1 = tnk - NK - K - k;
             const std::size_t baseIdx2 = tnk - NK - k;

@@ -10,12 +10,12 @@
 #include <string>
 #include <map> // dictionary
 #include <tuple>
-#include <bits/stdc++.h> // reverse strings
 #include <vector>
 #include <cmath> // exp
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstddef>
 #include <algorithm>
+#include <filesystem> // std::filesystem::exists
 #include "argparse.hpp"
 #include "utils.hpp"
 
