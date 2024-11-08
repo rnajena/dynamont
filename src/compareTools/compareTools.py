@@ -14,6 +14,10 @@ import seaborn as sns
 from collections import defaultdict
 import multiprocessing as mp
 
+# TODO: add support for DNA
+# ! - add rna/dna parameter
+# ! - add different data processing in readTombo
+
 def parse() -> Namespace:
     """
     Parse command line arguments for tool comparison.
@@ -33,6 +37,7 @@ def parse() -> Namespace:
     parser.add_argument("--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as .bam file")
     # parser.add_argument("--pod5", type=str, required=True, metavar="POD5", help="raw signals")
     parser.add_argument("--output", type=str, required=True, metavar="CSV", help="Output CSV containing pandas data frame")
+    parser.add_argument("-p", "--processes", type=int, default=7, metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
 def readDynamont(file: str) -> dict:
@@ -203,10 +208,17 @@ def readTombo(directory: str) -> dict:
             try:
                 if h5['Analyses/RawGenomeCorrected_000/BaseCalled_template'].attrs['status'] == 'Alignment not produced':
                     continue
-                events : np.ndarray = h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'][:]
+                # https://nanoporetech.github.io/tombo/resquiggle.html
+                # Minor RNA note: RNA reads pass through the pore in the 3’ to 5’ direction during sequencing. As such, the raw signal and albacore events are stored in the reverse direction from DNA reads. Tombo events for RNA data are stored in the opposite direction (corresponding to the genome sequence direction, not sequencing time direction) for several practical reasons. Thus if events are to be compared to the raw signal, the raw signal must be reversed. Tombo RNA models are stored in the same direction and thus may be considered inverted as compared to some other RNA HMM signal level models.
+                signalLen = len(h5['Raw/Reads'][list(h5['Raw/Reads'].keys())[0]]['Signal'][:])
+                starts = h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'][:]['start'] + h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'].attrs['read_start_rel_to_raw']
+                ends = starts + h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'][:]['length']
+                borders = np.unique((starts, ends))
+                # reverse indices
+                borders = signalLen - borders - 1
             except KeyError:
                 continue
-            readMap[readid].update(events['start'].tolist())
+            readMap[readid].update(borders.tolist())
     return readMap
 
 def readChangepoints(file : str) -> dict:
@@ -245,30 +257,105 @@ def toNumpy(readMap: dict) -> None:
         readMap[readid] = np.array(list(readMap[readid]))
         readMap[readid].sort()
 
-def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance : int) -> int:
+# def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance : int) -> int:
+#     """
+#     Evaluates the prediction of a tool by counting how many of the ground truth
+#     changepoints are found within a given maxDistance.
+
+#     Parameters
+#     ----------
+#     groundTruth : np.ndarray
+#         1D array of ground truth changepoint positions.
+#     prediction : np.ndarray
+#         1D array of predicted changepoint positions.
+#     maxDistance : int
+#         The maximum distance in which a predicted changepoint is considered
+#         to be a true positive.
+
+#     Returns
+#     -------
+#     int
+#         The number of true positives.
+#     """
+#     found = 0
+#     for gtVal in groundTruth:
+#         minDist = min(np.abs(gtVal - prediction))
+#         found += minDist < maxDistance
+#     return found
+
+# def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
+#     """
+#     Optimized evaluation of true positives by using binary search on sorted predictions.
+
+#     Parameters
+#     ----------
+#     groundTruth : np.ndarray
+#         1D array of sorted ground truth changepoint positions.
+#     prediction : np.ndarray
+#         1D array of sorted predicted changepoint positions (should be sorted).
+#     maxDistance : int
+#         Maximum distance within which a predicted changepoint is considered true positive.
+
+#     Returns
+#     -------
+#     int
+#         The number of true positives.
+#     """
+#     found = 0
+#     for gtVal in groundTruth:
+#         # Find the closest index in prediction using binary search
+#         idx = np.searchsorted(prediction, gtVal)
+
+#         # Check the closest neighbors to determine the minimum distance
+#         minDist = float('inf')
+#         # if idx < len(prediction):
+#         minDist = abs(prediction[idx] - gtVal)
+#         # if idx > 0:
+#         minDist = min(minDist, abs(prediction[idx - 1] - gtVal))
+
+#         # Increment found if the minimum distance is within the threshold
+#         found += minDist < maxDistance
+
+#     return found
+
+def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
     """
-    Evaluates the prediction of a tool by counting how many of the ground truth
-    changepoints are found within a given maxDistance.
+    Masterclass solution to find the number of ground truth values
+    with a closest prediction within a specified maxDistance using two pointers.
+    Runtime: O(n + m)
+    Space: O(1)
 
     Parameters
     ----------
     groundTruth : np.ndarray
-        1D array of ground truth changepoint positions.
+        Sorted array of ground truth changepoint positions.
     prediction : np.ndarray
-        1D array of predicted changepoint positions.
+        Sorted array of predicted changepoint positions.
     maxDistance : int
-        The maximum distance in which a predicted changepoint is considered
-        to be a true positive.
+        Maximum allowable distance for a match.
 
     Returns
     -------
     int
-        The number of true positives.
+        Count of ground truth values with a nearby prediction within maxDistance.
     """
+    gt_idx, pred_idx = 0, 0
     found = 0
-    for gtVal in groundTruth:
-        minDist = min(np.abs(gtVal - prediction))
-        found += minDist < maxDistance
+    
+    # Two-pointer technique
+    while gt_idx < len(groundTruth) and pred_idx < len(prediction):
+        gt_val = groundTruth[gt_idx]
+        pred_val = prediction[pred_idx]
+        
+        # Check the distance
+        if abs(gt_val - pred_val) <= maxDistance:
+            found += 1
+            gt_idx += 1  # Move to next ground truth point as it's already matched
+        elif pred_val < gt_val:
+            pred_idx += 1  # Move prediction pointer to the right
+        else:
+            gt_idx += 1  # Move ground truth pointer to the right
+
     return found
 
 def plot(df: pd.DataFrame, outfile : str) -> None:
@@ -283,8 +370,33 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
         The path to save the plot to.
     """
     sns.set_theme()
-    sns.barplot(df, x='maxDistance', y='foundEdges', hue='tool', log_scale=True)
-    plt.savefig(outfile)
+
+    plt.figure(figsize=(12,12), dpi=300)
+    sns.lineplot(df, x='maxDistance', y='foundEdges', hue='tool')
+    plt.savefig(outfile + "foundEdges.svg", dpi=300)
+    plt.xlim((0, 10))
+    plt.savefig(outfile + "foundEdges_0-10.svg", dpi=300)
+    plt.close()
+    
+    plt.figure(figsize=(12,12), dpi=300)
+    sns.lineplot(df, x='maxDistance', y='foundEdgesRatio', hue='tool')
+    plt.savefig(outfile + "foundEdgesRatio.svg", dpi=300)
+    plt.xlim((0, 10))
+    plt.savefig(outfile + "foundEdgesRatio_0-10.svg", dpi=300)
+    plt.close()
+
+    plt.figure(figsize=(12,12), dpi=300)
+    sns.barplot(df.loc[df["maxDistance"] == 0], x='tool', y='segmentedReadsRatio')
+    # Annotate each bar with the height
+    for index, (_, row) in enumerate(df.loc[df["maxDistance"] == 0].iterrows()):
+        plt.text(x=index, y=row['segmentedReadsRatio'],  # Add a small offset for better visibility
+             s=f"{row['segmentedReadsRatio']:.3f}",        # Format the text with 2 decimals
+             ha='center',                     # Center the text horizontally
+             va='bottom')                     # Align the text to the top of the bar
+    plt.ylim((0.8, 1.01))
+    plt.yticks(np.arange(0.8, 1.01, 0.05))
+    plt.savefig(outfile + "segmentedReadsRatio.svg", dpi=300)
+    plt.close()
 
 def generateControl(bamFile : str) -> tuple:
     """
@@ -338,7 +450,7 @@ def generateControl(bamFile : str) -> tuple:
 def main() -> None:
     args = parse()
 
-    pool = mp.Pool(7)
+    pool = mp.Pool(args.processes)
 
     if not os.path.exists(args.output):
         gtReturn = pool.apply_async(readChangepoints, args=(args.changepoints,))
@@ -349,8 +461,8 @@ def main() -> None:
         tomboReturn = pool.apply_async(readTombo, args=(args.tombo,))
         controlReturn = pool.apply_async(generateControl, args=(args.basecalls,))
 
-        pool.close()
-        pool.join()
+        # pool.close()
+        # pool.join()
 
         print("Done Reading,\tStart Evaluating...")
 
@@ -372,7 +484,10 @@ def main() -> None:
             toNumpy(toolsResult[tool])
         toNumpy(groundTruths)
 
-        df = pd.DataFrame()
+        # df = pd.DataFrame()
+        outfile = open(args.output, 'w')
+        outfile.write("tool,maxDistance,foundEdges,totalEdges,foundEdgesRatio,segmentedReads,totalReads,segmentedReadsRatio\n")
+        outfile.flush()
         for tool, result in toolsResult.items():
             print(f"Evaluating {tool}...")
 
@@ -383,37 +498,34 @@ def main() -> None:
                 totalReads = 0 # total reads in ground truth
                 segmentedReads = 0 # segmented reads by tool
             
+                jobs = []
                 for i, (readid, gtSet) in enumerate(groundTruths.items()):
-                    if (i+1) % 1000 == 0:
-                        print(f'{i+1}/{len(groundTruths)}', end='\r')
                     totalEdges += len(gtSet)
                     totalReads += 1
 
                     if readid in result and result[readid].size:
                         segmentedReads += 1
-                        foundEdges += evaluate(gtSet, result[readid], maxDistance)
+                        jobs.append(pool.apply_async(evaluate, args=(gtSet, result[readid], maxDistance)))
 
-                newEntry = pd.DataFrame({
-                    'tool': [tool],
-                    'maxDistance': [maxDistance],
-                    'foundEdges': [foundEdges],
-                    'totalEdges': [totalEdges],
-                    'foundEdgesRatio': [foundEdges / totalEdges if totalEdges > 0 else 0],
-                    'segmentedReads': [segmentedReads],
-                    'totalReads': [totalReads],
-                    'segmentedReadsRatio': [segmentedReads / totalReads if totalReads > 0 else 0],
-                })
-                df = pd.concat((df, newEntry), ignore_index=True)
+                for i, job in enumerate(jobs):
+                    if (i+1) % 1000 == 0:
+                        print(f'{i+1}/{len(groundTruths)}', end='\r')
+                    foundEdges += job.get()
+                    
+                outfile.write(f"{tool},{maxDistance},{foundEdges},{totalEdges},{foundEdges / totalEdges if totalEdges > 0 else 0},{segmentedReads},{totalReads},{segmentedReads / totalReads if totalReads > 0 else 0}\n")
+                outfile.flush()
 
-            print(f'Done: {i}/{len(groundTruths)}')
+            print(f'Done: {i+1}/{len(groundTruths)}')
+        
+        outfile.close()
+    
+    pool.close()
+    pool.join()
 
-        df.to_csv(args.output, index=False)    
-
-    else:
-        df = pd.read_csv(args.output, index=False)
-
+    print("Reading file " + args.output)
+    df = pd.read_csv(args.output)
     print('Plotting...')
-    plot(df, os.path.splitext(args.output)[0] + '.svg')
+    plot(df, os.path.splitext(args.output)[0] + "_")
 
 if __name__ == '__main__':
     main()
