@@ -29,7 +29,6 @@ def parse() -> Namespace:
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--changepoints", type=str, required=True, metavar="HDF5", help="HDF5 file with ground truth change points")
-    parser.add_argument("--dynamont", type=str, required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
     parser.add_argument("--dorado", type=str, required=True, metavar="TSV", help="Dorado segmentation output in TSV format")
     parser.add_argument("--f5cresquiggle", type=str, required=True, metavar="TSV", help="f5c resquiggle segmentation output in TSV format")
     parser.add_argument("--f5ceventalign", type=str, required=True, metavar="TSV", help="f5c eventalign segmentation output in TSV format\nSummary file must exists in the same path with extension .sum")
@@ -37,6 +36,8 @@ def parse() -> Namespace:
     parser.add_argument("--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as .bam file")
     # parser.add_argument("--pod5", type=str, required=True, metavar="POD5", help="raw signals")
     parser.add_argument("--output", type=str, required=True, metavar="CSV", help="Output CSV containing pandas data frame")
+    parser.add_argument("--dynamont", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
+    parser.add_argument("--labels", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
     parser.add_argument("-p", "--processes", type=int, default=7, metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
@@ -449,12 +450,16 @@ def generateControl(bamFile : str) -> tuple:
 
 def main() -> None:
     args = parse()
+    print(args)
 
     pool = mp.Pool(args.processes)
 
+    assert len(args.dynamont) == len(args.labels), "Number of dynamont results must match the number of labels"
+
     if not os.path.exists(args.output):
         gtReturn = pool.apply_async(readChangepoints, args=(args.changepoints,))
-        dynamontReturn = pool.apply_async(readDynamont, args=(args.dynamont,))
+        # dynamontReturn = pool.apply_async(readDynamont, args=(args.dynamont,))
+        dynamontReturn = {label : pool.apply_async(readDynamont, args=(result,)) for label, result in zip(args.labels, args.dynamont)}
         f5ceventalignReturn = pool.apply_async(readF5CEventalign, args=(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'))
         f5cresquiggleReturn = pool.apply_async(readF5CResquiggle, args=(args.f5cresquiggle,))
         doradoReturn = pool.apply_async(readDorado, args=(args.dorado,))
@@ -471,7 +476,8 @@ def main() -> None:
         randomBorders, uniformBorders = controlReturn.get()
 
         toolsResult = {
-            'dynamont' : dynamontReturn.get(), # readDynamont(args.dynamont),
+            f"dynamont_{label}" : dynamontReturn[label].get() for label in dynamontReturn
+        } | {
             'f5cEventalign' : f5ceventalignReturn.get(), # readF5CEventalign(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'),
             'f5cResquiggle' : f5cresquiggleReturn.get(), # readF5CResquiggle(args.f5cresquiggle),
             'dorado' : doradoReturn.get(), # readDorado(args.dorado),
