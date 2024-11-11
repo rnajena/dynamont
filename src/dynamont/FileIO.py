@@ -214,14 +214,14 @@ def openCPPScriptCalcZ(script : str, params : dict, model : str = None) -> Popen
 
 def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : str = None, readid : str = None) -> float:
     pipe = openCPPScriptCalcZ(script, params, model)
-    result, errors = feedPipe(signal, read, pipe)
-    if errors:
-        print(errors)
+    result, errors, returncode = feedPipe(signal, read, pipe)
+    if returncode:
+        print("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid)
         return readid
     Z = float(result)
     return Z
 
-def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
+def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, str]:
     '''
     Feeds signal and read to pipe with an immediate stop signal afterwards.
     Uses communicate.
@@ -238,12 +238,9 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> str:
     '''
     signal = ",".join([f'{x:.5f}' for x in signal])
     cookie = f"{signal}\n{read}\n"
-    # with open("cookie.txt", 'w') as w:
-    #     w.write(cookie)
-    # print("Written Cookie")
     results, errors = pipe.communicate(input=cookie)
-    # print(result)
-    return results.strip(), errors.strip()
+    returncode = pipe.returncode
+    return results.strip(), errors.strip(), returncode
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
 def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model : str, readid : str) -> tuple|str:
@@ -271,13 +268,9 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     
     # print(len(signal), len(read))
 
-    result, errors = feedPipe(signal, read, pipe)
-    if errors:
-        print(errors)
-        print(f"ERROR while extracting result in {readid}")
-        # with open("failed_input.txt", 'w') as w:
-        #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
-        # raise SegmentationError(readid)
+    result, errors, returncode = feedPipe(signal, read, pipe)
+    if returncode:
+        print("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid)
         return readid
     transitionParams, modelParams, Z = result.split('\n')
 
@@ -332,18 +325,9 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         pipe = openCPPScript(script)
     else:
         pipe = openCPPScriptParams(script, params)
-    result, errors = feedPipe(signal, read, pipe)
-    
-    if errors:
-        print(f"ERROR appeared for {read}")
-        print(signal)
-        print(read)
-        print(errors)
-        with open("failed_input.txt", "w") as w:
-            w.write(str(np.around(signal, 4).tolist()).replace(' ', '').replace('[', '').replace(']', ''))
-            w.write('\n')
-            w.write(read)
-            w.write('\n')
+    result, errors, returncode = feedPipe(signal, read, pipe)
+    if returncode:
+        print("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid)
         exit(1)
 
     try:
@@ -389,9 +373,9 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     queue : Queue
     '''
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
-    output, errors = feedPipe(signal, read, pipe)
-    if errors:
-        queue.put("error: " + errors)
+    output, errors, returncode = feedPipe(signal, read, pipe)
+    if returncode:
+        queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)
         return
     segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
     out = formatSegmentation(readid, signalid, segments)
