@@ -136,8 +136,8 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
     // First pass: read file to collect unique characters from kmer sequences
     // Skip the header line
     getline(inputFile, line);
-    while (getline(inputFile, line))
-    {                                   // read line
+    while (getline(inputFile, line)) // read line
+    {
         std::stringstream buffer(line); // parse line to std::stringstream for getline
         getline(buffer, kmer, '\t');
         // Add all unique characters in the kmer to the std::set
