@@ -30,7 +30,7 @@ def parse() -> Namespace:
     parser.add_argument('--processes', type=int, default=mp.cpu_count()-1, help='Number of processes to use for segmentation')
     parser.add_argument('--model_path', type=str, required=True, help='Which kmer model to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
-    parser.add_argument('-q', '--qscore', type=int, default=0, help='Minimal allowed quality score')
+    parser.add_argument('-q', '--qscore', type=float, default=0.0, help='Minimal allowed quality score')
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str) -> None:
@@ -124,7 +124,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
                 q
                 )
 
-def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = None) -> None:
+def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = 0) -> None:
     """
     Segment a set of reads using a C++ script in parallel.
 
