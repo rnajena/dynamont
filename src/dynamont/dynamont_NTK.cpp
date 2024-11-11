@@ -432,7 +432,7 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
             tkMap[t].insert(k);
             s = logPlus(s, LP[tK + k]);
             // stop if threshold is reached
-            if (s >= SPARSETHRESHOLD)
+            if (s >= SPARSETHRESHOLD) [[likely]] // majority of probability should be distributed to only a few keys
             {
                 break;
             }
@@ -1442,7 +1442,7 @@ int main(int argc, char *argv[])
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
     const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
     assert(T > 1 && "Signal must contain more than one value!");
-    assert(N > 1 && "Read must contain more than one value!");
+    assert(N >= kmerSize && "Read must contain at least one k-mer!");
     // std::cerr << "T: " << T << ", " << "N: " << N << ", " << "K: " << K << ", " << "inputsize: " << TNK << "\n";
     NK = N * K;
     TNK = T * NK;

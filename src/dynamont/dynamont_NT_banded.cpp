@@ -594,7 +594,7 @@ int main(int argc, char *argv[])
     const size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
     const size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
     assert(T > 1 && "Signal must contain more than one value!");
-    assert(N > 1 && "Read must contain more than one value!");
+    assert(N >= kmerSize && "Read must contain at least one k-mer!");
     const size_t TN = T * N;
 
     double *sig = new double[T - 1];
