@@ -360,9 +360,7 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     Parameters
     ----------
     signal : np.ndarray
-        in 3 -> 5' direction
     read : str
-        in 3' -> 5' direction
     signal_offset : int
         offset index of the signal
     readid : str
