@@ -157,9 +157,15 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                     if len(mpItems) < batch_size:
                         # saw more consistency for short reads when using the mean
                         try:
+                            if pore in ["dna_r9", "rna_r9"]:
+                                # for r9 pores, shift and scale are stored for pA signal in bam
+                                signal = r5.getpASignal(readid)[sp+ts:sp+ns]
+                            else:
+                                # for new pores, shift and scale is directly applied to stored integer signal (DACs)
+                                # this way the conversion from DACs to pA is skipped
+                                signal = r5.getSignal(readid)[sp+ts:sp+ns]
                             shift = basecalledRead.get_tag("sm")
                             scale = basecalledRead.get_tag("sd")
-                            signal = r5.getpASignal(readid)[sp+ts:sp+ns]
                             signal = (signal - shift) / scale
                         except:
                             noMatchingReadid+=1

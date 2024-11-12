@@ -215,26 +215,24 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             rawFile = join(dataPath, basecalledRead.get_tag("fn"))
             r5 = read5.read(rawFile)
 
-            # print(basecalled_read.get_tag('sm'), basecalled_read.get_tag('sd'))
-            # print('median complete', r5.getShift(readid, 'median'), r5.getScale(readid, 'median'))
-            # print('median sp:sp+ns', np.median(r5.getpASignal(readid)[sp:sp+ns]), mad(r5.getpASignal(readid)[sp:sp+ns]))
-            # print('median sp+ts:sp+ns', np.median(r5.getpASignal(readid)[sp+ts:sp+ns]), mad(r5.getpASignal(readid)[sp+ts:sp+ns]))
-            # print('mean', r5.getShift(readid, 'mean'), r5.getScale(readid, 'mean'))
-            # print('mean sp:sp+ns', np.mean(r5.getpASignal(readid)[sp:sp+ns]), np.std(r5.getpASignal(readid)[sp:sp+ns]))
-            # print('mean sp+ts:sp+ns', np.mean(r5.getpASignal(readid)[sp+ts:sp+ns]), np.std(r5.getpASignal(readid)[sp+ts:sp+ns]))
-
             # normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float32)
             shift = basecalledRead.get_tag("sm")
             scale = basecalledRead.get_tag("sd")
-            signal = r5.getpASignal(readid)[sp+ts:sp+ns].astype(np.float32)
-            normSignal = (signal - shift) / scale
-            normSignal = hampelFilter(normSignal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+            if pore in ["dna_r9", "rna_r9"]:
+                # for r9 pores, shift and scale are stored for pA signal in bam
+                signal = r5.getpASignal(readid)[sp+ts:sp+ns]
+            else:
+                # for new pores, shift and scale is directly applied to stored integer signal (DACs)
+                # this way the conversion from DACs to pA is skipped
+                signal = r5.getSignal(readid)[sp+ts:sp+ns]
+            signal = (signal - shift) / scale
+            signal = hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
             if "rna" in pore:
                 seq = seq[::-1]
                 
-            segmentRead(normSignal, ts, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore)
+            segmentRead(signal, ts, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore)
 
 def main() -> None:
     args = parse()

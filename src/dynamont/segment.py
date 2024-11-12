@@ -106,7 +106,13 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     None
     """
     r5 = read5.read(rawFile)
-    signal = r5.getpASignal(signalid)[start:end]
+    if pore in ["dna_r9", "rna_r9"]:
+        # for r9 pores, shift and scale are stored for pA signal in bam
+        signal = r5.getpASignal(signalid)[start:end]
+    else:
+        # for new pores, shift and scale is directly applied to stored integer signal (DACs)
+        # this way the conversion from DACs to pA is skipped
+        signal = r5.getSignal(signalid)[start:end]
     r5.close()
     signal = (signal - shift) / scale
     signal = hampelFilter(signal)
