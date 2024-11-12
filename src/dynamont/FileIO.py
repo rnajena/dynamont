@@ -216,7 +216,7 @@ def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : 
     pipe = openCPPScriptCalcZ(script, params, model)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid)
+        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}")
         return readid
     Z = float(result)
     return Z
@@ -270,7 +270,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
 
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid)
+        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}")
         return readid
     transitionParams, modelParams, Z = result.split('\n')
 
@@ -302,7 +302,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         orientation must match with signal
     script : str
         script file name
-    signal_offset : int
+    sigOffset : int
     params : dict
         params for the c++ script in short form: e.g. {-m : "model"}
 
@@ -327,7 +327,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         pipe = openCPPScriptParams(script, params)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid)
+        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}")
         exit(1)
 
     try:
@@ -375,7 +375,8 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
     output, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)
+        queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
+        # queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)
         return
     segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
     out = formatSegmentation(readid, signalid, segments)
