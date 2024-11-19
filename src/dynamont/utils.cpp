@@ -282,3 +282,36 @@ std::string formattedMedian(std::vector<double> &vec)
 
     return out.str();
 }
+
+void checkModelpath(std::string modelpath)
+{
+    if (modelpath.empty() || !std::filesystem::exists(modelpath))
+    {
+        std::cerr << "Please provide a valid modelpath: " << modelpath << std::endl;
+        exit(7);
+    }
+}
+
+void checkInput(std::size_t signalSize, std::size_t readSize, int kmerSize)
+{
+    if (signalSize < 1)
+    {
+        std::cerr << "Signal: " << signalSize << " smaller than 1" << std::endl;
+        exit(8);
+    }
+    if (readSize < 1)
+    {
+        std::cerr << "Read: " << readSize << " smaller than 1" << std::endl;
+        exit(9);
+    }
+    if (signalSize < 2*readSize) // each segment has at least length 2
+    {
+        std::cerr << "Signal: " << signalSize << " smaller than read: " << readSize << std::endl;
+        exit(10);
+    }
+    if (readSize < kmerSize)
+    {
+        std::cerr << "Read: " << readSize << " smaller than kmerSize of the pore type: " << kmerSize << std::endl;
+        exit(11);
+    }
+}

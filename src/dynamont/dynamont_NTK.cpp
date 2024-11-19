@@ -18,7 +18,6 @@
 #include <cmath> // exp, pow, log1p, INFINITY
 #include <cassert>
 #include <cstddef>
-#include <filesystem> // std::filesystem::exists
 #include "argparse.hpp"
 #include "utils.hpp"
 
@@ -1411,11 +1410,11 @@ int main(int argc, char *argv[])
     }
     halfKmerSize = kmerSize / 2;
 
-    // polishing dimension K = number of possible kmers
-    assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide a valid modelpath!");
+    checkModelpath(modelpath);
     auto result = readKmerModel(modelpath, kmerSize, rna);
     std::tuple<double, double> *model = std::get<0>(result);
     alphabetSize = std::get<1>(result);
+    // polishing dimension K = number of possible kmers
     const std::size_t K = std::get<2>(result);
 
     stepSize = pow(alphabetSize, kmerSize - 1);
@@ -1440,9 +1439,8 @@ int main(int argc, char *argv[])
 
     // process signal T: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
+    checkInput(T, read.size(), kmerSize);
     const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
-    assert(T > 1 && "Signal must contain more than one value!");
-    assert(N >= kmerSize && "Read must contain at least one k-mer!");
     // std::cerr << "T: " << T << ", " << "N: " << N << ", " << "K: " << K << ", " << "inputsize: " << TNK << "\n";
     NK = N * K;
     TNK = T * NK;

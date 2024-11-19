@@ -60,7 +60,7 @@ def parse() -> Namespace:
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of training epochs')
-    parser.add_argument('-q', '--qscore', type=int, default=6, help='Minimal allowed quality score')
+    parser.add_argument('-q', '--qscore', type=int, default=10, help='Minimal allowed quality score')
     return parser.parse_args()
 
 def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, maxBatch : int, pore : str, minQual : float = None) -> None:

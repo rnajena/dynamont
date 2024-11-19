@@ -212,12 +212,12 @@ def openCPPScriptCalcZ(script : str, params : dict, model : str = None) -> Popen
         script.extend(["--model", model])
     return openCPPScript(script)
 
-def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : str = None, readid : str = None) -> float:
+def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : str = None, signalid : str = None) -> float:
     pipe = openCPPScriptCalcZ(script, params, model)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}")
-        return readid
+        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tSid: {signalid}")
+        return signalid
     Z = float(result)
     return Z
 
@@ -243,7 +243,7 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, s
     return results.strip(), errors.strip(), returncode
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model : str, readid : str) -> tuple|str:
+def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model : str, signalid : str) -> tuple|str:
     '''
     Parse & feed signal & read to the C++ segmentation script.
 
@@ -265,23 +265,23 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     Z : float
     '''
     pipe = openCPPScriptTrain(script, params, model)
-    
-    # print(len(signal), len(read))
 
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}")
-        return readid
+        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tSid: {signalid}")
+        with open("failed_input.txt", 'w') as w:
+            w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
+        return signalid
     transitionParams, modelParams, Z = result.split('\n')
 
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in transitionParams.split(";")}
     except:
-        print(f"ERROR while extracting transitions params in {readid}", transitionParams)
+        print(f"ERROR while extracting transitions params in {signalid}", transitionParams)
         # with open("failed_input.txt", 'w') as w:
         #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
         # raise SegmentationError(readid)
-        return readid
+        return signalid
     # then updated emission updated
     #               kmer                    mean                                        stdev
     newModels = {param.split(":")[0] : (float(param.split(":")[1].split(",")[0]), float(param.split(":")[1].split(",")[1])) for param in modelParams.split(";")[:-1]}

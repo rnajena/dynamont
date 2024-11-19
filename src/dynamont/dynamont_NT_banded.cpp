@@ -15,7 +15,6 @@
 #include <cassert>
 #include <cstddef>
 #include <algorithm>
-#include <filesystem> // std::filesystem::exists
 #include "argparse.hpp"
 #include "utils.hpp"
 
@@ -566,7 +565,8 @@ int main(int argc, char *argv[])
     // assert(fabs(exp(transitions["m1"]) + exp(transitions["e2"]) - 1.0) < 1e-2 && "The sum of the outgoing transitions of state E: m1 and e1 must approximately 1.0");
 
     // std::vector<std::tuple<double, double>> model(numKmers, make_tuple(-INFINITY, -INFINITY));
-    assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide valid a modelpath!");
+    // assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide valid a modelpath!");
+    checkModelpath(modelpath);
     const auto result = readKmerModel(modelpath, kmerSize, rna);
     const std::tuple<double, double> *model = std::get<0>(result);
     const int alphabetSize = std::get<1>(result);
@@ -592,9 +592,8 @@ int main(int argc, char *argv[])
     // std::cerr<<"DEBUG 1"<<std::endl;
     // process signal: convert std::string to double array
     const size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
+    checkInput(T, read.size(), kmerSize);
     const size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
-    assert(T > 1 && "Signal must contain more than one value!");
-    assert(N >= kmerSize && "Read must contain at least one k-mer!");
     const size_t TN = T * N;
 
     double *sig = new double[T - 1];

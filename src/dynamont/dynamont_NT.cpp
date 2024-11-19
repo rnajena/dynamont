@@ -15,7 +15,6 @@
 #include <cassert>
 #include <cstddef>
 #include <algorithm>
-#include <filesystem> // std::filesystem::exists
 #include "argparse.hpp"
 #include "utils.hpp"
 
@@ -503,7 +502,7 @@ int main(int argc, char *argv[])
         updateTransitions(NT_dna_r10_400bps_transitions, transitions);
     }
 
-    assert(!modelpath.empty() && std::filesystem::exists(modelpath) && "Please provide a valid modelpath!");
+    checkModelpath(modelpath);
     auto result = readKmerModel(modelpath, kmerSize, rna);
     std::tuple<double, double> *model = std::get<0>(result);
     const int alphabetSize = std::get<1>(result);
@@ -530,9 +529,8 @@ int main(int argc, char *argv[])
 
     // process signal: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
+    checkInput(T, read.size(), kmerSize);
     const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
-    assert(T > 1 && "Signal must contain more than one value!");
-    assert(N >= kmerSize && "Read must contain at least one k-mer!");
     const std::size_t TN = T * N;
 
     double *sig = new double[T - 1];

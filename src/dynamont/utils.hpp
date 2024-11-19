@@ -20,7 +20,8 @@
 #include <algorithm> //std::stable_sort, std::reverse
 #include <numeric>   //iota
 #include <set>
-#include <iomanip> //setprecision
+#include <iomanip>    //setprecision
+#include <filesystem> // std::filesystem::exists
 
 // default params for NTK
 const std::unordered_map<std::string, double> NTK_rna_r9_transitions = {
@@ -366,3 +367,7 @@ double calculateMedian(std::vector<double> &vec);
  * // medianStr will be "3.00000"
  */
 std::string formattedMedian(std::vector<double> &vec);
+
+void checkModelpath(std::string modelpath);
+
+void checkInput(std::size_t signalSize, std::size_t readSize, int kmerSize);

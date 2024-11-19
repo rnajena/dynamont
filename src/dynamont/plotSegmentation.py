@@ -9,11 +9,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from os.path import exists, join, dirname
+from os.path import exists, join, dirname, splitext
 from os import makedirs, name
 from FileIO import feedSegmentation, SegmentationError, hampelFilter
 import read5
 import pysam
+import seaborn as sns
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -25,18 +26,19 @@ def parse() -> Namespace:
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
     parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
     # optional
+    parser.add_argument('--f5cResquiggle', type=str, default=None, help='f5c resquiggle segmentation file')
     parser.add_argument('--model_path', type=str, required=True, help='Kmer model file')
     parser.add_argument('--mode', required=True, choices=['basic', 'banded', 'resquiggle'])
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
     
     return parser.parse_args()
 
-def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, kmerModels : pd.DataFrame, prob : bool):
+def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, kmerModels : pd.DataFrame, prob : bool, resquiggleBorders : np.ndarray):
     '''
     Input
     -----
     segments : np.ndarray
-        in 5' -> 3' orientation, but readpos is on 5' -> 3' orientation
+        in 5' -> 3' orientation
         [[start : int, end : int, readpos : int, state : str] ...]
         already shifted by polyAend
     resquiggleBorders : np.ndarray
@@ -46,7 +48,7 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
     read : str
         in 5' -> 3' orientation
     '''
-    baesColors = {
+    basecolors = {
         'A':'#377eb8',
         'a':'#377eb8',
         'C':'#ff7f00',
@@ -60,14 +62,49 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
         'N':'#ffffff',
         'n':'#ffffff',
         }
+    
+    sns.set_theme()
 
-    plt.figure(figsize=(130, 10))
-    plt.title(f'{readid} segmentation in 3\' -> 5\' orientation')
-    plt.plot(normSignal, color='black', label='Z Normalised Signal', linewidth=0.8)
-    plt.ylim((-6, 3))
-    plt.ylabel('Signal pico Ampere')
-    plt.xticks(np.arange(0, len(normSignal), 1000))
-    plt.grid(True, 'both', 'y')
+    lb, ub = -4, 4
+    nPlots = 1
+    if resquiggleBorders is not None:
+        nPlots += 1
+
+    fig, ax = plt.subplots(nrows = nPlots, sharex=True, figsize=(120,10), dpi=300)
+    fig.suptitle(f'{readid} segmentation in 3\' -> 5\' orientation')
+    if nPlots == 1:
+        ax = [ax]
+    
+    for axis in range(nPlots):
+        ax[axis].plot(normSignal, color='black', label='Normalized Signal', linewidth=0.8)
+        ax[axis].set_ylim((lb, ub))
+        ax[axis].set_ylabel('Normalized pA Signal')
+        ax[axis].set_xticks(np.arange(0, len(normSignal), 1000))
+        # ax[axis].grid(True, 'both', 'y')
+
+    plotNumber = 0
+    # F5C RESQUIGGLE
+    if resquiggleBorders is not None:
+        for segment in resquiggleBorders:
+            if segment[2] >= len(read):
+                continue
+            motif = ''
+            for j in range(segment[2]-2, segment[2]+3, 1):
+                if j < 0:
+                    motif += 'N'
+                elif j >= len(read):
+                    motif += 'N'
+                else:
+                    motif += read[j]
+            motif = motif.replace('U', 'T')
+
+            ax[plotNumber].text(int(segment[0]) + (int(segment[1]) - int(segment[0]))/2 - 6, -3, motif[::-1], fontdict={'size' : 7, 'color':'black'}, rotation=90)
+            ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7)
+            ax[plotNumber].add_patch(Rectangle((int(segment[0]), lb), int(segment[1]) - int(segment[0]), ub-lb, alpha=0.4, edgecolor=basecolors[read[segment[2]]], facecolor=basecolors[read[segment[2]]]))
+
+        ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7, label = "f5c resquiggle segmentation")
+        ax[plotNumber].legend()
+        plotNumber += 1
 
     # OUR SEGMENTATION
     for segment in segments:
@@ -93,9 +130,8 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
         motif = motif.replace('U', 'T')
         width = segment[1] - segment[0]
 
-        plt.vlines([int(segment[0])], ymin=-6, ymax=3, colors=baesColors[base], linestyles='--', linewidth=0.7)
-        ax = plt.gca()
-        ax.add_patch(Rectangle((int(segment[0]), -6), width, 9, alpha=0.4, facecolor=baesColors[base]))
+        ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7)
+        ax[plotNumber].add_patch(Rectangle((int(segment[0]), lb), width, ub-lb, alpha=0.4, facecolor=basecolors[base], edgecolor=basecolors[base]))
 
         match segment[5]:
             # for 3D: move in t and k, but not n
@@ -103,38 +139,39 @@ def plotBorders(normSignal : np.ndarray, ts : int, read : str, segments : np.nda
             case 'M' | 'P':
                 mean, stdev = kmerModels.loc[motif][['level_mean', 'level_stdv']]
                 height = 3.92*stdev # 1.96 * 2 * stdev
-                ax.add_patch(Rectangle((segment[0], mean-1.96*stdev), width, height, alpha=0.4, facecolor="grey"))
+                ax[plotNumber].add_patch(Rectangle((segment[0], mean-1.96*stdev), width, height, alpha=0.3, facecolor="grey", edgecolor="grey"))
                 # write motif
-                plt.text(segment[0] + width/2 - 6, -3.5, motif, fontdict={'size' : 6, 'color':'black'}, rotation=90)
+                ax[plotNumber].text(segment[0] + width/2 - 6, -3.5, motif, fontdict={'size' : 6, 'color':'black'}, rotation=90)
                 # draw kmer range as rectangle
-                plt.hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.8)
-                plt.hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
-                plt.hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8)
+                ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.6)
+                ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.6)
+                ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.6)
             case 'I':
-                plt.text(segment[0] - 3, -3, f'Ins {motif}', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
+                ax[plotNumber].text(segment[0] - 3, -3, f'Ins {motif}', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
             # move in t and n, but not k
             # case 'S':
             #     pass
 
-    plt.vlines([int(segment[0])], ymin=20, ymax=150, colors=baesColors[base], linestyles='--', linewidth=0.7, label = "Dynamont Segmentation")
-    plt.hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="Model Mean")
-    plt.hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
-    plt.plot([0, 0.1], [-6.1, -6], c='blue', label='log(Border Probability)')
-    plt.legend()
+    ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "Dynamont Segmentation")
+    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="Model Mean")
+    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
+    ax[plotNumber].plot([0, 0.1], [-6.1, -6], c='blue', label='log(Border Probability)')
+    ax[plotNumber].legend()
 
     if prob:
-        plt.twinx()
-        # print(x, polyAend, probs)
-        plt.plot(np.arange(ts, ts+len(probs)), probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
-        plt.ylim((-8, 28))
-        plt.yticks(np.arange(-8, 29, 4))
-        plt.ylabel('log(Border Probability)')
+        twinax = ax[plotNumber].twinx()
+        twinax.plot(np.arange(start, start+len(probs)), probs, linewidth=1, label="log(Border Probability)", alpha=0.8)
+        twinax.set_ylim((-8, 24))
+        twinax.set_yticks(np.arange(-8, 25, 4))
+        twinax.set_ylabel('log(Border Probability)')
 
-    # plt.legend()
+    plt.hlines([start, end], lb, ub, colors='black')
+    plt.grid(False)
+
     plt.savefig(join(outpath, readid + '.svg'), dpi=500)
     plt.savefig(join(outpath, readid + '.pdf'), dpi=500)
 
-def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, outdir : str, mode : str, modelPath : str, probability : bool, pore : str):
+def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, readid : str, outdir : str, mode : str, modelPath : str, probability : bool, pore : str, resquiggleBorders : np.ndarray):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -179,10 +216,10 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    segments, borderProbs = feedSegmentation(normSignal[ts:], read, CPP_SCRIPT, ts, PARAMS)
+    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, PARAMS)
 
     # check for resquiggle how many new segments were inserted
-    print('Read bases:', len(read), ' Segments:', len(segments), ' Border probs:', len(borderProbs), ' Signal:', len(normSignal[ts:]))
+    print('Read bases:', len(read), ' Segments:', len(segments), ' Border probs:', len(borderProbs), ' Signal:', end-start)
 
     if not len(segments):
         raise SegmentationError(readid)
@@ -193,9 +230,13 @@ def segmentRead(normSignal : np.ndarray, ts : int, read : str, readid : str, out
     if "rna" in pore: # change orientation back from 3'-5' to 5'-3'
         read = read[::-1]
 
-    plotBorders(normSignal, ts, read, segments, borderProbs, readid, outdir, kmerModels, probability)
+    plotBorders(normSignal, start, end, read, segments, borderProbs, readid, outdir, kmerModels, probability, resquiggleBorders)
 
-def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str) -> tuple:
+def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str, f5cReadMap : dict) -> tuple:
+
+    resquiggleBorders = None
+    if f5cReadMap and targetID in f5cReadMap:
+        resquiggleBorders = f5cReadMap[targetID]
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
         for basecalledRead in samfile.fetch(until_eof=True):
@@ -220,11 +261,11 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             scale = basecalledRead.get_tag("sd")
             if pore in ["dna_r9", "rna_r9"]:
                 # for r9 pores, shift and scale are stored for pA signal in bam
-                signal = r5.getpASignal(readid)[sp+ts:sp+ns]
+                signal = r5.getpASignal(readid)
             else:
                 # for new pores, shift and scale is directly applied to stored integer signal (DACs)
                 # this way the conversion from DACs to pA is skipped
-                signal = r5.getSignal(readid)[sp+ts:sp+ns]
+                signal = r5.getSignal(readid)
             signal = (signal - shift) / scale
             signal = hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
@@ -232,13 +273,44 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             if "rna" in pore:
                 seq = seq[::-1]
                 
-            segmentRead(signal, ts, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore)
+            segmentRead(signal, sp+ts, sp+ns, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore, resquiggleBorders)
+
+def readF5CResquiggle(file: str) -> dict:
+    """
+    Parses a TSV file to extract read IDs along with their corresponding start and end positions.
+
+    Parameters
+    ----------
+    file : str
+        Path to the TSV file containing resquiggle segmentation output.
+
+    Returns
+    -------
+    dict
+        A dictionary mapping each read ID to a set of start and end positions.
+    """
+    print("Reading f5c resquiggle output from " + file)
+    readMap = {}
+    with open(file, 'r') as f:
+        next(f) # skip header
+        # contig    position    reference_kmer  read_index  strand  event_index event_level_mean    event_stdv  event_length    model_kmer  model_mean  model_stdv  standardized_level  start_idx   end_idx
+        for line in f:
+            readid, kmer_idx, start, end = line.strip().split('\t')
+            if start == '.' or end == '.':
+                continue
+            if readid not in readMap:
+                readMap[readid] = []
+            readMap[readid].append([int(start), int(end), int(kmer_idx)])
+    return readMap
 
 def main() -> None:
     args = parse()
     if not exists(args.outdir):
         makedirs(args.outdir)
-    start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.probability, args.pore)
+
+    f5cReadMap = readF5CResquiggle(args.f5cResquiggle)
+
+    start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.probability, args.pore, f5cReadMap)
 
 if __name__ == '__main__':
     main()
