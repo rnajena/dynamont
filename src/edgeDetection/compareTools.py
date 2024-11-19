@@ -258,67 +258,6 @@ def toNumpy(readMap: dict) -> None:
         readMap[readid] = np.array(list(readMap[readid]))
         readMap[readid].sort()
 
-# def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance : int) -> int:
-#     """
-#     Evaluates the prediction of a tool by counting how many of the ground truth
-#     changepoints are found within a given maxDistance.
-
-#     Parameters
-#     ----------
-#     groundTruth : np.ndarray
-#         1D array of ground truth changepoint positions.
-#     prediction : np.ndarray
-#         1D array of predicted changepoint positions.
-#     maxDistance : int
-#         The maximum distance in which a predicted changepoint is considered
-#         to be a true positive.
-
-#     Returns
-#     -------
-#     int
-#         The number of true positives.
-#     """
-#     found = 0
-#     for gtVal in groundTruth:
-#         minDist = min(np.abs(gtVal - prediction))
-#         found += minDist < maxDistance
-#     return found
-
-# def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
-#     """
-#     Optimized evaluation of true positives by using binary search on sorted predictions.
-
-#     Parameters
-#     ----------
-#     groundTruth : np.ndarray
-#         1D array of sorted ground truth changepoint positions.
-#     prediction : np.ndarray
-#         1D array of sorted predicted changepoint positions (should be sorted).
-#     maxDistance : int
-#         Maximum distance within which a predicted changepoint is considered true positive.
-
-#     Returns
-#     -------
-#     int
-#         The number of true positives.
-#     """
-#     found = 0
-#     for gtVal in groundTruth:
-#         # Find the closest index in prediction using binary search
-#         idx = np.searchsorted(prediction, gtVal)
-
-#         # Check the closest neighbors to determine the minimum distance
-#         minDist = float('inf')
-#         # if idx < len(prediction):
-#         minDist = abs(prediction[idx] - gtVal)
-#         # if idx > 0:
-#         minDist = min(minDist, abs(prediction[idx - 1] - gtVal))
-
-#         # Increment found if the minimum distance is within the threshold
-#         found += minDist < maxDistance
-
-#     return found
-
 def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
     """
     Masterclass solution to find the number of ground truth values
@@ -329,9 +268,9 @@ def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) 
     Parameters
     ----------
     groundTruth : np.ndarray
-        Sorted array of ground truth changepoint positions.
+        Sorted array of ground truth change point positions.
     prediction : np.ndarray
-        Sorted array of predicted changepoint positions.
+        Sorted array of predicted change point positions.
     maxDistance : int
         Maximum allowable distance for a match.
 
@@ -340,8 +279,7 @@ def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) 
     int
         Count of ground truth values with a nearby prediction within maxDistance.
     """
-    gt_idx, pred_idx = 0, 0
-    found = 0
+    gt_idx = pred_idx = found = before = after = 0
     
     # Two-pointer technique
     while gt_idx < len(groundTruth) and pred_idx < len(prediction):
@@ -351,13 +289,18 @@ def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) 
         # Check the distance
         if abs(gt_val - pred_val) <= maxDistance:
             found += 1
+            # Check if the prediction is before or after the ground truth
+            if pred_val < gt_val:
+                before += 1
+            else:
+                after += 1
             gt_idx += 1  # Move to next ground truth point as it's already matched
         elif pred_val < gt_val:
             pred_idx += 1  # Move prediction pointer to the right
         else:
             gt_idx += 1  # Move ground truth pointer to the right
 
-    return found
+    return found, before, after
 
 def plot(df: pd.DataFrame, outfile : str) -> None:
     """
@@ -372,8 +315,12 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     """
     sns.set_theme()
 
+    plt.rcParams.update({'axes.labelsize': 15, 'xtick.labelsize': 15, 'ytick.labelsize': 15, 'legend.fontsize': 15, 'legend.title_fontsize': 15})
+
     plt.figure(figsize=(12,12), dpi=300)
     sns.lineplot(df, x='maxDistance', y='foundEdges', hue='tool')
+    plt.xlabel("Distance Treshold")
+    plt.ylabel("Found Edges Ratio")
     plt.savefig(outfile + "foundEdges.svg", dpi=300)
     plt.xlim((0, 10))
     plt.savefig(outfile + "foundEdges_0-10.svg", dpi=300)
@@ -381,6 +328,8 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     
     plt.figure(figsize=(12,12), dpi=300)
     sns.lineplot(df, x='maxDistance', y='foundEdgesRatio', hue='tool')
+    plt.xlabel("Distance Treshold")
+    plt.ylabel("Found Edges Ratio")
     plt.savefig(outfile + "foundEdgesRatio.svg", dpi=300)
     plt.xlim((0, 10))
     plt.savefig(outfile + "foundEdgesRatio_0-10.svg", dpi=300)
@@ -396,6 +345,8 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
              va='bottom')                     # Align the text to the top of the bar
     plt.ylim((0.8, 1.01))
     plt.yticks(np.arange(0.8, 1.01, 0.05))
+    plt.xlabel("Distance Treshold")
+    plt.ylabel("Found Edges Ratio")
     plt.savefig(outfile + "segmentedReadsRatio.svg", dpi=300)
     plt.close()
 
@@ -492,7 +443,7 @@ def main() -> None:
 
         # df = pd.DataFrame()
         outfile = open(args.output, 'w')
-        outfile.write("tool,maxDistance,foundEdges,totalEdges,foundEdgesRatio,segmentedReads,totalReads,segmentedReadsRatio\n")
+        outfile.write("tool,maxDistance,foundEdges,foundBefore,foundAfter,totalEdges,foundEdgesRatio,segmentedReads,totalReads,segmentedReadsRatio\n")
         outfile.flush()
         for tool, result in toolsResult.items():
             print(f"Evaluating {tool}...")
@@ -501,6 +452,8 @@ def main() -> None:
                 print(f'Distance: {maxDistance}')
                 totalEdges = 0 # total edges in ground truth
                 foundEdges = 0 # found edges by tool
+                foundBefore = 0
+                foundAfter = 0
                 totalReads = 0 # total reads in ground truth
                 segmentedReads = 0 # segmented reads by tool
             
@@ -516,9 +469,12 @@ def main() -> None:
                 for i, job in enumerate(jobs):
                     if (i+1) % 1000 == 0:
                         print(f'{i+1}/{len(groundTruths)}', end='\r')
-                    foundEdges += job.get()
+                    result = job.get()
+                    foundEdges += result[0]
+                    foundBefore += result[1]
+                    foundAfter += result[2]
                     
-                outfile.write(f"{tool},{maxDistance},{foundEdges},{totalEdges},{foundEdges / totalEdges if totalEdges > 0 else 0},{segmentedReads},{totalReads},{segmentedReads / totalReads if totalReads > 0 else 0}\n")
+                outfile.write(f"{tool},{maxDistance},{foundEdges},{foundBefore},{foundAfter},{totalEdges},{foundEdges / totalEdges if totalEdges > 0 else 0},{segmentedReads},{totalReads},{segmentedReads / totalReads if totalReads > 0 else 0}\n")
                 outfile.flush()
 
             print(f'Done: {i+1}/{len(groundTruths)}')
