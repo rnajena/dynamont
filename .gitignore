@@ -68,3 +68,5 @@ old/
 test/__pycache__/
 test/#.codiumai.toml
 test/test
+src/edgeDetection/waveletEdgeDetection.ipynb
+src/edgeDetection/gaus1.svg
