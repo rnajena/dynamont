@@ -21,6 +21,7 @@ def parse() -> Namespace:
     parser.add_argument("-r", "--raw", type=str, required=True, metavar="FAST5|SLOW5|POD5", help="Input raw file format (FAST5, SLOW5, POD5)")
     parser.add_argument("-b", "--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as.bam file")
     parser.add_argument("-o", "--output", type=str, required=True, metavar="HDF5", help="Output HDF5 file")
+    parser.add_argument("--pore", type=str, required=True, metavar="STR", choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"])
     parser.add_argument("-p", "--processes", type=int, default=mp.cpu_count(), metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
@@ -82,14 +83,18 @@ def writer(h5file : str, q : mp.Queue) -> None:
 
         print()
         
-def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, queue : mp.Queue) -> None:
+def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue) -> None:
     r5 = read5.read(rawFile)
-    signal = r5.getpASignal(signalid).astype(np.float32)
+    if pore in ["rna_r9", "dna_r9"]:
+        signal = r5.getpASignal(signalid)
+    else:
+        signal = r5.getSignal(signalid)
+    signal = (signal - shift) / scale
     filtered = hampelFilter(signal, 6, 5.)
     waveletEdges = waveletPeaks(filtered[start:end], 'gaus1', threshold) + start
     queue.put((signalid, waveletEdges))
         
-def wavelet(raw : str, basecalls : str, outfile: str, processes : int) -> None:
+def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : str) -> None:
     """
     Processes raw signal data and basecalls to detect edges using the wavelet transform and stores the results in an HDF5 file.
 
@@ -117,11 +122,11 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int) -> None:
             ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
             ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
             rawFile = join(raw, basecalled_read.get_tag("fn"))
-            # shift = basecalled_read.get_tag("sm")
+            shift = basecalled_read.get_tag("sm")
             scale = basecalled_read.get_tag("sd")
             # signal = (signal - shift) / scale
     
-            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 1.1*scale, queue))
+            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 1.1, shift, scale, pore, queue))
         
     for job in jobs:
         job.get()
