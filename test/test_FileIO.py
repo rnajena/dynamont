@@ -15,7 +15,7 @@ class TestSum(unittest.TestCase):
         # Assert the communicate method was called with the expected input
         mockPipe.communicate.assert_called_once_with(input=expectedCookie)
         # Use self.assertEqual for consistency with unittest
-        self.assertEqual(result, ("result", ""))
+        self.assertEqual(result, ("result", "", mockPipe.returncode))
         
     def testFormatSegmentationOutput(self):
         import numpy as np
