@@ -31,6 +31,7 @@ def extractMoves(bamFile : str, outfile : str, writeBatchSize=1000):
                     sl = read.get_tag("ns")
                     seq = read.query_sequence
                     rid = read.query_name
+                    sid = read.get_tag("pi") if read.has_tag("pi") else rid
 
                     # mv:B:c is stored as a list of integers, extract the first as the downsample value
                     scale = mv[0]
@@ -53,7 +54,7 @@ def extractMoves(bamFile : str, outfile : str, writeBatchSize=1000):
                         motif_start = max(pos - 2, 0)
                         motif_end = min(pos + 3, len(seq))
                         motif = seq[motif_start:motif_end]
-                        batch.append('\t'.join([rid, str(pos), base, motif, str(start), str(end)]) + '\n')
+                        batch.append('\t'.join([rid, sid, str(pos), base, motif, str(start), str(end)]) + '\n')
 
                         # Write in batches to minimize file I/O
                         if len(batch) >= writeBatchSize:
@@ -73,7 +74,7 @@ def main() -> None:
     # Write the header if it's a new file
     outfile = args.outfile
     with open(outfile, 'w') as out:
-        out.write('\t'.join(['readid', 'position', 'base', 'motif', 'start', 'end']) + '\n')
+        out.write('\t'.join(['readid', 'signalid', 'position', 'base', 'motif', 'start', 'end']) + '\n')
 
     for fi, file in enumerate(files):
         print(f'Extracting segmentation from file {fi}/{len(files)}', end='\r')
