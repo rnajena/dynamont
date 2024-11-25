@@ -530,7 +530,7 @@ int main(int argc, char *argv[])
     // process signal: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
     checkInput(T, read.size(), kmerSize);
-    const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
+    const std::size_t N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
     const std::size_t TN = T * N;
 
     double *sig = new double[T - 1];
@@ -625,6 +625,17 @@ int main(int argc, char *argv[])
                     std::cout << sum << ",";
                 }
                 std::cout << std::endl;
+
+                // to plot probability heatmap
+                // for (std::size_t t = 0; t < T; ++t)
+                // {
+                //     for (std::size_t n = 0; n < N; ++n)
+                //     {
+                //         std::cout << exp(logPlus(LPM[t * N + n], LPE[t * N + n])) << ",";
+                //     }
+                //     std::cout << "\n";
+                // }
+                // std::cout << std::flush;
             }
             // Clean up
             delete[] LPM;
