@@ -113,7 +113,6 @@ int kmer2int(const std::string &s, const int alphabetSize)
     return ret;
 }
 
-#include <iostream>
 /**
  * Reads the normal distribution parameters from a given TSV file,
  * and returns the kmer model and alphabet size.
@@ -126,7 +125,7 @@ int kmer2int(const std::string &s, const int alphabetSize)
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer std::set).
  *                   3. The total number of possible kmers (calculated as alphabetSize^kmerSize).
  */
-std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna)
+std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const std::size_t kmerSize, const bool rna)
 {
     std::string line, kmer, tmp;
 
@@ -292,7 +291,7 @@ void checkModelpath(std::string modelpath)
     }
 }
 
-void checkInput(std::size_t signalSize, std::size_t readSize, int kmerSize)
+void checkInput(const std::size_t signalSize, const std::size_t readSize, const std::size_t kmerSize)
 {
     if (signalSize < 1)
     {
@@ -304,7 +303,7 @@ void checkInput(std::size_t signalSize, std::size_t readSize, int kmerSize)
         std::cerr << "Read: " << readSize << " smaller than 1" << std::endl;
         exit(9);
     }
-    if (signalSize < 2*readSize) // each segment has at least length 2
+    if (signalSize < 2 * readSize) // each segment has at least length 2
     {
         std::cerr << "Signal: " << signalSize << " smaller than read: " << readSize << std::endl;
         exit(10);

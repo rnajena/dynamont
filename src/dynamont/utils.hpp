@@ -22,6 +22,7 @@
 #include <set>
 #include <iomanip>    //setprecision
 #include <filesystem> // std::filesystem::exists
+#include <iostream>
 
 // default params for NTK
 const std::unordered_map<std::string, double> NTK_rna_r9_transitions = {
@@ -213,7 +214,7 @@ int kmer2int(const std::string &s, const int alphabetSize);
  *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
  *                   3. The total number of possible kmers (calculated as alphabetSize^kmerSize).
  */
-std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const int kmerSize, const bool rna);
+std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const std::size_t kmerSize, const bool rna);
 
 // https://en.wikipedia.org/wiki/Log_probability
 /**
@@ -370,4 +371,4 @@ std::string formattedMedian(std::vector<double> &vec);
 
 void checkModelpath(std::string modelpath);
 
-void checkInput(std::size_t signalSize, std::size_t readSize, int kmerSize);
+void checkInput(const std::size_t signalSize, const std::size_t readSize, const std::size_t kmerSize);
