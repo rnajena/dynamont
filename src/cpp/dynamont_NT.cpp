@@ -135,10 +135,57 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
             E[t * N + n] = std::max(M[(t - 1) * N + n] + LPE[t * N + n], E[(t - 1) * N + n] + LPE[t * N + n]); // e1, e2
         }
     }
-    std::vector<double> segProb;
-    funcE(T - 1, N - 1, M, E, LPM, LPE, segString, N, segProb, kmerSize);
+    // std::vector<double> segProb;
+    // funcE(T - 1, N - 1, M, E, LPM, LPE, segString, N, segProb, kmerSize);
+    traceback(T - 1, N - 1, M, E, LPM, LPE, segString, N, kmerSize);
     delete[] M;
     delete[] E;
+}
+
+/**
+ * Backtracing function for M state
+ *
+ * @param t current time step
+ * @param n current position in sequence
+ * @param M matrix containing match scores
+ * @param E matrix containing extend scores
+ * @param LPM matrix containing logarithmic probabilities for M state
+ * @param LPE matrix containing logarithmic probabilities for E state
+ * @param segString list to store segment information
+ * @param N size of sequence
+ * @param kmerSize size of k-mer
+ */
+void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, const int kmerSize)
+{
+    std::vector<double> segProb;
+    bool isFuncM = false; // start in E
+
+    // Iterate until the stack is empty
+    while (t && n)
+    {
+        std::size_t curIdx = t * N + n;
+        // A
+        if (isFuncM)
+        {
+            // In funcM
+            segProb.push_back(exp(LPM[curIdx]));
+            segString.push_front("M" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + ";");
+            segProb.clear();
+            // Transition to E (with t-1, n-1)
+            --t;
+            --n;
+            isFuncM = false;
+        }
+        // E
+        else
+        {
+            // In funcE
+            const double logScore = LPE[curIdx];
+            segProb.push_back(exp(logScore));
+            isFuncM = (E[curIdx] == M[curIdx - N] + logScore);
+            --t;
+        }
+    }
 }
 
 /**
@@ -155,22 +202,22 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
-{
-    const double score = M[t * N + n];
-    const double logScore = LPM[t * N + n];
-    segProb.push_back(exp(logScore));
-    // if (t<=1 && n<=1) [[unlikely]] { // Start value
-    //     segString.push_front("M0,0," + formattedMedian(segProb) + ";"); // n-1 because N is 1 larger than the sequences
-    //     return;
-    // }
-    if (t > 0 && n > 0 && score == E[(t - 1) * N + (n - 1)] + logScore) [[likely]]
-    {
-        segString.push_front("M" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + ";");
-        segProb.clear();
-        return funcE(t - 1, n - 1, M, E, LPM, LPE, segString, N, segProb, kmerSize);
-    }
-}
+// void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
+// {
+//     const double score = M[t * N + n];
+//     const double logScore = LPM[t * N + n];
+//     segProb.push_back(exp(logScore));
+//     // if (t<=1 && n<=1) [[unlikely]] { // Start value
+//     //     segString.push_front("M0,0," + formattedMedian(segProb) + ";"); // n-1 because N is 1 larger than the sequences
+//     //     return;
+//     // }
+//     if (t > 0 && n > 0 && score == E[(t - 1) * N + (n - 1)] + logScore) [[likely]]
+//     {
+//         segString.push_front("M" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + ";");
+//         segProb.clear();
+//         return funcE(t - 1, n - 1, M, E, LPM, LPE, segString, N, segProb, kmerSize);
+//     }
+// }
 
 /**
  * Backtracing function for E state
@@ -186,23 +233,23 @@ void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dpro
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
-{
-    const double score = E[t * N + n];
-    const double logScore = LPE[t * N + n];
-    segProb.push_back(exp(logScore));
-    if (t > 0 && n > 0) [[likely]]
-    {
-        if (score == M[(t - 1) * N + n] + logScore)
-        {
-            return funcM(t - 1, n, M, E, LPM, LPE, segString, N, segProb, kmerSize);
-        }
-        if (score == E[(t - 1) * N + n] + logScore)
-        {
-            return funcE(t - 1, n, M, E, LPM, LPE, segString, N, segProb, kmerSize);
-        }
-    }
-}
+// void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
+// {
+//     const double score = E[t * N + n];
+//     const double logScore = LPE[t * N + n];
+//     segProb.push_back(exp(logScore));
+//     if (t > 0 && n > 0) [[likely]]
+//     {
+//         if (score == M[(t - 1) * N + n] + logScore)
+//         {
+//             return funcM(t - 1, n, M, E, LPM, LPE, segString, N, segProb, kmerSize);
+//         }
+//         if (score == E[(t - 1) * N + n] + logScore)
+//         {
+//             return funcE(t - 1, n, M, E, LPM, LPE, segString, N, segProb, kmerSize);
+//         }
+//     }
+// }
 
 /**
  * Train transition parameter with baum welch algorithm

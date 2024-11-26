@@ -21,8 +21,6 @@
 #include "utils.hpp"
 
 extern constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
-// extern bool rna;
-// extern std::unordered_map<std::string, double> transitions_NT;
 
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
@@ -105,10 +103,25 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
  * @param LPE matrix containing logarithmic probabilities for E state
  * @param segString list to store segment information
  * @param N size of sequence
+ * @param kmerSize size of k-mer
+ */
+void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, const int kmerSize);
+
+/**
+ * Backtracing function for M state
+ *
+ * @param t current time step
+ * @param n current position in sequence
+ * @param M matrix containing match scores
+ * @param E matrix containing extend scores
+ * @param LPM matrix containing logarithmic probabilities for M state
+ * @param LPE matrix containing logarithmic probabilities for E state
+ * @param segString list to store segment information
+ * @param N size of sequence
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
+// void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
 
 /**
  * Backtracing function for E state
@@ -124,7 +137,7 @@ void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dpro
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
+// void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
 
 /**
  * Train transition parameter with baum welch algorithm
