@@ -193,22 +193,22 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
  *
  * @param defaultVals A map containing default transition values (std::string keys and double values).
  *                                 These default values are used when a transition value is std::set to `-1`.
- * @param transitions A map containing current transition values (std::string keys and double values).
+ * @param newVals A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double> &defaultVals, std::unordered_map<std::string, double> &transitions)
+void updateTransitions(const std::unordered_map<std::string, double> &defaultVals, std::unordered_map<std::string, double> &newVals)
 {
-    // Iterate over each transition in the 'transitions' std::unordered_map
-    for (const auto &[param, value] : transitions)
+    // Iterate over each transition in the 'newVals' std::unordered_map
+    for (const auto &[param, value] : newVals)
     {
         // Check if the transition value is -1, which indicates it should use the default value
         if (value == -1.0)
         {
             // Fetch the default value for this key, and store the value in the transition map
-            transitions[param] = defaultVals.at(param);
+            newVals[param] = defaultVals.at(param);
         }
         // Apply the logarithmic value to the current transition value
-        transitions[param] = std::log(value);
+        newVals[param] = std::log(value);
     }
 }
 
