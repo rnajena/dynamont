@@ -8,7 +8,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import numpy as np
 from os.path import exists, join, dirname
 from os import makedirs, name
-from FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
+from python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
 import read5
 import multiprocessing as mp
 from datetime import datetime
@@ -86,7 +86,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     #         'e2': 0.97
     #         }
     elif mode == 'resquiggle':
-        mode = 'dynamont_NTK'
+        mode = 'dynamont_NTC'
         transitionParams = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,

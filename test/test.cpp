@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #include "utils.hpp"
-#include "dynamont_NTK.cpp"
+#include "dynamont_NTC.hpp"
 
 TEST(Scorehd, shouldComputeCorrectScoreHDFor5merValues)
 {
@@ -117,9 +117,9 @@ TEST(Successingkmer, ValidInputs)
 {
     // Given
     std::size_t currentKmer = 5; // AAACC
-    int nextNt = 2;              // + G = AACCG
-    int stepSize = 256;
-    int alphabetSize = 4;
+    std::size_t nextNt = 2;      // + G = AACCG
+    stepSize = 256;
+    alphabetSize = 4;
 
     // When
     std::size_t result = successingKmer(currentKmer, nextNt, stepSize, alphabetSize);
@@ -193,22 +193,21 @@ TEST(Itoa, check5merRNA)
 {
     // Given
     std::size_t value = 10; // AAAGG
-    int alphabetSize = 4;
-    int kmerSize = 5;
-    bool rna = true;
+    alphabetSize = 4;
+    kmerSize = 5;
 
     // When
-    std::string result = itoa(value, alphabetSize, kmerSize, rna);
+    std::string result = itoa(value, alphabetSize, kmerSize, true);
 
     // Then
     EXPECT_EQ(result, "GGAAA");
 
     value = 0;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, true);
     EXPECT_EQ(result, "AAAAA");
 
     value = pow(alphabetSize, kmerSize) - 1;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, true);
     EXPECT_EQ(result, "TTTTT");
 }
 
@@ -216,22 +215,20 @@ TEST(Itoa, check9merRNA)
 {
     // Given
     std::size_t value = 10; // AAAGG
-    int alphabetSize = 4;
-    int kmerSize = 9;
-    bool rna = true;
+    alphabetSize = 4;
+    kmerSize = 9;
 
     // When
-    std::string result = itoa(value, alphabetSize, kmerSize, rna);
-
+    std::string result = itoa(value, alphabetSize, kmerSize, true);
     // Then
     EXPECT_EQ(result, "GGAAAAAAA");
 
     value = 0;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, true);
     EXPECT_EQ(result, "AAAAAAAAA");
 
     value = pow(alphabetSize, kmerSize) - 1;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, true);
     EXPECT_EQ(result, "TTTTTTTTT");
 }
 
@@ -239,22 +236,21 @@ TEST(Itoa, check5merDNA)
 {
     // Given
     std::size_t value = 10; // AAAGG
-    int alphabetSize = 4;
-    int kmerSize = 5;
-    bool rna = false;
+    alphabetSize = 4;
+    kmerSize = 5;
 
     // When
-    std::string result = itoa(value, alphabetSize, kmerSize, rna);
+    std::string result = itoa(value, alphabetSize, kmerSize, false);
 
     // Then
     EXPECT_EQ(result, "AAAGG");
 
     value = 0;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, false);
     EXPECT_EQ(result, "AAAAA");
 
     value = pow(alphabetSize, kmerSize) - 1;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, false);
     EXPECT_EQ(result, "TTTTT");
 }
 
@@ -262,22 +258,21 @@ TEST(Itoa, check9merDNA)
 {
     // Given
     std::size_t value = 10; // AAAGG
-    int alphabetSize = 4;
-    int kmerSize = 9;
-    bool rna = false;
+    alphabetSize = 4;
+    kmerSize = 9;
 
     // When
-    std::string result = itoa(value, alphabetSize, kmerSize, rna);
+    std::string result = itoa(value, alphabetSize, kmerSize, false);
 
     // Then
     EXPECT_EQ(result, "AAAAAAAGG");
 
     value = 0;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, false);
     EXPECT_EQ(result, "AAAAAAAAA");
 
     value = pow(alphabetSize, kmerSize) - 1;
-    result = itoa(value, alphabetSize, kmerSize, rna);
+    result = itoa(value, alphabetSize, kmerSize, false);
     EXPECT_EQ(result, "TTTTTTTTT");
 }
 
@@ -286,7 +281,7 @@ TEST(Kmer2int, shouldConvertValid5merStringToInteger)
 {
     // Given
     std::string kmer = "ACGTG";
-    int alphabetSize = 4;
+    alphabetSize = 4;
 
     // When
     int result = kmer2int(kmer, alphabetSize);
@@ -304,8 +299,8 @@ TEST(Kmer2int, shouldConvertValid5merStringToInteger)
 TEST(Kmer2int, shouldConvertValid9merStringToInteger)
 {
     // Given
-    int alphabetSize = 9;
     std::string kmer = "ACGTTTGCA";
+    alphabetSize = 9;
 
     // When
     int result = kmer2int(kmer, alphabetSize);
@@ -364,14 +359,14 @@ TEST(Updatetransitions, ShouldFetchDefaultValuesCorrectlyFromDefaultTransitionsV
 {
     // Given
     std::unordered_map<std::string, double> defaultVals = {{"a", 5.0}, {"b", 6.0}};
-    std::unordered_map<std::string, double> transitions = {{"a", -1.0}, {"b", -1.0}};
+    std::unordered_map<std::string, double> newVals = {{"a", -1.0}, {"b", -1.0}};
 
     // When
-    updateTransitions(defaultVals, transitions);
+    updateTransitions(defaultVals, newVals);
 
     // Then
-    EXPECT_DOUBLE_EQ(transitions["a"], log(5.0));
-    EXPECT_DOUBLE_EQ(transitions["b"], log(6.0));
+    EXPECT_DOUBLE_EQ(newVals["a"], log(5.0));
+    EXPECT_DOUBLE_EQ(newVals["b"], log(6.0));
 }
 
 // Applies logarithmic transformation to all transition values
@@ -379,14 +374,14 @@ TEST(Updatetransitions, ShouldApplyLogarithmicTransformationToAllTransitionValue
 {
     // Given
     std::unordered_map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
-    std::unordered_map<std::string, double> transitions = {{"a", 4.0}, {"b", 9.0}};
+    std::unordered_map<std::string, double> newVals = {{"a", 4.0}, {"b", 9.0}};
 
     // When
-    updateTransitions(defaultVals, transitions);
+    updateTransitions(defaultVals, newVals);
 
     // Then
-    EXPECT_DOUBLE_EQ(transitions["a"], log(4.0));
-    EXPECT_DOUBLE_EQ(transitions["b"], log(9.0));
+    EXPECT_DOUBLE_EQ(newVals["a"], log(4.0));
+    EXPECT_DOUBLE_EQ(newVals["b"], log(9.0));
 }
 
 // Handles empty transitions map without errors
@@ -394,13 +389,13 @@ TEST(Updatetransitions, ShouldHandleEmptyTransitionsMapWithoutErrors)
 {
     // Given
     std::unordered_map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
-    std::unordered_map<std::string, double> transitions;
+    std::unordered_map<std::string, double> newVals;
 
     // When
-    updateTransitions(defaultVals, transitions);
+    updateTransitions(defaultVals, newVals);
 
     // Then
-    EXPECT_TRUE(transitions.empty());
+    EXPECT_TRUE(newVals.empty());
 }
 
 // Computes log probabilities correctly for given input arrays
@@ -525,10 +520,8 @@ TEST(Ppforbacktk, Zmatches)
     EXPECT_EQ(Zf, Zb);
 }
 
-int main(int argc, char **argv)
-{
-
-    testing::InitGoogleTest(&argc, argv);
-
-    return RUN_ALL_TESTS();
-}
+// int main(int argc, char **argv)
+// {
+//     testing::InitGoogleTest(&argc, argv);
+//     return RUN_ALL_TESTS();
+// }

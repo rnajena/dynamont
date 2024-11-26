@@ -8,7 +8,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name, getpid
 import read5.AbstractFileReader
-from FileIO import feedSegmentationAsynchronous, hampelFilter
+from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
 import read5
 import multiprocessing as mp
 import pysam
@@ -239,7 +239,7 @@ def main() -> None:
         # case "banded":
         #     SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
         case "resquiggle":
-            SCRIPT = join(dirname(__file__), 'dynamont_NTK')
+            SCRIPT = join(dirname(__file__), 'dynamont_NTC')
 
     if name == 'nt': # check for windows
         SCRIPT+='.exe'

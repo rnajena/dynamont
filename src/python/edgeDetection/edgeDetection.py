@@ -12,7 +12,7 @@ import pysam
 import pywt
 from os.path import join
 import multiprocessing as mp
-from src.dynamont.FileIO import hampelFilter
+from python.segmentation.FileIO import hampelFilter
 
 def parse() -> Namespace:
     parser = ArgumentParser(

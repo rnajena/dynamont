@@ -9,9 +9,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from os.path import exists, join, dirname, splitext
+from os.path import exists, join, dirname
 from os import makedirs, name
-from FileIO import feedSegmentation, SegmentationError, hampelFilter
+from python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
 import read5
 import pysam
 import seaborn as sns
@@ -191,7 +191,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
             'e2': 0.97
             }
     elif mode == 'resquiggle':
-        mode = 'dynamont_NTK'
+        mode = 'dynamont_NTC'
         PARAMS = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,
