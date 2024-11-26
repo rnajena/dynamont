@@ -28,7 +28,7 @@ def parse() -> Namespace:
     # optional
     parser.add_argument('--f5cResquiggle', type=str, default=None, help='f5c resquiggle segmentation file')
     parser.add_argument('--model_path', type=str, required=True, help='Kmer model file')
-    parser.add_argument('--mode', required=True, choices=['basic', 'banded', 'resquiggle'])
+    parser.add_argument('--mode', required=True, choices=['basic', 'resquiggle'])
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
     
     return parser.parse_args()
@@ -86,10 +86,10 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
     # F5C RESQUIGGLE
     if resquiggleBorders is not None:
         for segment in resquiggleBorders:
-            if segment[2] >= len(read):
+            if segment[2] + 5 > len(read):
                 continue
             motif = ''
-            for j in range(segment[2]-2, segment[2]+3, 1):
+            for j in range(segment[2], segment[2]+5):
                 if j < 0:
                     motif += 'N'
                 elif j >= len(read):
@@ -97,12 +97,13 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
                 else:
                     motif += read[j]
             motif = motif.replace('U', 'T')
+            base = motif[len(motif)//2]
 
-            ax[plotNumber].text(int(segment[0]) + (int(segment[1]) - int(segment[0]))/2 - 6, -3, motif[::-1], fontdict={'size' : 7, 'color':'black'}, rotation=90)
-            ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7)
-            ax[plotNumber].add_patch(Rectangle((int(segment[0]), lb), int(segment[1]) - int(segment[0]), ub-lb, alpha=0.4, edgecolor=basecolors[read[segment[2]]], facecolor=basecolors[read[segment[2]]]))
+            ax[plotNumber].text(int(segment[0]) + (int(segment[1]) - int(segment[0]))/2 - 6, -3, motif, fontdict={'size' : 7, 'color':'black'}, rotation=90)
+            ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7)
+            ax[plotNumber].add_patch(Rectangle((int(segment[0]), lb), int(segment[1]) - int(segment[0]), ub-lb, alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
-        ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[read[segment[2]]], linestyles='--', linewidth=0.7, label = "f5c resquiggle segmentation")
+        ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "f5c resquiggle segmentation")
         ax[plotNumber].legend()
         plotNumber += 1
 
@@ -181,8 +182,9 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
 
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
-    if mode == 'basic' or mode == 'banded':
-        mode = 'dynamont_NT' if mode == 'basic' else 'dynamont_NT_banded'
+    if mode == 'basic':
+        mode = 'dynamont_NT'
+        # mode = 'dynamont_NT_heatmap'
         PARAMS = {
             'e1': 1.0,
             'm1': 0.03,
@@ -216,7 +218,22 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, PARAMS)
+    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, PARAMS) # , heatmap
+
+    # sns.set_theme()
+    # plt.figure(dpi=200)
+    # im = plt.imshow(heatmap, aspect='auto', cmap='viridis')
+    # cbar = plt.colorbar(im)  # Add a color bar
+    # cbar.set_label('Probability')  # Set the color bar label
+    # # sns.heatmap(heatmap, cmap='viridis', annot=False, cbar_kws={'label': 'Probability'}, linewidths=0)
+    # plt.title('HMM Probability Matrix with MAP Path')
+    # plt.ylabel("Signal Data Points")
+    # plt.xlabel("Nucleotide Position")
+    # plt.tight_layout()
+    # plt.grid(False)
+    # plt.savefig("heatmap.svg", dpi=300, bbox_inches='tight', pad_inches=0)
+    # plt.savefig("heatmap.pdf", dpi=300, bbox_inches='tight', pad_inches=0)
+    # plt.close()
 
     # check for resquiggle how many new segments were inserted
     print('Read bases:', len(read), ' Segments:', len(segments), ' Border probs:', len(borderProbs), ' Signal:', end-start)

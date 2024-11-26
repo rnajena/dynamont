@@ -70,3 +70,6 @@ test/#.codiumai.toml
 test/test
 src/edgeDetection/waveletEdgeDetection.ipynb
 src/edgeDetection/gaus1.svg
+src/edgeDetection/test.py
+src/dynamont/dynamont_NTK_debug
+src/dynamont/dynamont_NT_debug

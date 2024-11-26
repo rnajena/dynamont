@@ -15,8 +15,6 @@ from collections import defaultdict
 import multiprocessing as mp
 
 # TODO: add support for DNA
-# ! - add rna/dna parameter
-# ! - add different data processing in readTombo
 
 def parse() -> Namespace:
     """
@@ -38,6 +36,7 @@ def parse() -> Namespace:
     parser.add_argument("--output", type=str, required=True, metavar="CSV", help="Output CSV containing pandas data frame")
     parser.add_argument("--dynamont", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
     parser.add_argument("--labels", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
+    parser.add_argument("--distance", type=int, default=50, metavar="INT", help="Maximum distance to search for")
     parser.add_argument("-p", "--processes", type=int, default=7, metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
@@ -90,8 +89,8 @@ def readDorado(file: str) -> dict:
         next(f) # skip header
         # readid    position    base    motif   start   end
         for line in f:
-            readid, _, _, _, start, end = line.strip().split('\t')
-            readMap[readid].update([int(start), int(end)])
+            readid, signalid, _, _, _, start, end = line.strip().split('\t')
+            readMap[signalid].update([int(start), int(end)])
     return readMap
 
 def readF5CEventalign(file: str, summary : str) -> dict:
@@ -258,49 +257,119 @@ def toNumpy(readMap: dict) -> None:
         readMap[readid] = np.array(list(readMap[readid]))
         readMap[readid].sort()
 
-def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
-    """
-    Masterclass solution to find the number of ground truth values
-    with a closest prediction within a specified maxDistance using two pointers.
-    Runtime: O(n + m)
-    Space: O(1)
+# def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
+#     """
+#     Masterclass solution to find the number of ground truth values
+#     with a closest prediction within a specified maxDistance using two pointers.
+#     Runtime: O(n + m)
+#     Space: O(1)
 
-    Parameters
-    ----------
-    groundTruth : np.ndarray
-        Sorted array of ground truth change point positions.
-    prediction : np.ndarray
-        Sorted array of predicted change point positions.
-    maxDistance : int
-        Maximum allowable distance for a match.
+#     Parameters
+#     ----------
+#     groundTruth : np.ndarray
+#         Sorted array of ground truth change point positions.
+#     prediction : np.ndarray
+#         Sorted array of predicted change point positions.
+#     maxDistance : int
+#         Maximum allowable distance for a match.
 
-    Returns
-    -------
-    int
-        Count of ground truth values with a nearby prediction within maxDistance.
-    """
-    gt_idx = pred_idx = found = before = after = 0
+#     Returns
+#     -------
+#     int
+#         Count of ground truth values with a nearby prediction within maxDistance.
+#     """
+#     gt_idx = pred_idx = found = 0
     
-    # Two-pointer technique
-    while gt_idx < len(groundTruth) and pred_idx < len(prediction):
-        gt_val = groundTruth[gt_idx]
-        pred_val = prediction[pred_idx]
+#     # Two-pointer technique
+#     while gt_idx < len(groundTruth) and pred_idx < len(prediction):
+#         gt_val = groundTruth[gt_idx]
+#         pred_val = prediction[pred_idx]
         
-        # Check the distance
-        if abs(gt_val - pred_val) <= maxDistance:
-            found += 1
-            # Check if the prediction is before or after the ground truth
-            if pred_val < gt_val:
-                before += 1
-            else:
-                after += 1
-            gt_idx += 1  # Move to next ground truth point as it's already matched
-        elif pred_val < gt_val:
-            pred_idx += 1  # Move prediction pointer to the right
-        else:
-            gt_idx += 1  # Move ground truth pointer to the right
+#         # Check the distance
+#         if abs(gt_val - pred_val) <= maxDistance:
+#             found += 1
+#             gt_idx += 1  # Move to next ground truth point as it's already matched
+#         elif pred_val < gt_val:
+#             pred_idx += 1  # Move prediction pointer to the right
+#         else:
+#             gt_idx += 1  # Move ground truth pointer to the right
 
-    return found, before, after
+#     return found
+
+def evaluate(gt : np.ndarray, pred : np.ndarray, maxDistance : int) -> pd.DataFrame:
+    """
+    gt : sorted np.ndarray
+    pred : sorted np.ndarray
+    maxDistance : int
+    """
+    
+    found = np.array([{} for _ in range(len(gt))])
+
+    # collect all predictions within maxDistance for each ground truth
+    pred_start = 0
+    for gt_idx in range(len(gt)):
+        gt_val = int(gt[gt_idx])
+
+        for pred_idx in range(pred_start, len(pred)):
+            pred_val = int(pred[pred_idx])
+
+            if gt_val - pred_val > maxDistance:
+                pred_idx+=1
+                continue
+            elif gt_val - pred_val < -maxDistance:
+                break
+
+            found[gt_idx][pred_idx] = gt_val - pred_val
+
+        # start next loop at min position of previous gt value
+        pred_start = min(found[gt_idx].keys()) if found[gt_idx] else 0
+
+    result = np.zeros(2 * maxDistance + 1, dtype=int)
+    for gt_idx in range(len(gt)):
+
+        # no prediction for this gt value
+        if not found[gt_idx]:
+            continue
+
+        cur_gt = found[gt_idx]
+
+        # get closest prediction
+        pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[k]))
+
+        prev_gt = found[gt_idx - 1] if gt_idx > 0 else {}
+        # remove current prediction from current gt if prediction is closer to previous ground truth value
+        # should only happen once
+        if prev_gt and cur_gt and pred_idx in prev_gt and abs(prev_gt[pred_idx]) <= abs(cur_gt[pred_idx]):
+            del cur_gt[pred_idx]
+
+            if cur_gt:
+                pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[k]))
+
+        next_gt = found[gt_idx + 1] if gt_idx < len(gt) - 1 else {}
+        if next_gt and cur_gt and pred_idx in next_gt and abs(next_gt[pred_idx]) < abs(cur_gt[pred_idx]):
+        # remove current prediction from current gt if prediction is closer to succeeding ground truth value
+        # should only happen once
+            del cur_gt[pred_idx]
+
+            if cur_gt:
+                pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[k]))
+
+        # no prediction for this gt value
+        if not cur_gt:
+            continue
+
+        minDist = int(cur_gt[pred_idx])
+
+        if minDist >= 0:
+            # Map the difference to the appropriate index
+            result[: maxDistance - minDist + 1] += 1
+        if minDist <= 0:
+            # Map the difference to the appropriate index
+            result[maxDistance - minDist :] += 1
+        if minDist == 0:
+            result[maxDistance] -= 1
+
+    return result
 
 def plot(df: pd.DataFrame, outfile : str) -> None:
     """
@@ -317,36 +386,66 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
 
     plt.rcParams.update({'axes.labelsize': 15, 'xtick.labelsize': 15, 'ytick.labelsize': 15, 'legend.fontsize': 15, 'legend.title_fontsize': 15})
 
-    plt.figure(figsize=(12,12), dpi=300)
-    sns.lineplot(df, x='maxDistance', y='foundEdges', hue='tool')
-    plt.xlabel("Distance Treshold")
-    plt.ylabel("Found Edges Ratio")
-    plt.savefig(outfile + "foundEdges.svg", dpi=300)
-    plt.xlim((0, 10))
-    plt.savefig(outfile + "foundEdges_0-10.svg", dpi=300)
+    # outfile.write("Tool,Distance Threshold,Found Change Points,Total Change Points,Found Change Points Ratio,Segmented Reads,Total Reads,Segmented Reads Ratio\n")
+
+    # Get the unique order of Tools based on their appearance in the original DataFrame
+    tool_order = df['Tool'].unique()
+
+    plt.figure(figsize=(8,8), dpi=300)
+    sns.lineplot(df, x='Distance Threshold', y='Found Change Points', hue='Tool', style='Tool')
+    plt.title("Found Change Points vs Directional Distance Threshold", fontsize=18)
+    plt.savefig(outfile + "foundEdgesDirectional.svg", dpi=300)
+    plt.xlim((-10, 10))
+    plt.savefig(outfile + "foundEdgesDirectional_-10-10.svg", dpi=300)
     plt.close()
     
-    plt.figure(figsize=(12,12), dpi=300)
-    sns.lineplot(df, x='maxDistance', y='foundEdgesRatio', hue='tool')
-    plt.xlabel("Distance Treshold")
-    plt.ylabel("Found Edges Ratio")
+    plt.figure(figsize=(8,8), dpi=300)
+    sns.lineplot(df, x='Distance Threshold', y='Found Change Points Ratio', hue='Tool', style='Tool')
+    plt.title("Found Change Point Ratios vs Directional Distance Threshold", fontsize=18)
+    plt.savefig(outfile + "foundEdgesRatioDirectional.svg", dpi=300)
+    plt.xlim((-10, 10))
+    plt.savefig(outfile + "foundEdgesRatioDirectional_-10-10.svg", dpi=300)
+    plt.close()
+
+    # get counts for undirectional absolute threshold
+    df["Absolute Distance"] = df["Distance Threshold"].abs()
+    cumulativeDistance = df.groupby(["Absolute Distance", "Tool"], as_index=False)["Found Change Points"].sum()
+
+    zero_counts = cumulativeDistance[cumulativeDistance['Absolute Distance'] == 0].set_index('Tool')['Found Change Points']
+
+    cumulativeDistance['Found Change Points'] = cumulativeDistance.apply(
+        lambda row: row['Found Change Points'] - zero_counts[row['Tool']] if row['Absolute Distance'] != 0 else 0,
+        axis=1
+    )
+    cumulativeDistance["Found Change Points Ratio"] = cumulativeDistance["Found Change Points"] / df["Total Change Points"].values[0]
+
+    # Set Tool column as categorical with the original order
+    cumulativeDistance['Tool'] = pd.Categorical(cumulativeDistance['Tool'], categories=tool_order, ordered=True)
+
+    # Sort grouped DataFrame by Tool to maintain the original order
+    cumulativeDistance = cumulativeDistance.sort_values(by=['Tool', 'Absolute Distance']).reset_index(drop=True)
+
+    plt.figure(figsize=(8,8), dpi=300)
+    sns.lineplot(cumulativeDistance, x='Absolute Distance', y='Found Change Points Ratio', hue='Tool', style='Tool')
+    plt.title("Found Change Point Ratios vs Absolute Distance Threshold", fontsize=18)
     plt.savefig(outfile + "foundEdgesRatio.svg", dpi=300)
     plt.xlim((0, 10))
     plt.savefig(outfile + "foundEdgesRatio_0-10.svg", dpi=300)
     plt.close()
 
-    plt.figure(figsize=(12,12), dpi=300)
-    sns.barplot(df.loc[df["maxDistance"] == 0], x='tool', y='segmentedReadsRatio')
+    plt.figure(figsize=(10,5), dpi=300)
+    sns.barplot(df.loc[df["Distance Threshold"] == 0], x='Tool', y='Segmented Reads Ratio', hue='Tool')
     # Annotate each bar with the height
-    for index, (_, row) in enumerate(df.loc[df["maxDistance"] == 0].iterrows()):
-        plt.text(x=index, y=row['segmentedReadsRatio'],  # Add a small offset for better visibility
-             s=f"{row['segmentedReadsRatio']:.3f}",        # Format the text with 2 decimals
+    for index, (_, row) in enumerate(df.loc[df["Distance Threshold"] == 0].iterrows()):
+        plt.text(x=index, y=row['Segmented Reads Ratio'],  # Add a small offset for better visibility
+             s=f"{row['Segmented Reads Ratio']:.3f}",        # Format the text with 2 decimals
              ha='center',                     # Center the text horizontally
              va='bottom')                     # Align the text to the top of the bar
     plt.ylim((0.8, 1.01))
     plt.yticks(np.arange(0.8, 1.01, 0.05))
-    plt.xlabel("Distance Treshold")
-    plt.ylabel("Found Edges Ratio")
+    plt.xticks(rotation = 65)
+    plt.tight_layout()
+    plt.title("Ratio Of Segmented Reads Per Tool", fontsize=18)
     plt.savefig(outfile + "segmentedReadsRatio.svg", dpi=300)
     plt.close()
 
@@ -404,12 +503,13 @@ def main() -> None:
     print(args)
 
     pool = mp.Pool(args.processes)
+    maxDistance = args.distance
 
     assert len(args.dynamont) == len(args.labels), "Number of dynamont results must match the number of labels"
 
     if not os.path.exists(args.output):
         gtReturn = pool.apply_async(readChangepoints, args=(args.changepoints,))
-        # dynamontReturn = pool.apply_async(readDynamont, args=(args.dynamont,))
+        # dynamontReturn = pool.apply_async(readDynamont, args=(args.dynamont[0],))
         dynamontReturn = {label : pool.apply_async(readDynamont, args=(result,)) for label, result in zip(args.labels, args.dynamont)}
         f5ceventalignReturn = pool.apply_async(readF5CEventalign, args=(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'))
         f5cresquiggleReturn = pool.apply_async(readF5CResquiggle, args=(args.f5cresquiggle,))
@@ -417,67 +517,57 @@ def main() -> None:
         tomboReturn = pool.apply_async(readTombo, args=(args.tombo,))
         controlReturn = pool.apply_async(generateControl, args=(args.basecalls,))
 
-        # pool.close()
-        # pool.join()
-
-        print("Done Reading,\tStart Evaluating...")
-
         groundTruths = gtReturn.get()  #readChangepoints(args.changepoints)
-        # generating controls
-        randomBorders, uniformBorders = controlReturn.get()
+        randomBorders, uniformBorders = controlReturn.get() # generating controls
 
         toolsResult = {
-            f"dynamont_{label}" : dynamontReturn[label].get() for label in dynamontReturn
+            f"Dynamont {' '.join(label.split('_'))}" : dynamontReturn[label].get() for label in dynamontReturn
         } | {
-            'f5cEventalign' : f5ceventalignReturn.get(), # readF5CEventalign(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'),
-            'f5cResquiggle' : f5cresquiggleReturn.get(), # readF5CResquiggle(args.f5cresquiggle),
-            'dorado' : doradoReturn.get(), # readDorado(args.dorado),
-            'tombo' : tomboReturn.get(), # readTombo(args.tombo),
-            'random' : randomBorders,
-            'uniform' : uniformBorders,
+            'f5c Eventalign' : f5ceventalignReturn.get(), # readF5CEventalign(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'),
+            'f5c Resquiggle' : f5cresquiggleReturn.get(), # readF5CResquiggle(args.f5cresquiggle),
+            'Dorado' : doradoReturn.get(), # readDorado(args.dorado),
+            'Tombo' : tomboReturn.get(), # readTombo(args.tombo),
+            'Control Random' : randomBorders,
+            'Control Uniform' : uniformBorders,
         }
 
         for tool in toolsResult:
             toNumpy(toolsResult[tool])
         toNumpy(groundTruths)
 
+        print("Done\nStart Evaluating...")
+
         # df = pd.DataFrame()
         outfile = open(args.output, 'w')
-        outfile.write("tool,maxDistance,foundEdges,foundBefore,foundAfter,totalEdges,foundEdgesRatio,segmentedReads,totalReads,segmentedReadsRatio\n")
+        outfile.write("Tool,Distance Threshold,Found Change Points,Total Change Points,Found Change Points Ratio,Segmented Reads,Total Reads,Segmented Reads Ratio\n")
         outfile.flush()
         for tool, result in toolsResult.items():
-            print(f"Evaluating {tool}...")
+            print(f"Evaluating {tool} on distance {maxDistance}...")
 
-            for maxDistance in range(0, 50, 1):
-                print(f'Distance: {maxDistance}')
-                totalEdges = 0 # total edges in ground truth
-                foundEdges = 0 # found edges by tool
-                foundBefore = 0
-                foundAfter = 0
-                totalReads = 0 # total reads in ground truth
-                segmentedReads = 0 # segmented reads by tool
+            totalEdges = 0 # total edges in ground truth
+            foundEdges = np.zeros(2*maxDistance + 1, dtype=int)
+            totalReads = 0 # total reads in ground truth
+            segmentedReads = 0 # segmented reads by tool
+        
+            jobs = []
+            for readid, gtSet in groundTruths.items():
+                totalEdges += len(gtSet)
+                totalReads += 1
+
+                if readid in result and result[readid].size:
+                    predictions = result[readid]
+                    segmentedReads += 1
+                    jobs.append(pool.apply_async(evaluate, args=(gtSet, predictions, maxDistance)))
+
+            for i, job in enumerate(jobs):
+                if (i+1) % 1000 == 0:
+                    print(f'{i+1}/{len(groundTruths)}', end='\r')
+                for i, n in enumerate(job.get()):
+                    foundEdges[i] += n
             
-                jobs = []
-                for i, (readid, gtSet) in enumerate(groundTruths.items()):
-                    totalEdges += len(gtSet)
-                    totalReads += 1
-
-                    if readid in result and result[readid].size:
-                        segmentedReads += 1
-                        jobs.append(pool.apply_async(evaluate, args=(gtSet, result[readid], maxDistance)))
-
-                for i, job in enumerate(jobs):
-                    if (i+1) % 1000 == 0:
-                        print(f'{i+1}/{len(groundTruths)}', end='\r')
-                    result = job.get()
-                    foundEdges += result[0]
-                    foundBefore += result[1]
-                    foundAfter += result[2]
-                    
-                outfile.write(f"{tool},{maxDistance},{foundEdges},{foundBefore},{foundAfter},{totalEdges},{foundEdges / totalEdges if totalEdges > 0 else 0},{segmentedReads},{totalReads},{segmentedReads / totalReads if totalReads > 0 else 0}\n")
-                outfile.flush()
-
-            print(f'Done: {i+1}/{len(groundTruths)}')
+            for distance in range(2*maxDistance + 1):
+                outfile.write(f"{tool},{distance - maxDistance},{foundEdges[distance]},{totalEdges},{foundEdges[distance] / totalEdges if totalEdges > 0 else 0},{segmentedReads},{totalReads},{segmentedReads / totalReads if totalReads > 0 else 0}\n")
+            outfile.flush()
         
         outfile.close()
     

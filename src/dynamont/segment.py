@@ -6,12 +6,21 @@
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
-from os import makedirs, name
+from os import makedirs, name, getpid
 import read5.AbstractFileReader
 from FileIO import feedSegmentationAsynchronous, hampelFilter
 import read5
 import multiprocessing as mp
 import pysam
+import psutil
+
+def get_memory_usage():
+    """
+    Returns the memory usage of the current Python process in MB.
+    """
+    process = psutil.Process(getpid())  # Get the current process
+    memory_info = process.memory_info()   # Get memory usage details
+    return memory_info.rss / 1024**2      # Convert from bytes to MB
 
 def parse() -> Namespace:
     """
@@ -26,7 +35,7 @@ def parse() -> Namespace:
     parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5|SLOW5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
-    parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'banded', 'resquiggle'], help='Segmentation algorithm used for segmentation')
+    parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     parser.add_argument('--processes', type=int, default=mp.cpu_count()-1, help='Number of processes to use for segmentation')
     parser.add_argument('--model_path', type=str, required=True, help='Which kmer model to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
@@ -48,6 +57,8 @@ def listener(q : mp.Queue, outfile : str) -> None:
     outfile : str
         The path to write the results to
     """
+    print(f"[{'Segmented':>9} {'Errors':>8} {'In Queue':>8} {'Memory usage (MB)':>20}]")
+    # print(f"[written,\terrors,\tin queue,\tmemory]")
     with open(outfile, 'w') as f:
         f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
         i = 0
@@ -63,11 +74,11 @@ def listener(q : mp.Queue, outfile : str) -> None:
             else:
                 i+=1
                 f.write(m)
-                f.flush()
             
-            print(f"Reads segmented: {i}", f"Errors: {e}", end='\r')
+            print(f"[{i:>9} {e:>8} {q.qsize():>8} {get_memory_usage():>20.2f}]", end='\r')
+            # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
     
-    print(f"Reads segmented: {i}", f"Errors: {e}")
+    print(f"\nReads segmented: {i}", f"Errors: {e}")
     
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
@@ -158,7 +169,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     None
     """
     processes = max(2, processes)
-    print(f"Using {processes} processes in segmentation.")
+    print(f"Starting segmentation with {processes} processes.")
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     pool.apply_async(listener, (queue, outfile))
@@ -166,7 +177,6 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     jobs = [None for _ in range(processes)]
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-        print("Starting segmentation.")
         for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
             # skip low qual reads if activated
             qs = basecalled_read.get_tag("qs")
@@ -226,8 +236,8 @@ def main() -> None:
     match args.mode:
         case "basic":
             SCRIPT = join(dirname(__file__), 'dynamont_NT')
-        case "banded":
-            SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
+        # case "banded":
+        #     SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
         case "resquiggle":
             SCRIPT = join(dirname(__file__), 'dynamont_NTK')
 

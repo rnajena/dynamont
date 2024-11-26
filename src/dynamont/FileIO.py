@@ -331,8 +331,9 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         exit(1)
 
     try:
-        output, probs = result.split('\n')
+        output, probs = result.split('\n') # , *heatmap, _
         probs = np.array(list(map(float, probs.split(',')[:-1])))[1:]
+        # heatmap = np.array([row.split(',')[:-1] for row in heatmap], dtype=float)
     except:
         try:
             output  = result.split('\n')
@@ -350,7 +351,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
 
     # receive segmentation result and format output into np.ndarray
     segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1])
-    return segments, probs
+    return segments, probs #, heatmap
 
 def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, queue : Queue) -> None:
     '''
@@ -372,6 +373,11 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     '''
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
     output, errors, returncode = feedPipe(signal, read, pipe)
+    if returncode == -9: # OOM return code
+        import time
+        time.sleep(60) # wait a minute and retry once
+        pipe = openCPPScriptParams(CPP_SCRIPT, params)
+        output, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         # queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)
