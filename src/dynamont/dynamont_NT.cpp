@@ -3,35 +3,13 @@
 // github: https://github.com/JannesSP
 // website: https://jannessp.github.io
 
-#include <iostream>
-#include <iomanip>
-#include <fstream> // file io
-#include <sstream> // file io
-#include <string>
-#include <map> // dictionary
-#include <tuple>
-#include <vector>
-#include <cmath> // exp
-#include <cassert>
-#include <cstddef>
-#include <algorithm>
-#include "argparse.hpp"
-#include "utils.hpp"
+#include "dynamont_NT.hpp"
 
-void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
-void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
-
-constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 bool rna;
-
-std::unordered_map<std::string, double> transitions = {
+std::unordered_map<std::string, double> transitions_NT = {
     {"m1", -1.0},
     {"e1", -1.0},
     {"e2", -1.0}};
-
-// Asserts doubleing point compatibility at compile time
-// necessary for INFINITY usage
-static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
 
 /**
  * Computes forward matrices using logarithmic values for signal processing.
@@ -51,8 +29,8 @@ static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
  */
 void logF(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
-    const double m1 = transitions.at("m1");
-    const double e2 = transitions.at("e2");
+    const double m1 = transitions_NT.at("m1");
+    const double e2 = transitions_NT.at("e2");
     E[0] = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
@@ -84,8 +62,8 @@ void logF(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std
  */
 void logB(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
-    const double m1 = transitions.at("m1");
-    const double e2 = transitions.at("e2");
+    const double m1 = transitions_NT.at("m1");
+    const double e2 = transitions_NT.at("e2");
     E[T * N - 1] = 0;
     for (std::size_t t = T - 1; t-- > 0;)
     {
@@ -252,14 +230,14 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
             if (n + 1 < N) [[likely]]
             {
                 // m1:                 forward(i)        a                      e(i+1)                                 backward(i+1)
-                newM1 = logPlus(newM1, forE[t * N + n] + transitions.at("m1") + scoreKmer(sig[t], kmerSeq[n], model) + backM[(t + 1) * N + (n + 1)]);
+                newM1 = logPlus(newM1, forE[t * N + n] + transitions_NT.at("m1") + scoreKmer(sig[t], kmerSeq[n], model) + backM[(t + 1) * N + (n + 1)]);
             }
 
             if (n > 0) [[likely]]
             {
                 double score = scoreKmer(sig[t], kmerSeq[n - 1], model);
-                // newE1 = logPlus(newE1, forM[t*N+n] + transitions.at("e1") + score + backE[(t+1)*N+n]);
-                newE2 = logPlus(newE2, forE[t * N + n] + transitions.at("e2") + score + backE[(t + 1) * N + n]);
+                // newE1 = logPlus(newE1, forM[t*N+n] + transitions_NT.at("e1") + score + backE[(t+1)*N+n]);
+                newE2 = logPlus(newE2, forE[t * N + n] + transitions_NT.at("e2") + score + backE[(t + 1) * N + n]);
             }
         }
     }
@@ -457,9 +435,9 @@ int main(int argc, char *argv[])
     program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
 
-    program.add_argument("-m1", "--matchscore1").help("Segment transition probability, should be close to (expected number of nucleotdes)/(signal length). Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions["m1"]);
-    program.add_argument("-e1", "--extendscore1").help("First extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions["e1"]);
-    program.add_argument("-e2", "--extendscore2").help("Further extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions["e2"]);
+    program.add_argument("-m1", "--matchscore1").help("Segment transition probability, should be close to (expected number of nucleotdes)/(signal length). Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["m1"]);
+    program.add_argument("-e1", "--extendscore1").help("First extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e1"]);
+    program.add_argument("-e2", "--extendscore2").help("Further extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e2"]);
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob);
@@ -473,33 +451,33 @@ int main(int argc, char *argv[])
         kmerSize = 5;
         rna = true;
         // taken from the trained NT version of dynamont
-        updateTransitions(NT_rna_r9_transitions, transitions);
+        updateTransitions(NT_rna_r9_transitions, transitions_NT);
     }
     else if (pore == "dna_r9")
     {
         kmerSize = 5;
         rna = false;
         // taken from the trained NT version of dynamont
-        updateTransitions(NT_dna_r9_transitions, transitions);
+        updateTransitions(NT_dna_r9_transitions, transitions_NT);
     }
     else if (pore == "rna_rp4")
     {
         kmerSize = 9;
         rna = true;
         // taken from the trained NT version of dynamont
-        updateTransitions(NT_rna_rp4_transitions, transitions);
+        updateTransitions(NT_rna_rp4_transitions, transitions_NT);
     }
     else if (pore == "dna_r10_260bps")
     {
         kmerSize = 9;
         rna = false;
-        updateTransitions(NT_dna_r10_260bps_transitions, transitions);
+        updateTransitions(NT_dna_r10_260bps_transitions, transitions_NT);
     }
     else if (pore == "dna_r10_400bps")
     {
         kmerSize = 9;
         rna = false;
-        updateTransitions(NT_dna_r10_400bps_transitions, transitions);
+        updateTransitions(NT_dna_r10_400bps_transitions, transitions_NT);
     }
 
     checkModelpath(modelpath);

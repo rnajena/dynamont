@@ -3,34 +3,13 @@
 // github: https://github.com/JannesSP
 // website: https://jannessp.github.io
 
-#include <iostream>
-#include <iomanip> // std::setprecision
-#include <fstream> // file io
-#include <sstream> // file io
-#include <string>
-#include <algorithm> // std::sort, std::stable_sort
-#include <numeric>   // std::iota
-#include <vector>
-#include <array>
-#include <unordered_map>
-#include <unordered_set>
-#include <tuple>
-#include <cmath> // exp, pow, log1p, INFINITY
-#include <cassert>
-#include <cstddef>
-#include "argparse.hpp"
-#include "utils.hpp"
-
-inline constexpr int NUMMAT = 5;
-inline constexpr double SPARSETHRESHOLD = log(0.95); // using paths with top X% of probability per T
-inline constexpr double EPSILON = 1e-8;              // chose by eye just to distinguish real errors from numeric errors
+#include "dynamont_NTK.hpp"
 
 std::size_t TNK, NK;
 double ppTNm, ppTNe, ppTKm, ppTKe;
 int alphabetSize, kmerSize, halfKmerSize, stepSize;
 bool rna;
-
-std::unordered_map<std::string, double> transitions = {
+std::unordered_map<std::string, double> transitions_NTK = {
     {"a1", -1.0},
     {"a2", -1.0},
     {"p1", -1.0},
@@ -46,78 +25,6 @@ std::unordered_map<std::string, double> transitions = {
     {"i1", -1.0},
     {"i2", -1.0},
     {"e1", -1.0}};
-
-// Asserts double point compatibility at compile time necessary for INFINITY usage
-static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
-
-void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
-void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
-void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
-void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
-void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
-
-// ===============================================================
-// ===============================================================
-// ===================== Scoring calculations ====================
-// ===============================================================
-// ===============================================================
-
-/**
- * Calculates the Hamming-Distance between two given kmers in their integer base representation
- *
- * @param kmerN
- * @param kmerK
- * @returns log(e^(−2×HD))
- */
-inline int scoreHD(const std::size_t kmerN, const std::size_t kmerK)
-{
-    // TODO: maybe creating an alphabet class with a precalculated distance lookup table would be faster here, depending on how much memory this class/lookup table consumes, only need half the table and maybe a pattern exists that can be used to faster calculate d = -2 * HD(x, y)
-    // TODO: lookup table can be combined with model object storing the mean and stddev values
-
-    // no calculation needed if same kmer, should happen often with sparse matrix, accurate basecaller and accurate kmer model
-    if (kmerN == kmerK)
-        return 0;
-
-    // https://www.codeproject.com/Tips/1274380/Cplusplus11-std-div-Benchmark
-    // modulus and integer division is faster than std div
-    int acc = 0;
-    std::size_t n = kmerN;
-    std::size_t k = kmerK;
-    for (int i = 0; i < kmerSize; ++i)
-    {
-        // Perform modulus operation
-        const int remN = n % alphabetSize;
-        const int remK = k % alphabetSize;
-        acc += (remN != remK);
-        // Perform integer division
-        n /= alphabetSize;
-        k /= alphabetSize;
-    }
-    return -2 * acc; // log(e^(−k×HD)), maybe use k=10 for r9 RNA error rate of roughly 10 %
-}
-
-/**
- * Return combined log probability density for a given value and a given normal distribution
- *
- * @param signal point to calculate probability density
- * @param kmerN key for kmer N the model kmer:(mean, stdev) map
- * @param kmerK key for kmer K the model kmer:(mean, stdev) map
- * @param model map containing kmers as keys and (mean, stdev) tuples as values
- * @return log probability density value for x in the given normal distribution
- */
-inline double score(const double signal, const std::size_t kmerN, const std::size_t kmerK, const std::tuple<double, double> *model)
-{
-    // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
-    const auto &[meanN, stdN] = model[kmerN];
-    const auto &[meanK, stdK] = model[kmerK];
-
-    // Precompute the scores for the individual kmers and their distance
-    double scoreNT = logNormalPdf(signal, meanN, stdN);
-    double scoreKT = logNormalPdf(signal, meanK, stdK);
-    double scoreNK = scoreHD(kmerN, kmerK);
-
-    return scoreNT + scoreKT + scoreNK;
-}
 
 /**
  * Computes the posterior probabilities for a hidden Markov model (HMM) using
@@ -546,33 +453,33 @@ void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
             {
                 // (t-1)*NK+(n-1)*K+k'
                 forAPSEIRef = forAPSEI[baseIdx1 + preKmer];
-                a = logPlus(a, forAPSEIRef[3] + transitions.at("a1") + sc);
-                a = logPlus(a, forAPSEIRef[4] + transitions.at("a2") + sc);
+                a = logPlus(a, forAPSEIRef[3] + transitions_NTK.at("a1") + sc);
+                a = logPlus(a, forAPSEIRef[4] + transitions_NTK.at("a2") + sc);
 
                 // (t-1)*NK+n*K+k'
                 forAPSEIRef = forAPSEI[baseIdx2 + preKmer];
-                p = logPlus(p, forAPSEIRef[2] + transitions.at("p1") + sc);
-                p = logPlus(p, forAPSEIRef[3] + transitions.at("p2") + sc);
-                p = logPlus(p, forAPSEIRef[4] + transitions.at("p3") + sc);
+                p = logPlus(p, forAPSEIRef[2] + transitions_NTK.at("p1") + sc);
+                p = logPlus(p, forAPSEIRef[3] + transitions_NTK.at("p2") + sc);
+                p = logPlus(p, forAPSEIRef[4] + transitions_NTK.at("p3") + sc);
             }
 
             // (t-1)*NK+(n-1)*K+k
             forAPSEIRef = forAPSEI[baseIdx3];
-            s = logPlus(s, forAPSEIRef[1] + transitions.at("s1") + sc);
-            s = logPlus(s, forAPSEIRef[3] + transitions.at("s2") + sc);
-            s = logPlus(s, forAPSEIRef[4] + transitions.at("s3") + sc);
+            s = logPlus(s, forAPSEIRef[1] + transitions_NTK.at("s1") + sc);
+            s = logPlus(s, forAPSEIRef[3] + transitions_NTK.at("s2") + sc);
+            s = logPlus(s, forAPSEIRef[4] + transitions_NTK.at("s3") + sc);
 
             // (t-1)*NK+n*K+k
             forAPSEIRef = forAPSEI[baseIdx4];
             e = logPlus(e, forAPSEIRef[0] + sc); // e1 always 1
-            e = logPlus(e, forAPSEIRef[1] + transitions.at("e2") + sc);
-            e = logPlus(e, forAPSEIRef[2] + transitions.at("e3") + sc);
-            e = logPlus(e, forAPSEIRef[3] + transitions.at("e4") + sc);
+            e = logPlus(e, forAPSEIRef[1] + transitions_NTK.at("e2") + sc);
+            e = logPlus(e, forAPSEIRef[2] + transitions_NTK.at("e3") + sc);
+            e = logPlus(e, forAPSEIRef[3] + transitions_NTK.at("e4") + sc);
 
             // t*NK+(n-1)*K+k
             forAPSEIRef = forAPSEI[baseIdx5];
-            i = logPlus(i, forAPSEIRef[3] + transitions.at("i1") + sc);
-            i = logPlus(i, forAPSEIRef[4] + transitions.at("i2") + sc);
+            i = logPlus(i, forAPSEIRef[3] + transitions_NTK.at("i1") + sc);
+            i = logPlus(i, forAPSEIRef[4] + transitions_NTK.at("i2") + sc);
         }
         forAPSEI[tnk] = {a, p, s, e, i};
     }
@@ -626,9 +533,9 @@ void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
                 // (t+1)*NK+n*K+k
                 pv = backAPSEI[tnkNK][3];
                 a = logPlus(a, pv + sc); // e1 always 1
-                p = logPlus(p, pv + transitions.at("e2") + sc);
-                s = logPlus(s, pv + transitions.at("e3") + sc);
-                e = logPlus(e, pv + transitions.at("e4") + sc);
+                p = logPlus(p, pv + transitions_NTK.at("e2") + sc);
+                s = logPlus(s, pv + transitions_NTK.at("e3") + sc);
+                e = logPlus(e, pv + transitions_NTK.at("e4") + sc);
 
                 // kmer int representation is consecutive
                 for (std::size_t sucKmer = sucKmerBase; sucKmer < sucKmerEnd; ++sucKmer)
@@ -636,9 +543,9 @@ void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
                     sc = score(sig[t], kmerSeq[n - 1], sucKmer, model);
                     // (t+1)*NK+n*K+sucKmer
                     pv = backAPSEI[tnkNK - k + sucKmer][1];
-                    s = logPlus(s, pv + transitions.at("p1") + sc);
-                    e = logPlus(e, pv + transitions.at("p2") + sc);
-                    i = logPlus(i, pv + transitions.at("p3") + sc);
+                    s = logPlus(s, pv + transitions_NTK.at("p1") + sc);
+                    e = logPlus(e, pv + transitions_NTK.at("p2") + sc);
+                    i = logPlus(i, pv + transitions_NTK.at("p3") + sc);
                 }
             }
 
@@ -647,9 +554,9 @@ void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
                 sc = score(sig[t], kmerSeq[n], k, model);
                 // (t+1)*(NK)+(n+1)*K+k
                 pv = backAPSEI[tnkNKK][2];
-                p = logPlus(p, pv + transitions.at("s1") + sc);
-                e = logPlus(e, pv + transitions.at("s2") + sc);
-                i = logPlus(i, pv + transitions.at("s3") + sc);
+                p = logPlus(p, pv + transitions_NTK.at("s1") + sc);
+                e = logPlus(e, pv + transitions_NTK.at("s2") + sc);
+                i = logPlus(i, pv + transitions_NTK.at("s3") + sc);
 
                 // kmer int representation is consecutive
                 for (std::size_t sucKmer = sucKmerBase; sucKmer < sucKmerEnd; ++sucKmer)
@@ -657,8 +564,8 @@ void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
                     sc = score(sig[t], kmerSeq[n], sucKmer, model);
                     // (t+1)*NK+(n+1)*K+sucKmer
                     pv = backAPSEI[tnkNKK - k + sucKmer][0];
-                    e = logPlus(e, pv + transitions.at("a1") + sc);
-                    i = logPlus(i, pv + transitions.at("a2") + sc);
+                    e = logPlus(e, pv + transitions_NTK.at("a1") + sc);
+                    i = logPlus(i, pv + transitions_NTK.at("a2") + sc);
                 }
             }
         }
@@ -668,8 +575,8 @@ void logB(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t,
             sc = score(sig[t - 1], kmerSeq[n], k, model);
             // t*NK+(n+1)*K+k
             pv = backAPSEI[*tnk + K][4];
-            e = logPlus(e, pv + transitions.at("i1") + sc);
-            i = logPlus(i, pv + transitions.at("i2") + sc);
+            e = logPlus(e, pv + transitions_NTK.at("i1") + sc);
+            i = logPlus(i, pv + transitions_NTK.at("i2") + sc);
         }
 
         backAPSEI[*tnk] = {a, p, s, e, i};
@@ -1088,18 +995,18 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
                 // (t+1)*NK+n*K+k
                 pv = backAPSEI[tnk + NK][3];
                 // newe1 = logPlus(newe1, forAPSEI_tnk[0] + e1 + sc + pv);
-                newe2 = logPlus(newe2, forAPSEI_tnk[1] + transitions.at("e2") + sc + pv);
-                newe3 = logPlus(newe3, forAPSEI_tnk[2] + transitions.at("e3") + sc + pv);
-                newe4 = logPlus(newe4, forAPSEI_tnk[3] + transitions.at("e4") + sc + pv);
+                newe2 = logPlus(newe2, forAPSEI_tnk[1] + transitions_NTK.at("e2") + sc + pv);
+                newe3 = logPlus(newe3, forAPSEI_tnk[2] + transitions_NTK.at("e3") + sc + pv);
+                newe4 = logPlus(newe4, forAPSEI_tnk[3] + transitions_NTK.at("e4") + sc + pv);
 
                 for (std::size_t sucKmer = sucKmerBase; sucKmer < sucKmerEnd; ++sucKmer)
                 {
                     sc = score(sig[t], kmerSeq[n - 1], sucKmer, model);
                     // (t+1)*NK+n*K+sucKmer
                     pv = backAPSEI[tnk + NK - k + sucKmer][1];
-                    newp1 = logPlus(newp1, forAPSEI_tnk[2] + transitions.at("p1") + sc + pv);
-                    newp2 = logPlus(newp2, forAPSEI_tnk[3] + transitions.at("p2") + sc + pv);
-                    newp3 = logPlus(newp3, forAPSEI_tnk[4] + transitions.at("p3") + sc + pv);
+                    newp1 = logPlus(newp1, forAPSEI_tnk[2] + transitions_NTK.at("p1") + sc + pv);
+                    newp2 = logPlus(newp2, forAPSEI_tnk[3] + transitions_NTK.at("p2") + sc + pv);
+                    newp3 = logPlus(newp3, forAPSEI_tnk[4] + transitions_NTK.at("p3") + sc + pv);
                 }
             }
 
@@ -1108,17 +1015,17 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
                 sc = score(sig[t], kmerSeq[n], k, model);
                 // (t+1)*(NK)+(n+1)*K+k
                 pv = backAPSEI[tnk + NK + K][2];
-                news1 = logPlus(news1, forAPSEI_tnk[1] + transitions.at("s1") + sc + pv);
-                news2 = logPlus(news2, forAPSEI_tnk[3] + transitions.at("s2") + sc + pv);
-                news3 = logPlus(news3, forAPSEI_tnk[4] + transitions.at("s3") + sc + pv);
+                news1 = logPlus(news1, forAPSEI_tnk[1] + transitions_NTK.at("s1") + sc + pv);
+                news2 = logPlus(news2, forAPSEI_tnk[3] + transitions_NTK.at("s2") + sc + pv);
+                news3 = logPlus(news3, forAPSEI_tnk[4] + transitions_NTK.at("s3") + sc + pv);
 
                 for (std::size_t sucKmer = sucKmerBase; sucKmer < sucKmerEnd; ++sucKmer)
                 {
                     sc = score(sig[t], kmerSeq[n], sucKmer, model);
                     // (t+1)*NK+(n+1)*K+sucKmer
                     pv = backAPSEI[tnk + NK + K - k + sucKmer][0];
-                    newa1 = logPlus(newa1, forAPSEI_tnk[3] + transitions.at("a1") + sc + pv);
-                    newa2 = logPlus(newa2, forAPSEI_tnk[4] + transitions.at("a2") + sc + pv);
+                    newa1 = logPlus(newa1, forAPSEI_tnk[3] + transitions_NTK.at("a1") + sc + pv);
+                    newa2 = logPlus(newa2, forAPSEI_tnk[4] + transitions_NTK.at("a2") + sc + pv);
                 }
             }
         }
@@ -1128,8 +1035,8 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
             sc = score(sig[t - 1], kmerSeq[n], k, model);
             // t*NK+(n+1)*K+k
             pv = backAPSEI[tnk + K][4];
-            newi1 = logPlus(newi1, forAPSEI_tnk[3] + transitions.at("i1") + sc + pv);
-            newi2 = logPlus(newi2, forAPSEI_tnk[4] + transitions.at("i2") + sc + pv);
+            newi1 = logPlus(newi1, forAPSEI_tnk[3] + transitions_NTK.at("i1") + sc + pv);
+            newi2 = logPlus(newi2, forAPSEI_tnk[4] + transitions_NTK.at("i2") + sc + pv);
         }
     }
 
@@ -1187,7 +1094,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
  *
  * @param[in] sig Pointer to the ONT raw signal array with pA values.
  * @param[in] logAPSEI Log probability matrix for match states.
- * @param[in] allowedKeys Array of allowed transitions.
+ * @param[in] allowedKeys Array of allowed transitions_NTK.
  * @param[in] T Length of the ONT raw signal + 1.
  * @param[in] N Length of nucleotide sequence + 1.
  * @param[in] K Number of kmers in the sequence.
@@ -1284,7 +1191,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_m
  * @param forAPSEI Forward matrix for match states.
  * @param backAPSEI Backward matrix for match states.
  * @param logAPSEI Log probability matrix for match states.
- * @param allowedKeys Array of allowed transitions.
+ * @param allowedKeys Array of allowed transitions_NTK.
  * @param T Length of the ONT raw signal + 1.
  * @param N Length of nucleotide sequence + 1.
  * @param K Number of kmers in the sequence.
@@ -1341,20 +1248,20 @@ int main(int argc, char *argv[])
     std::cout << std::fixed << std::showpoint << std::setprecision(5);
 
     argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
-    program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a1"]);     // a1
-    program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["a2"]);     // a2
-    program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e1"]);    // e1
-    program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e2"]);    // e2
-    program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e3"]);    // e3
-    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["e4"]);    // e4
-    program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s1"]);  // s1
-    program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s2"]);  // s2
-    program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["s3"]);  // s2
-    program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p1"]);    // p1
-    program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p2"]);    // p2
-    program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["p3"]);    // p2
-    program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["i1"]); // i1
-    program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions["i2"]); // i2
+    program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["a1"]);     // a1
+    program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["a2"]);     // a2
+    program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e1"]);    // e1
+    program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e2"]);    // e2
+    program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e3"]);    // e3
+    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e4"]);    // e4
+    program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["s1"]);  // s1
+    program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["s2"]);  // s2
+    program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["s3"]);  // s2
+    program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p1"]);    // p1
+    program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p2"]);    // p2
+    program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p3"]);    // p2
+    program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i1"]); // i1
+    program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i2"]); // i2
     program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
@@ -1372,7 +1279,7 @@ int main(int argc, char *argv[])
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_rna_r9_transitions.at("m1")), ppTNe = log(NT_rna_r9_transitions.at("e2"));
         ppTKm = log(NT_rna_r9_transitions.at("m1")), ppTKe = log(NT_rna_r9_transitions.at("e2"));
-        updateTransitions(NTK_rna_r9_transitions, transitions);
+        updateTransitions(NTK_rna_r9_transitions, transitions_NTK);
     }
     else if (pore == "dna_r9")
     {
@@ -1381,7 +1288,7 @@ int main(int argc, char *argv[])
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_dna_r9_transitions.at("m1")), ppTNe = log(NT_dna_r9_transitions.at("e2"));
         ppTKm = log(NT_dna_r9_transitions.at("m1")), ppTKe = log(NT_dna_r9_transitions.at("e2"));
-        updateTransitions(NTK_dna_r9_transitions, transitions);
+        updateTransitions(NTK_dna_r9_transitions, transitions_NTK);
     }
     else if (pore == "rna_rp4")
     {
@@ -1390,7 +1297,7 @@ int main(int argc, char *argv[])
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_rna_rp4_transitions.at("m1")), ppTNe = log(NT_rna_rp4_transitions.at("e2"));
         ppTKm = log(NT_rna_rp4_transitions.at("m1")), ppTKe = log(NT_rna_rp4_transitions.at("e2"));
-        updateTransitions(NTK_rna_rp4_transitions, transitions);
+        updateTransitions(NTK_rna_rp4_transitions, transitions_NTK);
     }
     else if (pore == "dna_r10_260bps")
     {
@@ -1398,7 +1305,7 @@ int main(int argc, char *argv[])
         rna = false;
         ppTNm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_260bps_transitions.at("e2"));
         ppTKm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_260bps_transitions.at("e2"));
-        updateTransitions(NTK_dna_r10_260bps_transitions, transitions);
+        updateTransitions(NTK_dna_r10_260bps_transitions, transitions_NTK);
     }
     else if (pore == "dna_r10_400bps")
     {
@@ -1406,7 +1313,7 @@ int main(int argc, char *argv[])
         rna = false;
         ppTNm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_400bps_transitions.at("e2"));
         ppTKm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_400bps_transitions.at("e2"));
-        updateTransitions(NTK_dna_r10_400bps_transitions, transitions);
+        updateTransitions(NTK_dna_r10_400bps_transitions, transitions_NTK);
     }
     halfKmerSize = kmerSize / 2;
 
@@ -1440,7 +1347,7 @@ int main(int argc, char *argv[])
     // process signal T: convert std::string to double std::array
     const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
     checkInput(T, read.size(), kmerSize);
-    const std::size_t N = read.size() - kmerSize + 1 + 1;               // N is number of kmers in sequence + 1
+    const std::size_t N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
     // std::cerr << "T: " << T << ", " << "N: " << N << ", " << "K: " << K << ", " << "inputsize: " << TNK << "\n";
     NK = N * K;
     TNK = T * NK;
