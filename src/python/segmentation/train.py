@@ -14,6 +14,7 @@ import multiprocessing as mp
 from datetime import datetime
 from collections import deque
 import pysam
+from __init__ import __build__
 
 class ManagedList:
     def __init__(self, values, max_size=100):
@@ -72,7 +73,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     paramWriter = open(param_file, 'w')
 
     if mode == 'basic':
-        mode = 'dynamont_NT'
+        mode = join(__build__, 'dynamont_NT')
         transitionParams = {
             'e1': 1.0,
             'm1': 0.03,
@@ -86,7 +87,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     #         'e2': 0.97
     #         }
     elif mode == 'resquiggle':
-        mode = 'dynamont_NTC'
+        mode = join(__build__, 'dynamont_NTC')
         transitionParams = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,

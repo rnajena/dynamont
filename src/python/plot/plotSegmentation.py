@@ -15,6 +15,7 @@ from python.segmentation.FileIO import feedSegmentation, SegmentationError, hamp
 import read5
 import pysam
 import seaborn as sns
+from __init__ import __build__
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -183,7 +184,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
     if mode == 'basic':
-        mode = 'dynamont_NT'
+        mode = join(__build__, 'dynamont_NT')
         # mode = 'dynamont_NT_heatmap'
         PARAMS = {
             'e1': 1.0,
@@ -191,7 +192,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
             'e2': 0.97
             }
     elif mode == 'resquiggle':
-        mode = 'dynamont_NTC'
+        mode = join(__build__, 'dynamont_NTC')
         PARAMS = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,

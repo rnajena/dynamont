@@ -216,12 +216,12 @@ def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : 
     pipe = openCPPScriptCalcZ(script, params, model)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tSid: {signalid}")
+        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}")
         return signalid
     Z = float(result)
     return Z
 
-def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, str]:
+def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, int]:
     '''
     Feeds signal and read to pipe with an immediate stop signal afterwards.
     Uses communicate.
@@ -268,7 +268,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
 
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tSid: {signalid}")
+        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}")
         with open("failed_input.txt", 'w') as w:
             w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
         return signalid
@@ -279,7 +279,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     except:
         print(f"ERROR while extracting transitions params in {signalid}", transitionParams)
         # with open("failed_input.txt", 'w') as w:
-        #     w.write(str(signal.tolist()).replace(' ', '').replace('[', '').replace(']', '') + '\n' + read + '\n')
+        #     w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
         # raise SegmentationError(readid)
         return signalid
     # then updated emission updated
@@ -327,7 +327,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         pipe = openCPPScriptParams(script, params)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}")
+        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)}")
         exit(1)
 
     try:
@@ -378,6 +378,9 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
         time.sleep(60) # wait a minute and retry once
         pipe = openCPPScriptParams(CPP_SCRIPT, params)
         output, errors, returncode = feedPipe(signal, read, pipe)
+    if returncode == -11: # OOM return code
+        with open("failed_input.txt", 'w') as w:
+            w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         # queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)

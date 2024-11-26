@@ -13,6 +13,7 @@ import read5
 import multiprocessing as mp
 import pysam
 import psutil
+from __init__ import __build__
 
 def get_memory_usage():
     """
@@ -235,11 +236,11 @@ def main() -> None:
 
     match args.mode:
         case "basic":
-            SCRIPT = join(dirname(__file__), 'dynamont_NT')
+            SCRIPT = join(__build__, 'dynamont_NT')
         # case "banded":
-        #     SCRIPT = join(dirname(__file__), 'dynamont_NT_banded')
+        #     SCRIPT = join(__build__, 'dynamont_NT_banded')
         case "resquiggle":
-            SCRIPT = join(dirname(__file__), 'dynamont_NTC')
+            SCRIPT = join(__build__, 'dynamont_NTC')
 
     if name == 'nt': # check for windows
         SCRIPT+='.exe'
