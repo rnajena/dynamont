@@ -74,3 +74,6 @@ src/edgeDetection/test.py
 src/dynamont/dynamont_NTK_debug
 src/dynamont/dynamont_NT_debug
 build/
+src/python/plot/__pycache__/__init__.cpython-310.pyc
+src/python/segmentation/__pycache__/__init__.cpython-310.pyc
+src/python/segmentation/__pycache__/FileIO.cpython-310.pyc
