@@ -3,7 +3,7 @@
 // github: https://github.com/JannesSP
 // website: https://jannessp.github.io
 
-#include "dynamont_NTK.hpp"
+#include "dynamont_NTC.hpp"
 
 std::size_t TNK, NK;
 double ppTNm, ppTNe, ppTKm, ppTKe;
@@ -669,8 +669,244 @@ void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_
         }
     }
 
+    // std::vector<double> segProb;
+    // funcE(T - 1, N - 1, hk, APSEI, logAPSEI, segString, K, segProb);
+    traceback(T - 1, N - 1, hk, APSEI, logAPSEI, segString, K);
+}
+
+/**
+ * @brief Backtracing function for A state.
+ *
+ * This function backtraces the A state.
+ * It checks which state was the previous state and calls the corresponding function.
+ * If no match is found, it outputs an error message.
+ *
+ * @param t Current time index.
+ * @param n Current segment index.
+ * @param k Current kmer index.
+ * @param APSEI The 2D array of scores.
+ * @param logAPSEI The 2D array of log scores.
+ * @param segString The list to store the segment strings.
+ * @param K number of kemrs
+ *
+ * @details
+ * This function backtraces the A state.
+ * It checks which state was the previous state and calls the corresponding function.
+ * If no match is found, it outputs an error message.
+ */
+void traceback(std::size_t t, std::size_t n, std::size_t k,
+               std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI,
+               std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI,
+               std::list<std::string> &segString, const std::size_t K)
+{
     std::vector<double> segProb;
-    funcE(T - 1, N - 1, hk, APSEI, logAPSEI, segString, K, segProb);
+
+    std::size_t state = 3;
+    // 0 : A
+    // 1 : P
+    // 2 : S
+    // 3 : E
+    // 4 : I
+
+    std::size_t currentIdx = t * NK + n * K + k;
+    while (t) // t>0
+    {
+        // state E
+        if (state == 3)
+        {
+            if (t == 1)
+            {
+                // Start value
+                segString.push_front("M" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                segProb.clear();
+                break; // stop traceback
+            }
+            // const std::size_t prevIdx = NK * (t - 1) + n * K + k;
+            const std::size_t prevIdx = currentIdx - NK;
+            const double sc = APSEI[currentIdx][3];
+            const double logScore = logAPSEI[currentIdx][3];
+            segProb.push_back(exp(logScore));
+            // Check match with E state
+            if (sc == APSEI[prevIdx][3] + logScore)
+            {
+                state = 3;
+            }
+            // Check match with A state
+            else if (sc == APSEI[prevIdx][0] + logScore)
+            {
+                state = 0;
+            }
+            // Check match with S state
+            else if (sc == APSEI[prevIdx][2] + logScore)
+            {
+                state = 2;
+            }
+            // Check match with P state
+            else if (sc == APSEI[prevIdx][1] + logScore)
+            {
+                state = 1;
+            }
+            else
+            {
+                std::cerr << "Error in backtracing funcE!: t: " << t << ", n: " << n << ", k: " << k << "\n";
+            }
+            --t;
+            currentIdx = prevIdx;
+        }
+        // state A
+        else if (state == 0)
+        {
+            if (t == 1 && n == 1)
+            {
+                // Start value
+                segString.push_front("M" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                segProb.clear();
+                break; // stop traceback
+            }
+            // const std::size_t prevIdx = (t - 1) * NK + (n - 1) * K + 0;
+            const std::size_t prevIdx = currentIdx - NK - K - k;
+            const double sc = APSEI[currentIdx][0];
+            const double logScore = logAPSEI[currentIdx][0];
+            segProb.push_back(exp(logScore));
+            for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
+            {
+                // Check match with E state
+                if (sc == APSEI[prevIdx + preKmer][3] + logScore)
+                {
+                    segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                    segProb.clear();
+                    state = 3;
+                    --t;
+                    --n;
+                    k = preKmer;
+                    currentIdx = prevIdx + preKmer;
+                    break;
+                }
+                // Check match with I state
+                else if (sc == APSEI[prevIdx + preKmer][4] + logScore)
+                {
+                    segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                    segProb.clear();
+                    state = 4;
+                    --t;
+                    --n;
+                    k = preKmer;
+                    currentIdx = prevIdx + preKmer;
+                    break;
+                }
+            }
+        }
+        // state P
+        else if (state == 1)
+        {
+            if (t == 1)
+            {
+                // Start value
+                segString.push_front("P" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                segProb.clear();
+                break;
+            }
+            // const std::size_t prevBaseIdx = NK * (t - 1) + n * K + 0;
+            const std::size_t prevIdx = currentIdx - NK - k;
+            const double sc = APSEI[currentIdx][1];
+            const double logScore = logAPSEI[currentIdx][1];
+            segProb.push_back(exp(logScore));
+            for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
+            {
+                // Check match with E state
+                if (sc == APSEI[prevIdx + preKmer][3] + logScore)
+                {
+                    segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                    segProb.clear();
+                    state = 3;
+                    --t;
+                    k = preKmer;
+                    currentIdx = prevIdx + preKmer;
+                    break;
+                }
+                // Check match with S state
+                if (sc == APSEI[prevIdx + preKmer][2] + logScore)
+                {
+                    segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                    segProb.clear();
+                    state = 2;
+                    --t;
+                    k = preKmer;
+                    currentIdx = prevIdx + preKmer;
+                    break;
+                }
+                // Check match with I state
+                if (sc == APSEI[prevIdx + preKmer][4] + logScore)
+                {
+                    segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+                    segProb.clear();
+                    state = 4;
+                    --t;
+                    k = preKmer;
+                    currentIdx = prevIdx + preKmer;
+                    break;
+                }
+            }
+        }
+        // state S
+        else if (state == 2)
+        {
+            if (t == 1 && n == 1)
+            {
+                break; // stop traceback
+            }
+            // const std::size_t prevIdx = NK * (t - 1) + (n - 1) * K + k;
+            const std::size_t prevIdx = currentIdx - NK - K;
+            const double sc = APSEI[currentIdx][2];
+            const double logScore = logAPSEI[currentIdx][2];
+            segProb.push_back(exp(logScore));
+
+            // Check match with E state
+            if (sc == APSEI[prevIdx][3] + logScore)
+            {
+                state = 3;
+            }
+            // Check match with P state
+            else if (sc == APSEI[prevIdx][1] + logScore)
+            {
+                state = 1;
+            }
+            // Check match with I state
+            else if (sc == APSEI[prevIdx][4] + logScore)
+            {
+                state = 4;
+            }
+            --t;
+            --n;
+            currentIdx = prevIdx;
+        }
+        // state I
+        else if (state == 4)
+        {
+            if (n == 1)
+            {
+                break; // stop traceback
+            }
+            // const std::size_t prevIdx = NK * t + (n - 1) * K + k;
+            const std::size_t prevIdx = currentIdx - K;
+            const double sc = APSEI[currentIdx][4];
+            const double logScore = logAPSEI[currentIdx][4];
+            segProb.push_back(exp(logScore));
+
+            // Check match with I state
+            if (sc == APSEI[prevIdx][4] + logScore)
+            {
+                state = 4;
+            }
+            // Check match with E state
+            if (sc == APSEI[prevIdx][3] + logScore)
+            {
+                state = 3;
+            }
+            --n;
+            currentIdx = prevIdx;
+        }
+    }
 }
 
 /**
@@ -694,43 +930,43 @@ void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_
  * It checks which state was the previous state and calls the corresponding function.
  * If no match is found, it outputs an error message.
  */
-void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-{
-    const std::size_t currentIdx = t * NK + n * K + k;
-    const std::size_t prevIdx = (t - 1) * NK + (n - 1) * K;
-    // Cache the sc value to avoid redundant lookups
-    const double sc = APSEI[currentIdx][0];
-    const double logScore = logAPSEI[currentIdx][0];
-    segProb.push_back(exp(logScore));
-    if (t == 1 && n == 1)
-    {
-        // Start value
-        segString.push_front("M" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-        return;
-    }
-    for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
-    {
-        if (t > 1 && n > 1)
-        {
-            // Check match with E state
-            if (sc == APSEI[prevIdx + preKmer][3] + logScore)
-            {
-                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-                segProb.clear();
-                return funcE(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
-            }
-            // Check match with I state
-            if (sc == APSEI[prevIdx + preKmer][4] + logScore)
-            {
-                segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-                segProb.clear();
-                return funcI(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
-            }
-        }
-    }
-    // If no match is found, output an error
-    std::cerr << "Error in backtracing funcA!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-}
+// void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
+// {
+//     const std::size_t currentIdx = t * NK + n * K + k;
+//     const std::size_t prevIdx = (t - 1) * NK + (n - 1) * K;
+//     // Cache the sc value to avoid redundant lookups
+//     const double sc = APSEI[currentIdx][0];
+//     const double logScore = logAPSEI[currentIdx][0];
+//     segProb.push_back(exp(logScore));
+//     if (t == 1 && n == 1)
+//     {
+//         // Start value
+//         segString.push_front("M" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//         return;
+//     }
+//     for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
+//     {
+//         if (t > 1 && n > 1)
+//         {
+//             // Check match with E state
+//             if (sc == APSEI[prevIdx + preKmer][3] + logScore)
+//             {
+//                 segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//                 segProb.clear();
+//                 return funcE(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
+//             }
+//             // Check match with I state
+//             if (sc == APSEI[prevIdx + preKmer][4] + logScore)
+//             {
+//                 segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//                 segProb.clear();
+//                 return funcI(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
+//             }
+//         }
+//     }
+//     // If no match is found, output an error
+//     std::cerr << "Error in backtracing funcA!: t: " << t << ", n: " << n << ", k: " << k << "\n";
+// }
 
 /**
  * Backtracing function for E state.
@@ -749,46 +985,46 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * It checks which state was the previous state and calls the corresponding function.
  * If no match is found, it outputs an error message.
  */
-void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-{
-    const std::size_t currentIdx = NK * t + n * K + k;
-    const std::size_t prevIdx = NK * (t - 1) + n * K + k;
-    // Cache the sc value to avoid redundant lookups
-    const double sc = APSEI[currentIdx][3];
-    const double logScore = logAPSEI[currentIdx][3];
-    segProb.push_back(exp(logScore));
-    if (t > 1 && n > 0)
-    {
-        // Check match with A state
-        if (sc == APSEI[prevIdx][0] + logScore)
-        {
-            return funcA(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with E state
-        if (sc == APSEI[prevIdx][3] + logScore)
-        {
-            return funcE(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with S state
-        if (sc == APSEI[prevIdx][2] + logScore)
-        {
-            return funcS(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with P state
-        if (sc == APSEI[prevIdx][1] + logScore)
-        {
-            return funcP(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-    }
-    else [[unlikely]]
-    { // Start value with t==0 && n==0
-        segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-        segProb.clear();
-        return;
-    }
-    // If no match is found, output an error
-    std::cerr << "Error in backtracing funcE!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-}
+// void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
+// {
+//     const std::size_t currentIdx = NK * t + n * K + k;
+//     const std::size_t prevIdx = NK * (t - 1) + n * K + k;
+//     // Cache the sc value to avoid redundant lookups
+//     const double sc = APSEI[currentIdx][3];
+//     const double logScore = logAPSEI[currentIdx][3];
+//     segProb.push_back(exp(logScore));
+//     if (t > 1 && n > 0)
+//     {
+//         // Check match with A state
+//         if (sc == APSEI[prevIdx][0] + logScore)
+//         {
+//             return funcA(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//         // Check match with E state
+//         if (sc == APSEI[prevIdx][3] + logScore)
+//         {
+//             return funcE(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//         // Check match with S state
+//         if (sc == APSEI[prevIdx][2] + logScore)
+//         {
+//             return funcS(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//         // Check match with P state
+//         if (sc == APSEI[prevIdx][1] + logScore)
+//         {
+//             return funcP(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//     }
+//     else [[unlikely]]
+//     { // Start value with t==0 && n==0
+//         segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//         segProb.clear();
+//         return;
+//     }
+//     // If no match is found, output an error
+//     std::cerr << "Error in backtracing funcE!: t: " << t << ", n: " << n << ", k: " << k << "\n";
+// }
 
 /**
  * @brief Backtraces and constructs segmentation for the P state.
@@ -807,51 +1043,51 @@ void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * @param K Number of kmers.
  * @param segProb Vector to store probabilities for each segment.
  */
-void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-{
-    // Precompute commonly used indices and values
-    const std::size_t currentIdx = t * NK + n * K + k;
-    const double sc = APSEI[currentIdx][1];
-    const double logScore = logAPSEI[currentIdx][1];
-    const std::size_t prevBaseIdx = NK * (t - 1) + n * K; // Common base index for previous time step
-    segProb.push_back(exp(logScore));
-    if (t == 1 && n > 0)
-    {
-        // Start value
-        segString.push_front("P" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-        return;
-    }
-    if (t > 1 && n > 0)
-    {
-        for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
-        {
-            const std::size_t prevIdx = prevBaseIdx + preKmer;
-            // Check match with E state
-            if (sc == APSEI[prevIdx][3] + logScore)
-            {
-                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-                segProb.clear();
-                return funcE(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
-            }
-            // Check match with S state
-            if (sc == APSEI[prevIdx][2] + logScore)
-            {
-                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-                segProb.clear();
-                return funcS(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
-            }
-            // Check match with I state
-            if (sc == APSEI[prevIdx][4] + logScore)
-            {
-                segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-                segProb.clear();
-                return funcI(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
-            }
-        }
-    }
-    // If no match is found, output an error
-    std::cerr << "Error in backtracing funcP!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-}
+// void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
+// {
+//     // Precompute commonly used indices and values
+//     const std::size_t currentIdx = t * NK + n * K + k;
+//     const double sc = APSEI[currentIdx][1];
+//     const double logScore = logAPSEI[currentIdx][1];
+//     const std::size_t prevBaseIdx = NK * (t - 1) + n * K; // Common base index for previous time step
+//     segProb.push_back(exp(logScore));
+//     if (t == 1 && n > 0)
+//     {
+//         // Start value
+//         segString.push_front("P" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//         return;
+//     }
+//     if (t > 1 && n > 0)
+//     {
+//         for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
+//         {
+//             const std::size_t prevIdx = prevBaseIdx + preKmer;
+//             // Check match with E state
+//             if (sc == APSEI[prevIdx][3] + logScore)
+//             {
+//                 segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//                 segProb.clear();
+//                 return funcE(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
+//             }
+//             // Check match with S state
+//             if (sc == APSEI[prevIdx][2] + logScore)
+//             {
+//                 segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//                 segProb.clear();
+//                 return funcS(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
+//             }
+//             // Check match with I state
+//             if (sc == APSEI[prevIdx][4] + logScore)
+//             {
+//                 segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
+//                 segProb.clear();
+//                 return funcI(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
+//             }
+//         }
+//     }
+//     // If no match is found, output an error
+//     std::cerr << "Error in backtracing funcP!: t: " << t << ", n: " << n << ", k: " << k << "\n";
+// }
 
 /**
  * @brief Backtracing for S state
@@ -868,44 +1104,44 @@ void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * This function is used to construct the segmentation string by backtracing
  * the most likely state path from the forward iteration scores.
  */
-void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-{
-    const std::size_t currentIdx = NK * t + n * K + k;
-    const std::size_t prevIdx = NK * (t - 1) + (n - 1) * K + k;
-    // Cache sc and logScore to avoid repeated map lookups
-    const double sc = APSEI[currentIdx][2];
-    const double logScore = logAPSEI[currentIdx][2];
-    segProb.push_back(exp(logScore));
-    if (t == 1 && n == 1)
-    {
-        // Start value
-        // segString.push_front("S" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-        return;
-    }
-    if (t > 1 && n > 1)
-    {
-        // Check match with E state
-        if (sc == APSEI[prevIdx][3] + logScore)
-        {
-            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-            return funcE(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with P state
-        if (sc == APSEI[prevIdx][1] + logScore)
-        {
-            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-            return funcP(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with I state
-        if (sc == APSEI[prevIdx][4] + logScore)
-        {
-            // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-            return funcI(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-    }
-    // If no match is found, output an error
-    std::cerr << "Error in backtracing funcS!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-}
+// void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
+// {
+//     const std::size_t currentIdx = NK * t + n * K + k;
+//     const std::size_t prevIdx = NK * (t - 1) + (n - 1) * K + k;
+//     // Cache sc and logScore to avoid repeated map lookups
+//     const double sc = APSEI[currentIdx][2];
+//     const double logScore = logAPSEI[currentIdx][2];
+//     segProb.push_back(exp(logScore));
+//     if (t == 1 && n == 1)
+//     {
+//         // Start value
+//         // segString.push_front("S" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
+//         return;
+//     }
+//     if (t > 1 && n > 1)
+//     {
+//         // Check match with E state
+//         if (sc == APSEI[prevIdx][3] + logScore)
+//         {
+//             // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
+//             return funcE(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//         // Check match with P state
+//         if (sc == APSEI[prevIdx][1] + logScore)
+//         {
+//             // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
+//             return funcP(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//         // Check match with I state
+//         if (sc == APSEI[prevIdx][4] + logScore)
+//         {
+//             // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
+//             return funcI(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//     }
+//     // If no match is found, output an error
+//     std::cerr << "Error in backtracing funcS!: t: " << t << ", n: " << n << ", k: " << k << "\n";
+// }
 
 /**
  * @brief Backtracing function for the Insertion (I) state
@@ -921,32 +1157,32 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  *
  * @return void
  */
-void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-{
-    const std::size_t currentIdx = NK * t + n * K + k;
-    const std::size_t prevIdx = NK * t + (n - 1) * K + k;
-    // Cache the score and logScore to avoid repeated lookups
-    const double sc = APSEI[currentIdx][4];
-    const double logScore = logAPSEI[currentIdx][4];
-    segProb.push_back(exp(logScore));
-    if (t > 0 && n > 1)
-    {
-        // Check match with I state
-        if (sc == APSEI[prevIdx][4] + logScore)
-        {
-            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-            return funcI(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-        // Check match with E state
-        if (sc == APSEI[prevIdx][3] + logScore)
-        {
-            // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-            return funcE(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-        }
-    }
-    // If no match is found, output an error
-    std::cerr << "Error in backtracing funcI!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-}
+// void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
+// {
+//     const std::size_t currentIdx = NK * t + n * K + k;
+//     const std::size_t prevIdx = NK * t + (n - 1) * K + k;
+//     // Cache the score and logScore to avoid repeated lookups
+//     const double sc = APSEI[currentIdx][4];
+//     const double logScore = logAPSEI[currentIdx][4];
+//     segProb.push_back(exp(logScore));
+//     if (t > 0 && n > 1)
+//     {
+//         // Check match with I state
+//         if (sc == APSEI[prevIdx][4] + logScore)
+//         {
+//             // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
+//             return funcI(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//         // Check match with E state
+//         if (sc == APSEI[prevIdx][3] + logScore)
+//         {
+//             // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
+//             return funcE(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
+//         }
+//     }
+//     // If no match is found, output an error
+//     std::cerr << "Error in backtracing funcI!: t: " << t << ", n: " << n << ", k: " << k << "\n";
+// }
 
 /**
  * Computes transition probabilities for a hidden Markov model (HMM) using

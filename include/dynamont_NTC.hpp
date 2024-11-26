@@ -20,6 +20,7 @@
 #include <cmath> // exp, pow, log1p, INFINITY
 #include <cassert>
 #include <cstddef>
+#include <stack>
 #include "argparse.hpp"
 #include "utils.hpp"
 
@@ -309,6 +310,31 @@ void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_
  * @param logAPSEI The 2D array of log scores.
  * @param segString The list to store the segment strings.
  * @param K number of kemrs
+ *
+ * @details
+ * This function backtraces the A state.
+ * It checks which state was the previous state and calls the corresponding function.
+ * If no match is found, it outputs an error message.
+ */
+void traceback(std::size_t t, std::size_t n, std::size_t k,
+               std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI,
+               std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI,
+               std::list<std::string> &segString, const std::size_t K);
+
+/**
+ * @brief Backtracing function for A state.
+ *
+ * This function backtraces the A state.
+ * It checks which state was the previous state and calls the corresponding function.
+ * If no match is found, it outputs an error message.
+ *
+ * @param t Current time index.
+ * @param n Current segment index.
+ * @param k Current kmer index.
+ * @param APSEI The 2D array of scores.
+ * @param logAPSEI The 2D array of log scores.
+ * @param segString The list to store the segment strings.
+ * @param K number of kemrs
  * @param segProb The vector to store the segment probabilities.
  *
  * @details
@@ -316,7 +342,7 @@ void getBorders(std::list<std::string> &segString, std::unordered_map<std::size_
  * It checks which state was the previous state and calls the corresponding function.
  * If no match is found, it outputs an error message.
  */
-void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+// void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
 
 /**
  * Backtracing function for E state.
@@ -335,7 +361,7 @@ void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * It checks which state was the previous state and calls the corresponding function.
  * If no match is found, it outputs an error message.
  */
-void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+// void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
 
 /**
  * @brief Backtraces and constructs segmentation for the P state.
@@ -354,7 +380,7 @@ void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * @param K Number of kmers.
  * @param segProb Vector to store probabilities for each segment.
  */
-void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+// void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
 
 /**
  * @brief Backtracing for S state
@@ -371,7 +397,7 @@ void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  * This function is used to construct the segmentation string by backtracing
  * the most likely state path from the forward iteration scores.
  */
-void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+// void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
 
 /**
  * @brief Backtracing function for the Insertion (I) state
@@ -387,7 +413,7 @@ void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::u
  *
  * @return void
  */
-void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
+// void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb);
 
 /**
  * Computes transition probabilities for a hidden Markov model (HMM) using
