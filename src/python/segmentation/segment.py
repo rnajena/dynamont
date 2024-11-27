@@ -58,7 +58,7 @@ def listener(q : mp.Queue, outfile : str) -> None:
     outfile : str
         The path to write the results to
     """
-    print(f"[{'Segmented':>9} {'Errors':>8} {'In Queue':>8} {'Memory usage (MB)':>20}]")
+    print(f"[{'Segmented':>9} {'Errors':>8} {'Queued':>8} {'Writer memory usage (MB)':>20}]")
     # print(f"[written,\terrors,\tin queue,\tmemory]")
     with open(outfile, 'w') as f:
         f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
@@ -76,7 +76,7 @@ def listener(q : mp.Queue, outfile : str) -> None:
                 i+=1
                 f.write(m)
             
-            print(f"[{i:>9} {e:>8} {q.qsize():>8} {get_memory_usage():>20.2f}]", end='\r')
+            print(f"[{i:>9} {e:>8} {q.qsize():>8} {get_memory_usage():>20.0f}]", end='\r')
             # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
     
     print(f"\nReads segmented: {i}", f"Errors: {e}")
