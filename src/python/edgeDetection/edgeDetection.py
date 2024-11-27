@@ -7,7 +7,7 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import h5py
 import numpy as np
-import read5
+import read5_ont
 import pysam
 import pywt
 from os.path import join
@@ -84,7 +84,7 @@ def writer(h5file : str, q : mp.Queue) -> None:
         print()
         
 def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue) -> None:
-    r5 = read5.read(rawFile)
+    r5 = read5_ont.read(rawFile)
     if pore in ["rna_r9", "dna_r9"]:
         signal = r5.getpASignal(signalid)
     else:

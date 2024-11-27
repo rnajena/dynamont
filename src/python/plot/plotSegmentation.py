@@ -12,7 +12,7 @@ from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
 from python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
-import read5
+import read5_ont
 import pysam
 import seaborn as sns
 from __init__ import __build__
@@ -272,7 +272,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             ns = basecalledRead.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
 
             rawFile = join(dataPath, basecalledRead.get_tag("fn"))
-            r5 = read5.read(rawFile)
+            r5 = read5_ont.read(rawFile)
 
             # normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float32)
             shift = basecalledRead.get_tag("sm")

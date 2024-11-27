@@ -7,9 +7,9 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name, getpid
-import read5.AbstractFileReader
+import read5_ont.AbstractFileReader
 from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
-import read5
+import read5_ont
 import multiprocessing as mp
 import pysam
 import psutil
@@ -117,7 +117,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     -------
     None
     """
-    r5 = read5.read(rawFile)
+    r5 = read5_ont.read(rawFile)
     if pore in ["dna_r9", "rna_r9"]:
         # for r9 pores, shift and scale are stored for pA signal in bam
         signal = r5.getpASignal(signalid)[start:end]

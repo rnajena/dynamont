@@ -9,7 +9,7 @@ import numpy as np
 from os.path import exists, join, dirname
 from os import makedirs, name
 from python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
-import read5
+import read5_ont
 import multiprocessing as mp
 from datetime import datetime
 from collections import deque
@@ -152,7 +152,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
                     if oldFile != rawFile:
                         oldFile = rawFile
-                        r5 = read5.read(rawFile)
+                        r5 = read5_ont.read(rawFile)
 
                     # fill batch
                     if len(mpItems) < batch_size:
