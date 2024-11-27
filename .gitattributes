@@ -1,0 +1,3 @@
+src/python/_version.py export-subst
+* text=auto eol=lf
+.git_archival.txt  export-subst

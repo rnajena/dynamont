@@ -1,0 +1,75 @@
+{% set pyproject = load_file_data('../pyproject.toml', from_recipe_dir=True) %}
+{% set version = VERSION %}
+{% set project = pyproject['project'] %}
+
+package:
+  name: dynamont
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  skip: True  # [py<38]
+  script:
+    - mkdir -p build && cd build
+    - cmake ..
+    - make
+    - make install
+    - cd ..
+    - {{ PYTHON }} -m pip install --no-build-isolation --no-deps --ignore-installed -vv .
+  noarch: python
+  number: 0
+  entry_points:
+    {% for module, entrypoints in project.get('scripts').items() %}
+    {% for name, path in entrypoints.items() %}
+      - {{ name }} = {{ module }}.{{ path }}
+    {% endfor %}
+    {% endfor %}
+
+requirements:
+  build:
+    - cmake
+    - make
+    - g++
+    - pip
+    - python
+  host:
+    - python {{ project['requires-python'] }}
+    - pip
+    {% for dep in pyproject['build-system']['requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+  run:
+    - python {{ project['requires-python'] }}
+    {% for dep in project['dependencies'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+test:
+  source_files:
+    - tests
+  requires:
+    {% for dep in project['optional-dependencies']['test'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+  commands:
+    - dynamont_NT --help
+    - dynamont_NTC --help
+    - dynamont resquiggle --help
+    - dynamont train --help
+    - pytest -vv
+
+
+about:
+  home: https://github.com/JannesSP/dynamont
+  summary: Segmentation/resquiggling tool for ONT signals.
+  license: {{ pyproject.get('license') }}
+  license_file: LICENSE
+  description: |
+    [Click here](https://github.com/JannesSP/dynamont)
+
+extra:
+  recipe-maintainers:
+    - 38325576
+    - JannesSP

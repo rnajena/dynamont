@@ -1,4 +1,28 @@
-# Dynamont
+# ![Alt text](figures/logo.png)
+
+- [**Dynamont**](https://github.com/JannesSP/dynamont) is a segmentation/resquiggling tool for ONT signals. ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dynamont)
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-teal.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+[![PyPI](https://img.shields.io/pypi/v/dynamont) ![PyPI - Downloads](https://img.shields.io/pypi/dm/dynamont) ![PyPI - Status](https://img.shields.io/pypi/status/dynamont)](https://pypi.org/project/dynamont/)
+
+[![Anaconda-Server Badge](https://anaconda.org/jannessp/dynamont/badges/version.svg)](https://anaconda.org/jannessp/dynamont) ![Conda](https://img.shields.io/conda/dn/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/latest_release_date.svg)](https://anaconda.org/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/platforms.svg)](https://anaconda.org/jannessp/dynamont)
+
+<!-- [![DOI](https://zenodo.org/badge/633012569.svg)](https://zenodo.org/badge/latestdoi/633012569) -->
+
+---
+
+- [](#)
+  - [Dynamont](#dynamont)
+  - [Installation](#installation)
+    - [Pypi/pip](#pypipip)
+    - [Conda](#conda)
+  - [Usage](#usage)
+  - [Exit-Codes](#exit-codes)
+
+---
+
+## Dynamont
 
 TODO: change title
 A **dynam**ic programming algorithm to resquiggle and segment the raw **ONT** signal.
@@ -7,7 +31,27 @@ TODO: add readme
 TODO: create conda package of tool
 TODO: build tool with subtools
 
-## Exit Codes
+## Installation
+
+### Pypi/pip
+
+```bash
+pip install dynamont
+```
+
+### Conda
+
+```bash
+conda install mamba
+mamba create -n dynamont -c jannessp dynamont
+conda activate dynamont
+```
+
+## Usage
+
+TODO
+
+## Exit-Codes
 
 - -9: Out of Memory error. Deacrease the number of processes or move to a system with more memory.
 - 1: `dynamont_NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and read (N) in function: `preProcTN`

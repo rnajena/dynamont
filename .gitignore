@@ -31,24 +31,10 @@
 *.out
 *.app
 
-src/test*
-stc/segment
-src/dp.cpp
-src/dp.h
 .vscode/
-backup/
-src/segment
-output.pdf
 .gitignore
-c_version
-c_version.cpp
-test_command.txt
-lookIntosignal
 src/__pycache__/
-src/last_cookie.txt
-src/segmentation
 src/*/__pycache__/
-tests/playground/
 
 src/dynamont/.nfs*
 src/dynamont/core
@@ -74,6 +60,8 @@ src/edgeDetection/test.py
 src/dynamont/dynamont_NTK_debug
 src/dynamont/dynamont_NT_debug
 build/
-src/python/plot/__pycache__/__init__.cpython-310.pyc
-src/python/segmentation/__pycache__/__init__.cpython-310.pyc
-src/python/segmentation/__pycache__/FileIO.cpython-310.pyc
+src/python/plot/__pycache__/
+src/python/segmentation/__pycache__/
+dist/
+dynamont.egg-info/
+__pycache__/

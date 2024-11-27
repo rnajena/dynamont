@@ -1,0 +1,102 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
+
+[project]
+authors = [
+  {name = "Jannes Spangenberg", email = "jannes.spangenberg@uni-jena.de"}
+]
+classifiers = [
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Intended Audience :: Science/Research"
+]
+dependencies = [
+  "numpy >=1.26.0",
+  "pandas >=2.2.0",
+  "seaborn >=0.13.0",
+  "matplotlib >=3.2.0",
+  "read5_ont >=1.2.5",
+  "pysam >=0.22.0",
+  "psutil >=6.0.0",
+]
+description = "Segmentation/resquiggling tool for ONT signals."
+dynamic = ["version"]
+license = {text = "GNUv3"}
+name = "dynamont"
+readme = "README.rst"
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-cov",
+  "mypy"
+]
+
+[project.scripts]
+dynamont-resquiggle = "src.python.segmentation.segment:main"
+dynamont-train = "src.python.segmentation.train:main"
+dynamont-NT = "src.python.segmentation.dynamont_NT:main"
+dynamont-NTC = "src.python.segmentation.dynamont_NTC:main"
+
+[project.urls]
+repository = "https://github.com/JannesSP/dynamont"
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  # This covers both typing.TYPE_CHECKING and plain TYPE_CHECKING, with any amount of whitespace
+  "if\\s+(typing\\.)?TYPE_CHECKING:",
+  'if __name__ == "__main__":'
+]
+omit = [
+  "src/python/_version.py",
+  "test/*"
+]
+
+[tool.distutils.bdist_wheel]
+universal = true
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/python/_version.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/python",
+  "/pyproject.toml"
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.mypy]
+disallow_untyped_defs = true
+files = ["src/python/**/*.py"]
+python_version = "3.9"
+warn_no_return = true
+
+[tool.pytest.ini_options]
+addopts = [
+  "-vv",
+  "--color=yes",
+  "--cov-append",
+  "--cov-branch",
+  "--cov-report=term-missing",
+  "--cov=python",
+  "--tb=native",
+  "--strict-markers",
+  "--durations=20"
+]
+markers = [
+  "serial: execute test serially (to avoid race conditions)",
+  "slow: tests can take a long time (deselect with '-m \"not slow\"')"
+]
+norecursedirs = [".*", "*.egg*", "build", "dist", "conda.recipe", "examples", "env", "envs", "scripts"]
