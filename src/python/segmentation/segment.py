@@ -169,13 +169,13 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     -------
     None
     """
-    processes = max(2, processes)
+    processes = max(1, processes - 1)
     print(f"Starting segmentation with {processes} processes.")
+    writer = mp.Pool(1)
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
-    pool.apply_async(listener, (queue, outfile))
+    writer.apply_async(listener, (queue, outfile))
     qualSkipped = 0
-    jobs = [None for _ in range(processes)]
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
         for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
@@ -197,7 +197,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
             shift = basecalled_read.get_tag("sm")
             scale = basecalled_read.get_tag("sd")
 
-            jobs[bi % processes] = pool.apply_async(
+            pool.apply_async(
                 asyncSegmentation, (
                     queue,
                     SCRIPT,
@@ -214,17 +214,16 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
                     )
                 )
 
-    # wait for last job batch to finish
-    for job in jobs:
-        job.get()
+    # wait for jobs to finish
+    pool.close()
+    pool.join()
         
     # tell queue to terminate
     queue.put("kill")
-    # queue.put("kill")
     
     # Close the pool and wait for processes to finish
-    pool.close()
-    pool.join()
+    writer.close()
+    writer.join()
     print(f"Skipped reads: low quality: {qualSkipped}")
 
 def main() -> None:
