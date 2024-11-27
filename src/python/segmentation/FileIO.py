@@ -373,14 +373,15 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     '''
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
     output, errors, returncode = feedPipe(signal, read, pipe)
-    if returncode == -9: # OOM return code
+    while returncode == -9: # OOM return code
         import time
         time.sleep(60) # wait a minute and retry once
         pipe = openCPPScriptParams(CPP_SCRIPT, params)
         output, errors, returncode = feedPipe(signal, read, pipe)
-    if returncode == -11: # OOM return code
+    if returncode == -11: # Segmentation Fault return code
         with open("failed_input.txt", 'w') as w:
             w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
+        return
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         # queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)
