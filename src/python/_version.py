@@ -52,8 +52,8 @@ def get_config() -> VersioneerConfig:
     cfg.VCS = "git"
     cfg.style = ""
     cfg.tag_prefix = ""
-    cfg.parentdir_prefix = "read5-"
-    cfg.versionfile_source = "read5/_version.py"
+    cfg.parentdir_prefix = "dynamont-"
+    cfg.versionfile_source = "src/python/_version.py"
     cfg.verbose = False
     return cfg
 
