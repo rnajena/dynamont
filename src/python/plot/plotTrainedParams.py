@@ -5,7 +5,7 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from python.segmentation.FileIO import plotParameters
+from src.python.segmentation.FileIO import plotParameters
 
 def parse() -> Namespace:
     parser = ArgumentParser(

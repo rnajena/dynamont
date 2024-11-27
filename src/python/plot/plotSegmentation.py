@@ -4,18 +4,18 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-from os.path import exists, join, dirname
-from os import makedirs, name
-from python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
 import read5_ont
 import pysam
 import seaborn as sns
-from __init__ import __build__
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from matplotlib.patches import Rectangle
+from os.path import exists, join, dirname
+from os import makedirs, name
+from src.python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
+from src.python.plot.__init__ import __build__
 
 def parse() -> Namespace:
     parser = ArgumentParser(

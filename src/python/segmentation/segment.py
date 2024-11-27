@@ -4,16 +4,16 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from os.path import exists, join, dirname
-from os import makedirs, name, getpid
 import read5_ont.AbstractFileReader
-from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
 import read5_ont
 import multiprocessing as mp
 import pysam
 import psutil
-from __init__ import __build__
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from os.path import exists, join, dirname
+from os import makedirs, name, getpid
+from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
+from src.python.segmentation.__init__ import __build__
 
 def get_memory_usage():
     """

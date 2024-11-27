@@ -4,17 +4,17 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import numpy as np
-from os.path import exists, join, dirname
-from os import makedirs, name
-from python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
 import read5_ont
 import multiprocessing as mp
+import pysam
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from os.path import exists, join, dirname
+from os import makedirs, name
 from datetime import datetime
 from collections import deque
-import pysam
-from __init__ import __build__
+from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
+from src.python.segmentation.__init__ import __build__
 
 class ManagedList:
     def __init__(self, values, max_size=100):

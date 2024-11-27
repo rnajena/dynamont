@@ -4,15 +4,15 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import h5py
 import numpy as np
 import read5_ont
 import pysam
 import pywt
-from os.path import join
 import multiprocessing as mp
-from python.segmentation.FileIO import hampelFilter
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from os.path import join
+from src.python.segmentation.FileIO import hampelFilter
 
 def parse() -> Namespace:
     parser = ArgumentParser(

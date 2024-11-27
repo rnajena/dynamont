@@ -4,15 +4,15 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import os
 import h5py
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from collections import defaultdict
 import multiprocessing as mp
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from collections import defaultdict
 
 # TODO: add support for DNA
 
