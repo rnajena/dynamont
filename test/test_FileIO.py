@@ -4,7 +4,7 @@ class TestSum(unittest.TestCase):
 
     def testFeedPipe(self):
         import numpy as np
-        from src.dynamont.FileIO import feedPipe
+        from src.python.segmentation.FileIO import feedPipe
         from unittest.mock import Mock
         mockPipe = Mock()
         mockPipe.communicate.return_value = ("result", "")
@@ -19,7 +19,7 @@ class TestSum(unittest.TestCase):
         
     def testFormatSegmentationOutput(self):
         import numpy as np
-        from src.dynamont.FileIO import formatSegmentationOutput
+        from src.python.segmentation.FileIO import formatSegmentationOutput
         output = "M2,0,1.000000;M3,2,1.000000;M4,871,0.895648;"
         sigOffset = 0
         lastIndex = 1000
@@ -34,7 +34,7 @@ class TestSum(unittest.TestCase):
         
     def testFormtSegmentation(self):
         import numpy as np
-        from src.dynamont.FileIO import formatSegmentation
+        from src.python.segmentation.FileIO import formatSegmentation
         readid = "read123"
         signalid = "signal456"
         segmentation = np.array([[1, 2, 3], [4, 5, 6]])
@@ -45,14 +45,14 @@ class TestSum(unittest.TestCase):
         # Correctly identifies and replaces outliers in a 1D numpy array
     def testHampelFilter(self):
         import numpy as np
-        from src.dynamont.FileIO import hampelFilter
+        from src.python.segmentation.FileIO import hampelFilter
     
         signal = np.array([1, 1, 1, 10, 1, 1, 1])
         expectedOutput = np.array([1, 1, 1, 1, 1, 1, 1])
     
-        filteredSignal = hampelFilter(signal)
+        hampelFilter(signal)
     
-        assert np.array_equal(filteredSignal, expectedOutput)
+        assert np.array_equal(signal, expectedOutput)
         
 if __name__ == '__main__':
     unittest.main()
