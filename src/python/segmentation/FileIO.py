@@ -13,40 +13,38 @@ from pathlib import Path
 from os.path import join
 from multiprocessing import Queue
 
-def hampelFilter(signal, wSize=3, nSigmas=3):
+def hampelFilter(signal : np.ndarray, wSize : int = 3, nSigmas : float = 3.0) -> None:
     """
-    Apply Hampel filter to detect and replace outliers in a signal.
+    Apply Hampel filter in place to detect and replace outliers in a signal.
 
     Parameters:
         signal (np.ndarray): The input signal (1D array).
         window_size (int): The size of the sliding window. Defaults to 3.
         n_sigmas (float): The threshold in terms of standard deviations (MAD).
                           Defaults to 3, which is commonly used.
-
-    Returns:
-        np.ndarray: The filtered signal with outliers replaced.
     """
-    # Copy the signal to avoid modifying the original
-    filtSignal = signal.copy()
-    
-    # Half window size for sliding
+    from collections import deque
+
     k = 1.4826  # Constant to convert MAD to standard deviation
-    hwSize = wSize // 2
+    hwSize = wSize // 2 # Half window size for sliding
+
+    # Initialize a deque for the rolling window
+    window = deque(signal[:wSize], maxlen=wSize)
+
+    # Precompute median and MAD for the initial window
+    median = np.median(window)
+    mad = k * np.median(np.abs(np.array(window) - median))
     
     # Loop over the signal with a sliding window
     for i in range(hwSize, len(signal) - hwSize):
-        # Define the current window around the ith element
-        window = signal[i - hwSize : i + hwSize + 1]
-        
-        # Calculate the median and MAD of the window
-        median = np.median(window)
-        mad = k * np.median(np.abs(window - median))
-        
         # Identify and replace outliers
         if np.abs(signal[i] - median) > nSigmas * mad:
-            filtSignal[i] = median  # Replace with the median value
-    
-    return filtSignal
+            signal[i] = median  # Replace with the median value
+        
+        # Update the rolling window
+        window.append(signal[i + hwSize])
+        median = np.median(window)
+        mad = k * np.median(np.abs(np.array(window) - median))
 
 class SegmentationError(Exception):
     """Raised when no segmentation was calculated for a read"""
@@ -236,10 +234,11 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, i
     -------
     result : str
     '''
-    signal = ",".join([f'{x:.5f}' for x in signal])
-    cookie = f"{signal}\n{read}\n"
+    cookie = f"{','.join([f'{x:.7f}' for x in signal])}\n{read}\n"
     results, errors = pipe.communicate(input=cookie)
     returncode = pipe.returncode
+    pipe.kill()
+    del cookie
     return results.strip(), errors.strip(), returncode
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
@@ -270,7 +269,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     if returncode:
         print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}")
         with open("failed_input.txt", 'w') as w:
-            w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
+            w.write(",".join([f'{x:.7f}' for x in signal]) + '\n' + read + '\n')
         return signalid
     transitionParams, modelParams, Z = result.split('\n')
 
@@ -279,7 +278,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     except:
         print(f"ERROR while extracting transitions params in {signalid}", transitionParams)
         # with open("failed_input.txt", 'w') as w:
-        #     w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
+        #     w.write(",".join([f'{x:.7f}' for x in signal]) + '\n' + read + '\n')
         # raise SegmentationError(readid)
         return signalid
     # then updated emission updated
@@ -343,7 +342,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             print(signal)
             print(read)
             with open("failed_input.txt", "w") as w:
-                w.write(str(np.around(signal, 4).tolist()).replace(' ', '').replace('[', '').replace(']', ''))
+                w.write(str(np.around(signal, 7).tolist()).replace(' ', '').replace('[', '').replace(']', ''))
                 w.write('\n')
                 w.write(read)
                 w.write('\n')
@@ -374,22 +373,18 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
     output, errors, returncode = feedPipe(signal, read, pipe)
     while returncode == -9: # OOM return code
-        import time
-        time.sleep(60) # wait a minute and retry once
         pipe = openCPPScriptParams(CPP_SCRIPT, params)
         output, errors, returncode = feedPipe(signal, read, pipe)
     if returncode == -11: # Segmentation Fault return code
+        queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         with open("failed_input.txt", 'w') as w:
-            w.write(",".join([f'{x:.5f}' for x in signal]) + '\n' + read + '\n')
+            w.write(",".join([f'{x:.7f}' for x in signal]) + '\n' + read + '\n')
         return
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
-        # queue.put("error: " + returncode + ", " + errors, "\tT: " + str(len(signal)), "\tN: " + str(len(read)), "\tRid: " + readid, "\tSid: " + signalid)
         return
     segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
-    out = formatSegmentation(readid, signalid, segments)
-    if out:
-        queue.put(out)
+    queue.put(formatSegmentation(readid, signalid, segments))
 
 def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str) -> np.ndarray:
     '''
@@ -416,28 +411,36 @@ def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, rea
             readpos : base position within 5' - 3' read
             state : match, extend, etc
     '''
-    segments = []
     output = output.split(';')[:-1]
+    n_segments = len(output)
+    segments = np.empty((n_segments, 8), dtype=object)
+    
     for i, segment in enumerate(output):
         # split segment state
         state = segment[0]
-        segment = segment[1:]
+        segment = segment[1:].split(',')
 
-        # get basepos, signal start and polish if existing
-        try:
-            basepos, start, prob, polish = segment.split(',')
-        except ValueError:
-            basepos, start, prob = segment.split(',')
-            polish = 'NA'
+        # Parse base position, start, and other values
+        basepos = int(segment[0])
+        start = int(segment[1]) + sigOffset
+        prob = float(segment[2])
+        polish = segment[3] if len(segment) > 3 else 'NA'
 
-        start = int(start) + sigOffset
-        end = int(output[i+1][1:].split(',')[1]) + sigOffset if i < len(output)-1 else lastIndex
+        # Compute the end index
+        if i < n_segments - 1:
+            end = int(output[i + 1][1:].split(',')[1]) + sigOffset
+        else:
+            end = lastIndex
 
-        # convert basepos to 5' -> 3' direction
-        pos = len(read) - int(basepos) - 1
-        segments.append([int(start), int(end), pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, float(prob), polish])
+        # Convert base position to 5' -> 3' direction
+        pos = len(read) - basepos - 1
+        # Create the motif
+        motif = read[max(0, pos - 2):min(len(read), pos + 3)]
 
-    return np.array(segments, dtype=object)
+        segments[i] = [start, end, pos, read[pos], motif, state, prob, polish]
+
+    # return np.array(segments, dtype=object)
+    return segments
 
 def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) -> str:
     '''
@@ -453,11 +456,12 @@ def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) 
     table : str
         string to write in a segmentation result file
     '''
-    lines = []
-    for segment in segmentation:
-        line = f"{readid},{signalid}," + ','.join(map(str, segment))
-        lines.append(line)
-    return '\n'.join(lines) + '\n'
+    # The generator expression avoids creating intermediate lists, which is crucial for large segmentation arrays.
+    # Use a generator to format each line and join them all at once
+    return '\n'.join(
+        f"{readid},{signalid}," + ','.join(map(str, segment))
+        for segment in segmentation
+    ) + '\n'
 
 def stopFeeding(pipe : Popen) -> None:
     '''

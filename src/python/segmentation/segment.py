@@ -127,7 +127,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
         signal = r5.getSignal(signalid)[start:end]
     r5.close()
     signal = (signal - shift) / scale
-    signal = hampelFilter(signal)
+    hampelFilter(signal)
     if "rna" in pore:
         read = read[::-1] # change direction from 5' - 3' to 3' - 5'
     
@@ -141,6 +141,14 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
                 signalid,
                 q
                 )
+    
+    # directly free memory
+    del r5
+    del signal
+    del read
+    del script
+    del readid
+    del signalid
 
 def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = 0) -> None:
     """
@@ -178,7 +186,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     qualSkipped = 0
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-        for bi, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
+        for basecalled_read in samfile.fetch(until_eof=True):
             # skip low qual reads if activated
             qs = basecalled_read.get_tag("qs")
             if minQual and qs < minQual:

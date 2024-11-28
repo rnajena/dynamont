@@ -285,7 +285,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
                 # this way the conversion from DACs to pA is skipped
                 signal = r5.getSignal(readid)
             signal = (signal - shift) / scale
-            signal = hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+            hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
             if "rna" in pore:

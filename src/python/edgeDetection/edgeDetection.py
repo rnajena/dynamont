@@ -90,8 +90,8 @@ def extractingEdges(signalid : str, rawFile : str, start : int, end : int, thres
     else:
         signal = r5.getSignal(signalid)
     signal = (signal - shift) / scale
-    filtered = hampelFilter(signal, 6, 5.)
-    waveletEdges = waveletPeaks(filtered[start:end], 'gaus1', threshold) + start
+    hampelFilter(signal, 6, 5.)
+    waveletEdges = waveletPeaks(signal[start:end], 'gaus1', threshold) + start
     queue.put((signalid, waveletEdges))
         
 def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : str) -> None:

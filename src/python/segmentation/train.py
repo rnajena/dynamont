@@ -172,7 +172,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             noMatchingReadid+=1
                             continue
                         # signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
-                        signal = hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+                        hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         if "rna" in pore:
                             seq = seq[::-1]
                         mpItems.append([signal, seq, transitionParams | {'r' : pore}, CPP_SCRIPT, trainedModels, readid])
