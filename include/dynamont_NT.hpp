@@ -42,7 +42,7 @@ static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
  * @param N Length of nucleotide sequence + 1.
  * @param model Vector containing kmers as keys and (mean, stdev) tuples as values.
  */
-void logF(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
+void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
 
 /**
  * Computes backward matrices using logarithmic values for signal processing.
@@ -60,7 +60,7 @@ void logF(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std
  * @param N Length of nucleotide sequence + 1.
  * @param model Vector containing kmers as keys and (mean, stdev) tuples as values.
  */
-void logB(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
+void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
 
 /**
  * Calculate the logarithmic probability matrix
@@ -74,7 +74,7 @@ void logB(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std
  * This function calculates the logarithmic probability matrix for a given forward and backward
  * matrix by adding the values of the forward and backward matrix and subtracting the alignment score.
  */
-void logP(double *LP, const dproxy *FOR, const dproxy *BACK, const double Z, const std::size_t S);
+void logP(double *LP, const double *FOR, const double *BACK, const double Z, const std::size_t S);
 
 /**
  * Calculate the maximum a posteriori path through logarithmic probability matrices.
@@ -105,7 +105,7 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
  * @param N size of sequence
  * @param kmerSize size of k-mer
  */
-void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, const int kmerSize);
+void traceback(std::size_t t, std::size_t n, const double *M, const double *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, const int kmerSize);
 
 /**
  * Backtracing function for M state
@@ -121,7 +121,7 @@ void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, c
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-// void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
+// void funcM(const std::size_t t, const std::size_t n, const double *M, const double *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
 
 /**
  * Backtracing function for E state
@@ -137,7 +137,7 @@ void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, c
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-// void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
+// void funcE(const std::size_t t, const std::size_t n, const double *M, const double *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize);
 
 /**
  * Train transition parameter with baum welch algorithm
@@ -153,7 +153,7 @@ void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, c
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return tuple containing new transition probabilities
  */
-std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
+std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
 
 /**
  * Train emission parameter with baum welch algorithm
@@ -169,7 +169,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
  * @param numKmers number of kmers
  * @return tuple of emission parameter means and stdevs
  */
-std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model, const int numKmers);
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model, const int numKmers);
 
 /**
  * Trains transition and emission parameters using the Baum-Welch algorithm.
@@ -187,4 +187,4 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
  * @param numKmers The number of kmers in the sequence.
  * @param kmerSize The size of each kmer.
  */
-void trainParams(const double *sig, const int *kmerSeq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize);
+void trainParams(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize);

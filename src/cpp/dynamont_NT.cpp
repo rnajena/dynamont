@@ -27,7 +27,7 @@ std::unordered_map<std::string, double> transitions_NT = {
  * @param N Length of nucleotide sequence + 1.
  * @param model Vector containing kmers as keys and (mean, stdev) tuples as values.
  */
-void logF(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
+void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     const double m1 = transitions_NT.at("m1");
     const double e2 = transitions_NT.at("e2");
@@ -60,7 +60,7 @@ void logF(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std
  * @param N Length of nucleotide sequence + 1.
  * @param model Vector containing kmers as keys and (mean, stdev) tuples as values.
  */
-void logB(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
+void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     const double m1 = transitions_NT.at("m1");
     const double e2 = transitions_NT.at("e2");
@@ -99,7 +99,7 @@ void logB(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std
  * This function calculates the logarithmic probability matrix for a given forward and backward
  * matrix by adding the values of the forward and backward matrix and subtracting the alignment score.
  */
-void logP(double *LP, const dproxy *FOR, const dproxy *BACK, const double Z, const std::size_t S)
+void logP(double *LP, const double *FOR, const double *BACK, const double Z, const std::size_t S)
 {
     for (std::size_t s = 0; s < S; ++s)
     {
@@ -124,8 +124,13 @@ void logP(double *LP, const dproxy *FOR, const dproxy *BACK, const double Z, con
 void getBorders(std::list<std::string> &segString, const double *LPM, const double *LPE, const std::size_t T, const std::size_t N, const int kmerSize)
 {
     const std::size_t TN = T * N;
-    dproxy *M = new dproxy[TN];
-    dproxy *E = new dproxy[TN];
+    double *M = new double[TN];
+    double *E = new double[TN];
+    for (std::size_t i = 0; i < TN; ++i)
+    {
+        M[i] = -INFINITY;
+        E[i] = -INFINITY;
+    }
     E[0] = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
@@ -155,7 +160,7 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
  * @param N size of sequence
  * @param kmerSize size of k-mer
  */
-void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, const int kmerSize)
+void traceback(std::size_t t, std::size_t n, const double *M, const double *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, const int kmerSize)
 {
     std::vector<double> segProb;
     bool isFuncM = false; // start in E
@@ -202,7 +207,7 @@ void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, c
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-// void funcM(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
+// void funcM(const std::size_t t, const std::size_t n, const double *M, const double *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
 // {
 //     const double score = M[t * N + n];
 //     const double logScore = LPM[t * N + n];
@@ -233,7 +238,7 @@ void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, c
  * @param segProb vector to store segment probabilities
  * @param kmerSize size of k-mer
  */
-// void funcE(const std::size_t t, const std::size_t n, const dproxy *M, const dproxy *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
+// void funcE(const std::size_t t, const std::size_t n, const double *M, const double *E, const double *LPM, const double *LPE, std::list<std::string> &segString, const std::size_t N, std::vector<double> &segProb, const int kmerSize)
 // {
 //     const double score = E[t * N + n];
 //     const double logScore = LPE[t * N + n];
@@ -265,7 +270,7 @@ void traceback(std::size_t t, std::size_t n, const dproxy *M, const dproxy *E, c
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return tuple containing new transition probabilities
  */
-std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
+std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     // Transition parameters
     double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
@@ -317,7 +322,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
  * @param numKmers number of kmers
  * @return tuple of emission parameter means and stdevs
  */
-std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model, const int numKmers)
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model, const int numKmers)
 {
 
     // TODO: calculate this with LP matrices
@@ -434,7 +439,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
  * @param numKmers The number of kmers in the sequence.
  * @param kmerSize The size of each kmer.
  */
-void trainParams(const double *sig, const int *kmerSeq, const dproxy *forM, const dproxy *forE, const dproxy *backM, const dproxy *backE, const std::size_t T, const std::size_t N, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize)
+void trainParams(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize)
 {
     const auto [newM, newE1, newE2] = trainTransition(sig, kmerSeq, forM, forE, backM, backE, T, N, model);
     std::cout << "m1:" << newM << ";e1:" << newE1 << ";e2:" << newE2 << std::endl;
@@ -582,12 +587,19 @@ int main(int argc, char *argv[])
 
     // std::cerr<<"T: "<<T<<", "<<"N: "<<N<<", "<<"inputsize: "<<TN<<std::endl;
     // calculate segmentation probabilities, fill forward matrices
-    dproxy *forM = new dproxy[TN];
-    dproxy *forE = new dproxy[TN];
-    logF(sig, kmerSeq, forM, forE, T, N, model);
+    double *forM = new double[TN];
+    double *forE = new double[TN];
     // calculate segmentation probabilities, fill backward matrices
-    dproxy *backM = new dproxy[TN];
-    dproxy *backE = new dproxy[TN];
+    double *backM = new double[TN];
+    double *backE = new double[TN];
+    for (std::size_t i = 0; i < TN; ++i)
+    {
+        forM[i] = -INFINITY;
+        forE[i] = -INFINITY;
+        backM[i] = -INFINITY;
+        backE[i] = -INFINITY;
+    }
+    logF(sig, kmerSeq, forM, forE, T, N, model);
     logB(sig, kmerSeq, backM, backE, T, N, model);
     const double Zf = forE[TN - 1];
     const double Zb = backE[0];
