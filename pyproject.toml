@@ -78,6 +78,10 @@ include = [
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.version.vcs]
+tag_regex = "^v?(?P<version>.*)$"  # Match tags like `v0.2` or `0.2`
+style = "standard"
+
 [tool.mypy]
 disallow_untyped_defs = true
 files = ["src/python/**/*.py"]
