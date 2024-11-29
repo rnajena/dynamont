@@ -26,6 +26,8 @@ dependencies = [
   "psutil >=6.0.0",
 ]
 description = "Segmentation/resquiggling tool for ONT signals."
+long_description = "This is a simple test description."
+long_description_content_type = "text/x-rst"  # or "text/markdown"
 dynamic = ["version"]
 license = {text = "GNUv3"}
 name = "Dynamont"
