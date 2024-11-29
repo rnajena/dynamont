@@ -1,9 +1,10 @@
 #!/bin/bash
 mkdir -p build
 cd build
-cmake ..
-make
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+# make install
 cd ..
-python3 -m pip install --user --upgrade setuptools wheel build --no-deps --ignore-installed -v .
-python3 -m build
+python -m pip install --user --upgrade setuptools wheel build --no-deps --ignore-installed -v .
+python -m build
 twine upload dist/*

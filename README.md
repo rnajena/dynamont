@@ -54,8 +54,8 @@ TODO
 ## Exit-Codes
 
 - -9: Out of Memory error. Deacrease the number of processes or move to a system with more memory.
-- 1: `dynamont_NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and read (N) in function: `preProcTN`
-- 2: `dynamont_NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and de novo calling (K) in function: `preProcTK`
+- 1: `dynamont-NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and read (N) in function: `preProcTN`
+- 2: `dynamont-NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and de novo calling (K) in function: `preProcTK`
 - 3: Alignment score (Z) does not match between forward and backward run in `main` function or is -Infinity
 - 4: Input signal is missing or not found in stdin stream
 - 5: Input read is missing or not found in stdin stream

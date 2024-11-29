@@ -9,11 +9,9 @@ authors = [
 classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
   "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
   "Intended Audience :: Science/Research"
@@ -30,9 +28,9 @@ dependencies = [
 description = "Segmentation/resquiggling tool for ONT signals."
 dynamic = ["version"]
 license = {text = "GNUv3"}
-name = "dynamont"
+name = "Dynamont"
 readme = "README.rst"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
 test = [
@@ -44,8 +42,6 @@ test = [
 [project.scripts]
 dynamont-resquiggle = "src.python.segmentation.segment:main"
 dynamont-train = "src.python.segmentation.train:main"
-dynamont-NT = "src.python.segmentation.dynamont_NT:main"
-dynamont-NTC = "src.python.segmentation.dynamont_NTC:main"
 
 [project.urls]
 repository = "https://github.com/JannesSP/dynamont"
@@ -68,10 +64,15 @@ universal = true
 [tool.hatch.build.hooks.vcs]
 version-file = "src/python/_version.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
 [tool.hatch.build.targets.sdist]
 include = [
-  "/src/python",
-  "/pyproject.toml"
+  "src/python",
+  "pyproject.toml",
+  "README.rst",
+  "LICENSE"
 ]
 
 [tool.hatch.version]
@@ -80,7 +81,7 @@ source = "vcs"
 [tool.mypy]
 disallow_untyped_defs = true
 files = ["src/python/**/*.py"]
-python_version = "3.9"
+python_version = "3.10"
 warn_no_return = true
 
 [tool.pytest.ini_options]
@@ -90,7 +91,7 @@ addopts = [
   "--cov-append",
   "--cov-branch",
   "--cov-report=term-missing",
-  "--cov=python",
+  "--cov=src/python",
   "--tb=native",
   "--strict-markers",
   "--durations=20"

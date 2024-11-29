@@ -65,3 +65,4 @@ src/python/segmentation/__pycache__/
 dist/
 dynamont.egg-info/
 __pycache__/
+.coverage

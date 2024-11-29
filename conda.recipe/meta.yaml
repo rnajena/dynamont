@@ -10,66 +10,60 @@ source:
   path: ..
 
 build:
-  skip: True  # [py<38]
   script:
     - mkdir -p build && cd build
-    - cmake ..
-    - make
+    - rm -rf *
+    - cmake ${SRC_DIR} -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_BUILD_TYPE=Release
+    - make -j${CPU_COUNT}
     - make install
     - cd ..
     - {{ PYTHON }} -m pip install --no-build-isolation --no-deps --ignore-installed -vv .
-  noarch: python
-  number: 0
-  entry_points:
-    {% for module, entrypoints in project.get('scripts').items() %}
-    {% for name, path in entrypoints.items() %}
-      - {{ name }} = {{ module }}.{{ path }}
-    {% endfor %}
-    {% endfor %}
 
 requirements:
   build:
     - cmake
     - make
-    - g++
+    - gtest # Add GTest to the build requirements
+    - {{ compiler('cxx') }}  # This ensures the correct C++ compiler is used
     - pip
     - python
   host:
-    - python {{ project['requires-python'] }}
+    - python
     - pip
     {% for dep in pyproject['build-system']['requires'] %}
     - {{ dep.lower() }}
     {% endfor %}
   run:
-    - python {{ project['requires-python'] }}
+    - python
     {% for dep in project['dependencies'] %}
     - {{ dep.lower() }}
     {% endfor %}
 
 test:
   source_files:
-    - tests
+    - test
+    # - $PREFIX/bin  # Ensure binaries are in the PATH
   requires:
     {% for dep in project['optional-dependencies']['test'] %}
     - {{ dep.lower() }}
     {% endfor %}
   commands:
-    - dynamont_NT --help
-    - dynamont_NTC --help
-    - dynamont resquiggle --help
-    - dynamont train --help
+    - dynamont-NT --help
+    - dynamont-NTC --help
+    - dynamont-resquiggle --help
+    - dynamont-train --help
+    - test_dynamont
     - pytest -vv
 
 
 about:
-  home: https://github.com/JannesSP/dynamont
-  summary: Segmentation/resquiggling tool for ONT signals.
+  home: {{ project['urls']['repository'] }}
+  summary: {{ project['description'] }}
   license: {{ pyproject.get('license') }}
   license_file: LICENSE
   description: |
-    [Click here](https://github.com/JannesSP/dynamont)
+    {{ project['description'] }}
 
 extra:
   recipe-maintainers:
-    - 38325576
     - JannesSP

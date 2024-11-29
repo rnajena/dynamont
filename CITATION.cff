@@ -4,7 +4,7 @@ authors:
   - family-names: 'Spangenberg'
     given-names: 'Jannes'
     orcid: 'https://orcid.org/0000-0002-6126-411X'
-title: 'Dynamont'
+title: 'dynamont'
 version: 1.0.0
 identifiers:
   - doi

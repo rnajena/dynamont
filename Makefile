@@ -4,7 +4,7 @@ CXXFLAGS = -std=c++17 -Iinclude -O3 -Wall -Wextra
 
 SRC = $(wildcard src/*.cpp)
 OBJ = $(SRC:.cpp=.o)
-TARGET = Dynamont
+TARGET = dynamont
 
 .PHONY: all clean
 
