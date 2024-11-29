@@ -78,34 +78,6 @@ def writeKmerModels(filepath : str, kmerModels : dict) -> None:
             stdev = kmerModels[kmer][1]
             w.write(f'{kmer}\t{mean}\t{stdev}\n')
 
-def getFiles(filepath : str, rec : bool) -> list:
-    '''
-    Returns
-    -------
-    files : list
-        a list of input files
-    '''
-
-    if filepath.endswith(".fast5") or filepath.endswith(".slow5") or filepath.endswith(".blow5") or filepath.endswith(".pod5"):
-        return [filepath]
-
-    func = {True : Path(filepath).rglob, False : Path(filepath).glob}[rec]
-    files = []
-
-    for path in func('*.fast5'):
-        files.append(str(path))
-
-    for path in func('*.slow5'):
-        files.append(str(path))
-
-    for path in func('*.blow5'):
-        files.append(str(path))
-
-    for path in func('*.pod5'):
-        files.append(str(path))
-
-    return files
-
 def openCPPScript(script : str) -> Popen:
     '''
     Opens a subprocess of the given script.

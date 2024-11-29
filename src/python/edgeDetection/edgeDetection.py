@@ -18,7 +18,7 @@ def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("-r", "--raw", type=str, required=True, metavar="FAST5|SLOW5|POD5", help="Input raw file format (FAST5, SLOW5, POD5)")
+    parser.add_argument("-r", "--raw", type=str, required=True, metavar="FAST5|POD5", help="Input raw file format (FAST5, POD5)")
     parser.add_argument("-b", "--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as.bam file")
     parser.add_argument("-o", "--output", type=str, required=True, metavar="HDF5", help="Output HDF5 file")
     parser.add_argument("--pore", type=str, required=True, metavar="STR", choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"])

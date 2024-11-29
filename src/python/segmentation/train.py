@@ -14,7 +14,6 @@ from os import makedirs, name
 from datetime import datetime
 from collections import deque
 from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
-from src.python.segmentation.__init__ import __build__
 
 class ManagedList:
     def __init__(self, values, max_size=100):
@@ -51,7 +50,7 @@ def parse() -> Namespace:
         formatter_class=ArgumentDefaultsHelpFormatter
     )
     # required
-    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5|SLOW5]')
+    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
@@ -73,7 +72,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     paramWriter = open(param_file, 'w')
 
     if mode == 'basic':
-        mode = join(__build__, 'dynamont_NT')
+        CPP_SCRIPT = 'dynamont-NT'
         transitionParams = {
             'e1': 1.0,
             'm1': 0.03,
@@ -87,7 +86,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     #         'e2': 0.97
     #         }
     elif mode == 'resquiggle':
-        mode = join(__build__, 'dynamont_NTC')
+        CPP_SCRIPT = 'dynamont-NTC'
         transitionParams = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,
@@ -108,7 +107,6 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
         print(f'Mode {mode} not implemented')
         exit(1)
 
-    CPP_SCRIPT = join(dirname(__file__), f'{mode}')
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
 

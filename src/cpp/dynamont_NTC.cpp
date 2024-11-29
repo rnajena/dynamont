@@ -98,7 +98,7 @@ void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const 
     for (std::size_t t = 1; t < T; ++t)
     {
         const std::size_t tN = t * N;
-        for (std::size_t n = 1; n < N; ++n)
+        for (std::size_t n = 1; n <= t && n < N; ++n)
         {
             const double sc = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);
             M[tN + n] = E[tN - N + n - 1] + sc + ppTNm;
@@ -124,7 +124,7 @@ void ppBackTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const
     for (std::size_t t = T - 1; t-- > 0;)
     { // iterates from T-2 to 0
         const std::size_t tN = t * N;
-        for (std::size_t n = N; n-- > 0;)
+        for (std::size_t n = std::min(N, t + 1); n-- > 0;)
         {
             double mat = -INFINITY, ext = -INFINITY;
             if (n + 1 < N) [[likely]]

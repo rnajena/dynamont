@@ -13,7 +13,6 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name, getpid
 from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
-from src.python.segmentation.__init__ import __build__
 
 def get_memory_usage():
     """
@@ -33,7 +32,7 @@ def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5|SLOW5]')
+    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
@@ -243,11 +242,9 @@ def main() -> None:
 
     match args.mode:
         case "basic":
-            SCRIPT = join(__build__, 'dynamont_NT')
-        # case "banded":
-        #     SCRIPT = join(__build__, 'dynamont_NT_banded')
+            SCRIPT = 'dynamont-NT'
         case "resquiggle":
-            SCRIPT = join(__build__, 'dynamont_NTC')
+            SCRIPT = 'dynamont-NTC'
 
     if name == 'nt': # check for windows
         SCRIPT+='.exe'

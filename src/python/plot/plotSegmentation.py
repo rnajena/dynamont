@@ -15,13 +15,12 @@ from matplotlib.patches import Rectangle
 from os.path import exists, join, dirname
 from os import makedirs, name
 from src.python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
-from src.python.plot.__init__ import __build__
 
 def parse() -> Namespace:
     parser = ArgumentParser(
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="POD5|FAST5|SLOW5", help='Raw ONT training data')
+    parser.add_argument('-r', '--raw',   type=str, required=True, metavar="POD5|FAST5", help='Raw ONT training data')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
@@ -184,7 +183,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
     if mode == 'basic':
-        mode = join(__build__, 'dynamont_NT')
+        mode = 'dynamont-NT'
         # mode = 'dynamont_NT_heatmap'
         PARAMS = {
             'e1': 1.0,
@@ -192,7 +191,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
             'e2': 0.97
             }
     elif mode == 'resquiggle':
-        mode = join(__build__, 'dynamont_NTC')
+        mode = 'dynamont-NTC'
         PARAMS = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,
