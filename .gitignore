@@ -66,3 +66,4 @@ dist/
 dynamont.egg-info/
 __pycache__/
 .coverage
+src/python/_version.py
