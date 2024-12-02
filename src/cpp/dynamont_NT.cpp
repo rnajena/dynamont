@@ -32,9 +32,10 @@ void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std
     const double m1 = transitions_NT.at("m1");
     const double e2 = transitions_NT.at("e2");
     E[0] = 0;
+    std::size_t tN = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        const std::size_t tN = t * N;
+        tN += N;
         for (std::size_t n = 1; n <= t && n < N; ++n)
         {                                                                      // speed up, due to rules no need to look at upper triangle of matrices
             const double score = scoreKmer(sig[t - 1], kmerSeq[n - 1], model); // Cache scoreKmer for (t-1, n-1)
@@ -65,23 +66,23 @@ void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std
     const double m1 = transitions_NT.at("m1");
     const double e2 = transitions_NT.at("e2");
     E[T * N - 1] = 0;
+    std::size_t tN = (T - 1) * N;
     for (std::size_t t = T - 1; t-- > 0;)
     {
-        const std::size_t tN = t * N;
+        tN -= N;
         for (std::size_t n = std::min(N, t + 1); n-- > 0;)
         { // speed up, due to rules no need to look at upper triangle of matrices
-            double mat = -INFINITY, ext = -INFINITY;
+            double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
             {
-                ext = logPlus(ext, M[tN + N + n + 1] + scoreKmer(sig[t], kmerSeq[n], model) + m1);
+                ext = M[tN + N + n + 1] + scoreKmer(sig[t], kmerSeq[n], model) + m1;
             }
             if (n > 0) [[likely]]
             {
                 const double score = scoreKmer(sig[t], kmerSeq[n - 1], model);
-                mat = logPlus(mat, E[tN + N + n] + score);      // transition probability is always 1, e1 first extend
+                M[tN + n] = E[tN + N + n] + score;              // transition probability is always 1, e1 first extend
                 ext = logPlus(ext, E[tN + N + n] + score + e2); // e2 extend further
             }
-            M[tN + n] = mat;
             E[tN + n] = ext;
         }
     }
@@ -270,7 +271,7 @@ void traceback(std::size_t t, std::size_t n, const double *M, const double *E, c
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return tuple containing new transition probabilities
  */
-std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
+std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     // Transition parameters
     double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
@@ -322,7 +323,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
  * @param numKmers number of kmers
  * @return tuple of emission parameter means and stdevs
  */
-std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model, const int numKmers)
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const int numKmers)
 {
 
     // TODO: calculate this with LP matrices
@@ -441,9 +442,9 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
  */
 void trainParams(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize)
 {
-    const auto [newM, newE1, newE2] = trainTransition(sig, kmerSeq, forM, forE, backM, backE, T, N, model);
+    const auto [newM, newE1, newE2] = trainTransition(sig, kmerSeq, forE, backM, backE, T, N, model);
     std::cout << "m1:" << newM << ";e1:" << newE1 << ";e2:" << newE2 << std::endl;
-    const auto [newMeans, newStdevs] = trainEmission(sig, kmerSeq, forM, forE, backM, backE, T, N, model, numKmers);
+    const auto [newMeans, newStdevs] = trainEmission(sig, kmerSeq, forM, forE, backM, backE, T, N, numKmers);
     for (int i = 0; i < numKmers; i++)
     {
         if (newStdevs[i] != 0.0) [[likely]]
@@ -668,7 +669,8 @@ int main(int argc, char *argv[])
                 // {
                 //     for (std::size_t n = 0; n < N; ++n)
                 //     {
-                //         std::cout << exp(logPlus(LPM[t * N + n], LPE[t * N + n])) << ",";
+                //         // std::cout << exp(logPlus(LPM[t * N + n], LPE[t * N + n])) << ",";
+                //         std::cout << logPlus(backM[t * N + n], backE[t * N + n]) << ",";
                 //     }
                 //     std::cout << "\n";
                 // }

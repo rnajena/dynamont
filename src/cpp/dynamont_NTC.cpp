@@ -95,9 +95,10 @@ void logP(double *LP, const dproxy *forM, const dproxy *backM, const dproxy *for
 void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     E[0] = 0;
+    std::size_t tN = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        const std::size_t tN = t * N;
+        tN += N;
         for (std::size_t n = 1; n <= t && n < N; ++n)
         {
             const double sc = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);
@@ -121,23 +122,23 @@ void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const 
 void ppBackTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     E[T * N - 1] = 0;
+    std::size_t tN = (T - 1) * N;
     for (std::size_t t = T - 1; t-- > 0;)
     { // iterates from T-2 to 0
-        const std::size_t tN = t * N;
+        tN -= N;
         for (std::size_t n = std::min(N, t + 1); n-- > 0;)
         {
-            double mat = -INFINITY, ext = -INFINITY;
+            double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
             {
-                ext = logPlus(ext, M[tN + N + n + 1] + scoreKmer(sig[t], kmerSeq[n], model) + ppTNm);
+                ext = M[tN + N + n + 1] + scoreKmer(sig[t], kmerSeq[n], model) + ppTNm;
             }
             if (n > 0) [[likely]]
             {
                 const double sc = scoreKmer(sig[t], kmerSeq[n - 1], model);
-                mat = logPlus(mat, E[tN + N + n] + sc);         // e1 first extend
+                M[tN + n] = E[tN + N + n] + sc;                 // e1 first extend
                 ext = logPlus(ext, E[tN + N + n] + sc + ppTNe); // e2 extend further
             }
-            M[tN + n] = mat;
             E[tN + n] = ext;
         }
     }
@@ -161,10 +162,11 @@ void ppForTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, const
     {
         E[k] = 0.0;
     }
+    std::size_t tK = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        const std::size_t tK = t * K;
-        const std::size_t prevTK = tK - K; // (t-1)*K
+        const std::size_t prevTK = tK; // (t-1)*K
+        tK += K;
         for (std::size_t k = 0; k < K; ++k)
         {
             double mat = -INFINITY;
@@ -203,10 +205,11 @@ void ppBackTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, cons
     {
         E[(T - 1) * K + k] = 0.0;
     }
+    std::size_t tK = (T - 1) * K;
     for (std::size_t t = T - 1; t-- > 0;)
     {
-        const std::size_t tK = t * K;
-        const std::size_t nexttK = tK + K; // (t+1)*K
+        const std::size_t nexttK = tK; // (t+1)*K
+        tK -= K;
         for (std::size_t k = K; k-- > 0;)
         {
             double ext = -INFINITY;
@@ -420,7 +423,7 @@ std::vector<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const
  * @param K The number of k-mers.
  * @param model array containing tuples of model parameters.
  */
-void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
+void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t K, const std::tuple<double, double> *model)
 {
     std::array<dproxy, NUMMAT> forAPSEIRef;
     for (const std::size_t &tnk : allowedKeys)
@@ -1337,7 +1340,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
  *
  * Outputs the trained emission parameters to the console.
  */
-std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
+std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t K)
 {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
@@ -1442,7 +1445,7 @@ void trainParams(const double *sig, const int *kmerSeq, std::unordered_map<std::
     auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmerSeq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
     std::cout << "a1:" << a1 << ";a2:" << a2 << ";p1:" << p1 << ";p2:" << p2 << ";p3:" << p3 << ";s1:" << s1 << ";s2:" << s2 << ";s3:" << s3 << ";e1:" << e1 << ";e2:" << e2 << ";e3:" << e3 << ";e4:" << e4 << ";i1:" << i1 << ";i2:" << i2 << "\n";
 
-    auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
+    auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, K);
     for (std::size_t k = 0; k < K; ++k)
     {
         // if (newStdevs[k] != 0.0 && !std::isnan(newStdevs[k]))
@@ -1615,7 +1618,7 @@ int main(int argc, char *argv[])
     std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> forAPSEI;
 
     // std::cerr<<"forward"<<"\n";
-    logF(sig, kmerSeq, forAPSEI, allowedKeys, T, N, K, model);
+    logF(sig, kmerSeq, forAPSEI, allowedKeys, K, model);
     // std::cerr<<"backward"<<"\n";
     std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> backAPSEI;
     logB(sig, kmerSeq, backAPSEI, allowedKeys, T, N, K, model);
