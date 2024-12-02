@@ -158,7 +158,7 @@ public:
     dproxy(double value = -INFINITY)
         : value_{value} {}
     operator double() { return value_; }
-    operator double const() const { return value_; }
+    operator double() const { return value_; }
 };
 
 /**

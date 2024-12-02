@@ -78,8 +78,8 @@ std::string itoa(const std::size_t value, const int alphabetSize, const int kmer
     } while (quotient);
 
     // Append the negative sign
-    if (value < 0)
-        buf += '-';
+    // if (value < 0)
+    //     buf += '-';
 
     while ((int)buf.length() < kmerSize)
     {
