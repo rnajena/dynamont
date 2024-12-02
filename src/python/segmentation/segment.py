@@ -179,9 +179,9 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     processes = max(1, processes - 1)
     print(f"Starting segmentation with {processes} processes.")
     writer = mp.Pool(1)
-    pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     writer.apply_async(listener, (queue, outfile))
+    pool = mp.Pool(processes)
     qualSkipped = 0
 
     with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
