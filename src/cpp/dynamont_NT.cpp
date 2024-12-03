@@ -570,7 +570,7 @@ int main(int argc, char *argv[])
     int i = 0;
     while (getline(ss, value, ','))
     {
-        sig[i++] = stof(value);
+        sig[i++] = stod(value);
     }
 
     // process read N: convert std::string to int std::array
@@ -669,7 +669,18 @@ int main(int argc, char *argv[])
                 // {
                 //     for (std::size_t n = 0; n < N; ++n)
                 //     {
-                //         // std::cout << exp(logPlus(LPM[t * N + n], LPE[t * N + n])) << ",";
+                //         std::cout << exp(logPlus(LPM[t * N + n], LPE[t * N + n])) << ",";
+                //     }
+                //     std::cout << "\n";
+
+                //     for (std::size_t n = 0; n < N; ++n)
+                //     {
+                //         std::cout << logPlus(forM[t * N + n], forE[t * N + n]) << ",";
+                //     }
+                //     std::cout << "\n";
+
+                //     for (std::size_t n = 0; n < N; ++n)
+                //     {
                 //         std::cout << logPlus(backM[t * N + n], backE[t * N + n]) << ",";
                 //     }
                 //     std::cout << "\n";
