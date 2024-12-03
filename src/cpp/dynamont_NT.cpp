@@ -36,7 +36,9 @@ void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std
     for (std::size_t t = 1; t < T; ++t)
     {
         tN += N;
-        for (std::size_t n = 1; n <= t && n < N; ++n)
+        const std::size_t upperBound = std::min(t + 1, N);
+#pragma omp parallel for
+        for (std::size_t n = 1; n < upperBound; ++n)
         {                                                                      // speed up, due to rules no need to look at upper triangle of matrices
             const double score = scoreKmer(sig[t - 1], kmerSeq[n - 1], model); // Cache scoreKmer for (t-1, n-1)
             M[tN + n] = E[tN - N + (n - 1)] + score + m1;
@@ -70,7 +72,9 @@ void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std
     for (std::size_t t = T - 1; t-- > 0;)
     {
         tN -= N;
-        for (std::size_t n = std::min(N, t + 1); n-- > 0;)
+        const std::size_t upperBound = std::min(N, t + 1);
+#pragma omp parallel for
+        for (std::size_t n = 0; n < upperBound; ++n)
         { // speed up, due to rules no need to look at upper triangle of matrices
             double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
@@ -102,6 +106,7 @@ void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std
  */
 void logP(double *LP, const double *FOR, const double *BACK, const double Z, const std::size_t S)
 {
+#pragma omp parallel for
     for (std::size_t s = 0; s < S; ++s)
     {
         LP[s] = FOR[s] + BACK[s] - Z;
@@ -127,6 +132,7 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
     const std::size_t TN = T * N;
     double *M = new double[TN];
     double *E = new double[TN];
+#pragma omp parallel for
     for (std::size_t i = 0; i < TN; ++i)
     {
         M[i] = -INFINITY;
@@ -135,7 +141,9 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
     E[0] = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        for (std::size_t n = 1; n <= t && n < N; ++n)
+        const std::size_t upperBound = std::min(t + 1, N);
+#pragma omp parallel for
+        for (std::size_t n = 1; n < upperBound; ++n)
         {                                                                                                      // speed up, due to rules no need to look at upper triangle of matrices
             M[t * N + n] = E[(t - 1) * N + (n - 1)] + LPM[t * N + n];                                          // m1
             E[t * N + n] = std::max(M[(t - 1) * N + n] + LPE[t * N + n], E[(t - 1) * N + n] + LPE[t * N + n]); // e1, e2
@@ -491,11 +499,15 @@ int main(int argc, char *argv[])
     program.add_argument("-m1", "--matchscore1").help("Segment transition probability, should be close to (expected number of nucleotdes)/(signal length). Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["m1"]);
     program.add_argument("-e1", "--extendscore1").help("First extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e1"]);
     program.add_argument("-e2", "--extendscore2").help("Further extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e2"]);
-    program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
+    program.add_argument("--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob);
+    program.add_argument("-t").help("Number of threads to use").default_value(1).scan<'i', int>();
 
     program.parse_args(argc, argv);
+
+    omp_set_dynamic(1);
+    omp_set_num_threads(program.get<int>("-t"));
 
     int kmerSize = 0;
     // load default and set parameters
@@ -575,6 +587,7 @@ int main(int argc, char *argv[])
 
     // process read N: convert std::string to int std::array
     int *kmerSeq = new int[N - 1];
+#pragma omp parallel for
     for (std::size_t n = 0; n < N - 1; ++n)
     {
         kmerSeq[n] = kmer2int(read.substr(n, kmerSize), alphabetSize);
@@ -593,6 +606,7 @@ int main(int argc, char *argv[])
     // calculate segmentation probabilities, fill backward matrices
     double *backM = new double[TN];
     double *backE = new double[TN];
+#pragma omp parallel for
     for (std::size_t i = 0; i < TN; ++i)
     {
         forM[i] = -INFINITY;
@@ -624,22 +638,42 @@ int main(int argc, char *argv[])
     if (calcZ)
     {
         std::cout << Zb << std::endl;
+        delete[] sig;
+        delete[] kmerSeq;
+        delete[] forM;
+        delete[] forE;
+        delete[] backM;
+        delete[] backE;
+        delete[] model;
     }
     else
     {
-
         // train both Transitions and Emissions
         if (train)
         {
             trainParams(sig, kmerSeq, forM, forE, backM, backE, T, N, model, alphabetSize, numKmers, kmerSize);
             std::cout << "Z:" << Zb << std::endl;
+            delete[] sig;
+            delete[] kmerSeq;
+            delete[] forM;
+            delete[] forE;
+            delete[] backM;
+            delete[] backE;
+            delete[] model;
         }
         else
         {
+            delete[] sig;
+            delete[] kmerSeq;
+            delete[] model;
             double *LPM = new double[TN];
             logP(LPM, forM, backM, Zb, TN); // log probs for segmentation
+            delete[] forM;
+            delete[] backM;
             double *LPE = new double[TN];
             logP(LPE, forE, backE, Zb, TN); // log probs for extension
+            delete[] forE;
+            delete[] backE;
             std::list<std::string> segString;
             getBorders(segString, LPM, LPE, T, N, kmerSize);
 
@@ -692,12 +726,5 @@ int main(int argc, char *argv[])
             delete[] LPE;
         }
     }
-    delete[] sig;
-    delete[] kmerSeq;
-    delete[] forM;
-    delete[] forE;
-    delete[] backM;
-    delete[] backE;
-    delete[] model;
 }
 #endif

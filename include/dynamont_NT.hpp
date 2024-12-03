@@ -17,6 +17,7 @@
 #include <cassert>
 #include <cstddef>
 #include <algorithm>
+#include <omp.h>
 #include "argparse.hpp"
 #include "utils.hpp"
 

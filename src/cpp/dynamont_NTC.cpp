@@ -40,12 +40,14 @@ std::unordered_map<std::string, double> transitions_NTK = {
  */
 void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, const double Z, const std::vector<std::size_t> &allowedKeys)
 {
+    // #pragma omp parallel for
     for (const std::size_t &tnk : allowedKeys)
     {
         // Lookup in std::unordered_map is done once per index to avoid repetitive lookups
         auto &logAPSEIRef = logAPSEI[tnk];            // index must not exist
         const auto &forAPSEIRef = forAPSEI.at(tnk);   // .at(idx) : index must exist
         const auto &backAPSEIRef = backAPSEI.at(tnk); // .at(idx) : index must exist
+#pragma omp parallel for
         for (int mat = 0; mat < NUMMAT; ++mat)
         {
             logAPSEIRef[mat] = forAPSEIRef[mat] + backAPSEIRef[mat] - Z;
@@ -66,6 +68,7 @@ void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI,
  */
 void logP(double *LP, const dproxy *forM, const dproxy *backM, const dproxy *forE, const dproxy *backE, const std::size_t S, const double Z)
 {
+#pragma omp parallel for
     for (std::size_t s = 0; s < S; ++s)
     {
         const double valM = forM[s] + backM[s] - Z;
@@ -99,7 +102,9 @@ void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const 
     for (std::size_t t = 1; t < T; ++t)
     {
         tN += N;
-        for (std::size_t n = 1; n <= t && n < N; ++n)
+        const std::size_t upperBound = std::min(N, t + 1);
+#pragma omp parallel for
+        for (std::size_t n = 1; n < upperBound; ++n)
         {
             const double sc = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);
             M[tN + n] = E[tN - N + n - 1] + sc + ppTNm;
@@ -126,7 +131,9 @@ void ppBackTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const
     for (std::size_t t = T - 1; t-- > 0;)
     { // iterates from T-2 to 0
         tN -= N;
-        for (std::size_t n = std::min(N, t + 1); n-- > 0;)
+        const std::size_t upperBound = std::min(N, t + 1);
+#pragma omp parallel for
+        for (std::size_t n = 0; n < upperBound; ++n)
         {
             double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
@@ -167,6 +174,7 @@ void ppForTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, const
     {
         const std::size_t prevTK = tK; // (t-1)*K
         tK += K;
+        // #pragma omp parallel for
         for (std::size_t k = 0; k < K; ++k)
         {
             double mat = -INFINITY;
@@ -210,7 +218,8 @@ void ppBackTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, cons
     {
         const std::size_t nexttK = tK; // (t+1)*K
         tK -= K;
-        for (std::size_t k = K; k-- > 0;)
+#pragma omp parallel for
+        for (std::size_t k = 0; k < K; ++k)
         {
             double ext = -INFINITY;
 
@@ -262,9 +271,10 @@ void preProcTN(const double *sig, const int *kmerSeq, std::unordered_map<std::si
     logP(LP, forM, backM, forE, backE, TN, Zf);
 
     // extract indices with highest probability per column, until SPARSETHRESHOLD is reached
+    std::size_t tN = -N;
     for (std::size_t t = 0; t < T; ++t)
     {
-        const std::size_t tN = t * N;
+        tN += N;
         double s = -INFINITY;
         // get indices of values in descending order
         for (const std::size_t &n : columnArgsort(LP, N, t))
@@ -329,9 +339,10 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
     logP(LP, forM, backM, forE, backE, TK, Zb);
 
     // extract indices with highest probability per column, until SPARSETHRESHOLD is reached
+    std::size_t tK = -K;
     for (std::size_t t = 0; t < T; ++t)
     {
-        const std::size_t tK = t * K;
+        tK += K;
         double s = -INFINITY;
         // get indices of values in descending order
         for (const std::size_t &k : columnArgsort(LP, K, t))
@@ -1501,14 +1512,18 @@ int main(int argc, char *argv[])
     program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p3"]);    // p2
     program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i1"]); // i1
     program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i2"]); // i2
-    program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
+    program.add_argument("--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore used to sequence the data").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
     // unused, just here to match the other modes
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob); //.store_into(prob);
+    program.add_argument("-t").help("Number of threads to use").default_value(1).scan<'i', int>();
 
     program.parse_args(argc, argv);
+
+    omp_set_dynamic(1);
+    omp_set_num_threads(program.get<int>("-t"));
 
     // load default and set parameters
     if (pore == "rna_r9")

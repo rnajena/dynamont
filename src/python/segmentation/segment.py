@@ -132,7 +132,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     
     feedSegmentationAsynchronous(
                 script,
-                {'m': modelpath, 'r' : pore},
+                {'m': modelpath, 'r' : pore, 't' : 4},
                 signal,
                 read,
                 start,
