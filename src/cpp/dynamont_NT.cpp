@@ -36,9 +36,13 @@ void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std
     for (std::size_t t = 1; t < T; ++t)
     {
         tN += N;
-        const std::size_t upperBound = std::min(t + 1, N);
+        // minor speedup
+        // arises from forward rules
+        const std::size_t upperBound = std::min(2 * t + 1, N);
+        // arises from backward rules
+        const std::size_t lowerBound = std::max(1, (int)N - 2 * (int)(T - t));
 #pragma omp parallel for
-        for (std::size_t n = 1; n < upperBound; ++n)
+        for (std::size_t n = lowerBound; n < upperBound; ++n)
         {                                                                      // speed up, due to rules no need to look at upper triangle of matrices
             const double score = scoreKmer(sig[t - 1], kmerSeq[n - 1], model); // Cache scoreKmer for (t-1, n-1)
             M[tN + n] = E[tN - N + (n - 1)] + score + m1;
@@ -72,9 +76,13 @@ void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std
     for (std::size_t t = T - 1; t-- > 0;)
     {
         tN -= N;
-        const std::size_t upperBound = std::min(N, t + 1);
+        // minor speedup
+        // arises from forward rules
+        const std::size_t upperBound = std::min(2 * t + 1, N);
+        // arises from backward rules
+        const std::size_t lowerBound = std::max(0, (int)N - 2 * (int)(T - t));
 #pragma omp parallel for
-        for (std::size_t n = 0; n < upperBound; ++n)
+        for (std::size_t n = lowerBound; n < upperBound; ++n)
         { // speed up, due to rules no need to look at upper triangle of matrices
             double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
