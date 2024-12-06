@@ -36,13 +36,8 @@ void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std
     for (std::size_t t = 1; t < T; ++t)
     {
         tN += N;
-        // minor speedup
-        // arises from forward rules
-        const std::size_t upperBound = std::min(2 * t + 1, N);
-        // arises from backward rules
-        const std::size_t lowerBound = std::max(1, (int)N - 2 * (int)(T - t));
 #pragma omp parallel for
-        for (std::size_t n = lowerBound; n < upperBound; ++n)
+        for (std::size_t n = 1; n < N; ++n)
         {                                                                      // speed up, due to rules no need to look at upper triangle of matrices
             const double score = scoreKmer(sig[t - 1], kmerSeq[n - 1], model); // Cache scoreKmer for (t-1, n-1)
             M[tN + n] = E[tN - N + (n - 1)] + score + m1;
@@ -76,13 +71,8 @@ void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std
     for (std::size_t t = T - 1; t-- > 0;)
     {
         tN -= N;
-        // minor speedup
-        // arises from forward rules
-        const std::size_t upperBound = std::min(2 * t + 1, N);
-        // arises from backward rules
-        const std::size_t lowerBound = std::max(0, (int)N - 2 * (int)(T - t));
 #pragma omp parallel for
-        for (std::size_t n = lowerBound; n < upperBound; ++n)
+        for (std::size_t n = 0; n < N; ++n)
         { // speed up, due to rules no need to look at upper triangle of matrices
             double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
@@ -147,14 +137,18 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
         E[i] = -INFINITY;
     }
     E[0] = 0;
+    std::size_t tN = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        const std::size_t upperBound = std::min(t + 1, N);
+        tN += N;
 #pragma omp parallel for
-        for (std::size_t n = 1; n < upperBound; ++n)
-        {                                                                                                      // speed up, due to rules no need to look at upper triangle of matrices
-            M[t * N + n] = E[(t - 1) * N + (n - 1)] + LPM[t * N + n];                                          // m1
-            E[t * N + n] = std::max(M[(t - 1) * N + n] + LPE[t * N + n], E[(t - 1) * N + n] + LPE[t * N + n]); // e1, e2
+        for (std::size_t n = 1; n < N; ++n)
+        {
+            const std::size_t prevIdx = tN - N + n;
+            const std::size_t currentIdx = tN + n;
+            // Compute M and E values
+            M[currentIdx] = E[prevIdx - 1] + LPM[currentIdx];                                     // m1
+            E[currentIdx] = std::max(M[prevIdx] + LPE[currentIdx], E[prevIdx] + LPE[currentIdx]); // e1, e2
         }
     }
     // std::vector<double> segProb;

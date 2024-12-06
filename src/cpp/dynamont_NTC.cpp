@@ -102,9 +102,8 @@ void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const 
     for (std::size_t t = 1; t < T; ++t)
     {
         tN += N;
-        const std::size_t upperBound = std::min(N, t + 1);
 #pragma omp parallel for
-        for (std::size_t n = 1; n < upperBound; ++n)
+        for (std::size_t n = 1; n < N; ++n)
         {
             const double sc = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);
             M[tN + n] = E[tN - N + n - 1] + sc + ppTNm;
@@ -131,9 +130,8 @@ void ppBackTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const
     for (std::size_t t = T - 1; t-- > 0;)
     { // iterates from T-2 to 0
         tN -= N;
-        const std::size_t upperBound = std::min(N, t + 1);
 #pragma omp parallel for
-        for (std::size_t n = 0; n < upperBound; ++n)
+        for (std::size_t n = 0; n < N; ++n)
         {
             double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
