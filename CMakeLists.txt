@@ -26,34 +26,41 @@ set(INSTALL_GTEST OFF CACHE BOOL "Disable GTest installation" FORCE)
 # Add the include directory to the search path
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# Add library files
-add_library(dynamont_lib src/cpp/utils.cpp)
-# target_include_directories(dynamont_lib PRIVATE ${PROJECT_SOURCE_DIR}/include)
-
 # Create the first executable dynamont-NT
-add_executable(dynamont-NT src/cpp/dynamont_NT.cpp)
-# Link dynamont_lib to dynamont-NT
-target_link_libraries(dynamont-NT PRIVATE dynamont_lib)
+add_library(NT_library src/cpp/utils.cpp src/cpp/NT.cpp)
+add_executable(dynamont-NT src/cpp/NT_main.cpp)
+target_link_libraries(dynamont-NT PRIVATE NT_library)
 if(OpenMP_CXX_FOUND)
   target_link_libraries(dynamont-NT PUBLIC OpenMP::OpenMP_CXX)
 endif()
-# Include header files for dynamont_lib
+# Include header files for NT_library
 target_include_directories(dynamont-NT PRIVATE include)
 
 # Create the second executable dynamont-NTC
-add_executable(dynamont-NTC src/cpp/dynamont_NTC.cpp)
-# Link dynamont_lib to dynamont-NTC
-target_link_libraries(dynamont-NTC PRIVATE dynamont_lib)
+add_library(NTC_library src/cpp/utils.cpp src/cpp/NTC.cpp)
+add_executable(dynamont-NTC src/cpp/NTC_main.cpp)
+# Link NTC_library to dynamont-NTC
+target_link_libraries(dynamont-NTC PRIVATE NTC_library)
 if(OpenMP_CXX_FOUND)
   target_link_libraries(dynamont-NTC PUBLIC OpenMP::OpenMP_CXX)
 endif()
-# Include header files for dynamont_lib
+# Include header files for NTC_library
 target_include_directories(dynamont-NTC PRIVATE include)
 
+# Create the second executable dynamont-NT-banded
+add_library(NT_banded_library src/cpp/utils.cpp src/cpp/NT_banded.cpp)
+add_executable(dynamont-NT-banded src/cpp/NT_banded_main.cpp)
+# Link NT_banded_library to dynamont-NTbanded
+target_link_libraries(dynamont-NT-banded PRIVATE NT_banded_library)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(dynamont-NT-banded PUBLIC OpenMP::OpenMP_CXX)
+endif()
+# Include header files for NT_banded_library
+target_include_directories(dynamont-NT-banded PRIVATE include)
 
 # Create the test executable
 # need global variables from dynamont-NTC.cpp
-add_executable(test_dynamont test/test.cpp src/cpp/dynamont_NTC.cpp)
+add_executable(test_dynamont test/test.cpp src/cpp/NTC.cpp)
 # exclude main from dynamont-NTC.cpp with UNIT_TESTING definition
 target_compile_definitions(test_dynamont PRIVATE UNIT_TESTING)
 # add GTest
@@ -61,7 +68,7 @@ find_package(GTest REQUIRED)
 # Link GTest
 target_link_libraries(test_dynamont PRIVATE GTest::GTest GTest::Main)
 # Link dynamont_lib to the test executable
-target_link_libraries(test_dynamont PRIVATE dynamont_lib)
+target_link_libraries(test_dynamont PRIVATE NTC_library)
 if(OpenMP_CXX_FOUND)
   target_link_libraries(test_dynamont PUBLIC OpenMP::OpenMP_CXX)
 endif()
@@ -73,4 +80,5 @@ add_test(NAME DynamontTests COMMAND test_dynamont)
 # Specify installation location
 install(TARGETS dynamont-NT DESTINATION bin)
 install(TARGETS dynamont-NTC DESTINATION bin)
+install(TARGETS dynamont-NT-banded DESTINATION bin)
 install(TARGETS test_dynamont DESTINATION bin)
