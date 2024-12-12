@@ -21,8 +21,6 @@
 #include "argparse.hpp"
 #include "utils.hpp"
 
-extern constexpr double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
-
 // Asserts doubleing point compatibility at compile time
 // necessary for INFINITY usage
 static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
@@ -43,7 +41,7 @@ static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
  * @param N Length of nucleotide sequence + 1.
  * @param model Vector containing kmers as keys and (mean, stdev) tuples as values.
  */
-void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
+void logF_NT(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
 
 /**
  * Computes backward matrices using logarithmic values for signal processing.
@@ -61,21 +59,7 @@ void logF(const double *sig, const int *kmerSeq, double *M, double *E, const std
  * @param N Length of nucleotide sequence + 1.
  * @param model Vector containing kmers as keys and (mean, stdev) tuples as values.
  */
-void logB(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
-
-/**
- * Calculate the logarithmic probability matrix
- *
- * @param LP Matrix to store the logarithmic probabilities.
- * @param FOR Matrix containing forward-values for segment borders.
- * @param BACK Matrix containing backward-values for extending segment.
- * @param Z Alignment score.
- * @param S Size of matrix.
- *
- * This function calculates the logarithmic probability matrix for a given forward and backward
- * matrix by adding the values of the forward and backward matrix and subtracting the alignment score.
- */
-void logP(double *LP, const double *FOR, const double *BACK, const double Z, const std::size_t S);
+void logB_NT(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model);
 
 /**
  * Calculate the maximum a posteriori path through logarithmic probability matrices.

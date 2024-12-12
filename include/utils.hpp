@@ -3,15 +3,9 @@
 // github: https://github.com/JannesSP
 // website: https://jannessp.github.io
 
-// ===============================================================
-// ===============================================================
-// =========================== Utility ===========================
-// ===============================================================
-// ===============================================================
-
 #pragma once
 
-#include <unordered_map>
+#include <map>
 #include <vector>
 #include <array>
 #include <fstream>   // file io
@@ -24,124 +18,29 @@
 #include <filesystem> // std::filesystem::exists
 #include <iostream>
 
+extern const double EPSILON; // chose by eye just to distinguish real errors from numeric errors
+extern bool rna;
+
 // default params for NTK
-const std::unordered_map<std::string, double> NTK_rna_r9_transitions = {
-    {"a1", 0.012252440188168037},
-    {"a2", 0.246584724985145},
-    {"p1", 0.04477093133243305},
-    {"p2", 0.007687811003133089},
-    {"p3", 0.4469623669791557},
-    {"s1", 0.05321209670114726},
-    {"s2", 0.0007555035568187239},
-    {"s3", 0.21999557711272136},
-    {"e1", 1.0},
-    {"e2", 0.9467879033992115},
-    {"e3", 0.9552290685034269},
-    {"e4", 0.9792321612614708},
-    {"i1", 7.208408117990252e-05},
-    {"i2", 0.08645733058947891}};
-const std::unordered_map<std::string, double> NTK_rna_rp4_transitions = {
-    {"a1", 1.0},
-    {"a2", 1.0},
-    {"p1", 1.0},
-    {"p2", 1.0},
-    {"p3", 1.0},
-    {"s1", 1.0},
-    {"s2", 1.0},
-    {"s3", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0},
-    {"e3", 1.0},
-    {"e4", 1.0},
-    {"i1", 1.0},
-    {"i2", 1.0}};
-const std::unordered_map<std::string, double> NTK_dna_r9_transitions = {
-    {"a1", 1.0},
-    {"a2", 1.0},
-    {"p1", 1.0},
-    {"p2", 1.0},
-    {"p3", 1.0},
-    {"s1", 1.0},
-    {"s2", 1.0},
-    {"s3", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0},
-    {"e3", 1.0},
-    {"e4", 1.0},
-    {"i1", 1.0},
-    {"i2", 1.0}};
-const std::unordered_map<std::string, double> NTK_dna_r10_260bps_transitions = {
-    {"a1", 1.0},
-    {"a2", 1.0},
-    {"p1", 1.0},
-    {"p2", 1.0},
-    {"p3", 1.0},
-    {"s1", 1.0},
-    {"s2", 1.0},
-    {"s3", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0},
-    {"e3", 1.0},
-    {"e4", 1.0},
-    {"i1", 1.0},
-    {"i2", 1.0}};
-const std::unordered_map<std::string, double> NTK_dna_r10_400bps_transitions = {
-    {"a1", 1.0},
-    {"a2", 1.0},
-    {"p1", 1.0},
-    {"p2", 1.0},
-    {"p3", 1.0},
-    {"s1", 1.0},
-    {"s2", 1.0},
-    {"s3", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0},
-    {"e3", 1.0},
-    {"e4", 1.0},
-    {"i1", 1.0},
-    {"i2", 1.0}};
+extern const std::map<std::string, double> NTK_rna_r9_transitions;
+extern const std::map<std::string, double> NTK_rna_rp4_transitions;
+extern const std::map<std::string, double> NTK_dna_r9_transitions;
+extern const std::map<std::string, double> NTK_dna_r10_260bps_transitions;
+extern const std::map<std::string, double> NTK_dna_r10_400bps_transitions;
 
 // default params for NT
-const std::unordered_map<std::string, double> NT_rna_r9_transitions = {
-    {"m1", 0.03},
-    {"e1", 1.0},
-    {"e2", 0.97}};
-const std::unordered_map<std::string, double> NT_rna_rp4_transitions = {
-    {"m1", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0}};
-const std::unordered_map<std::string, double> NT_dna_r9_transitions = {
-    {"m1", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0}};
-const std::unordered_map<std::string, double> NT_dna_r10_260bps_transitions = {
-    {"m1", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0}};
-const std::unordered_map<std::string, double> NT_dna_r10_400bps_transitions = {
-    {"m1", 1.0},
-    {"e1", 1.0},
-    {"e2", 1.0}};
+extern const std::map<std::string, double> NT_rna_r9_transitions;
+extern const std::map<std::string, double> NT_rna_rp4_transitions;
+extern const std::map<std::string, double> NT_dna_r9_transitions;
+extern const std::map<std::string, double> NT_dna_r10_260bps_transitions;
+extern const std::map<std::string, double> NT_dna_r10_400bps_transitions;
 
-const std::unordered_map<char, int> BASE2ID = {
-    {'A', 0},
-    {'a', 0},
-    {'C', 1},
-    {'c', 1},
-    {'G', 2},
-    {'g', 2},
-    {'T', 3},
-    {'t', 3},
-    {'U', 3},
-    {'u', 3},
-    {'N', 4},
-    {'n', 4}}; // Nucleotide : Token map
-const std::unordered_map<int, char> ID2BASE = {
-    {'0', 'A'},
-    {'1', 'C'},
-    {'2', 'G'},
-    {'3', 'T'},
-    {'4', 'N'}}; // Token : Nucleotide map
+// updatable maps
+extern std::map<std::string, double> transitions_NT;
+extern std::map<std::string, double> transitions_NTK;
+
+extern const std::map<char, int> BASE2ID;
+extern const std::map<int, char> ID2BASE;
 
 // https://stackoverflow.com/questions/72807569/set-default-value-of-unordered-map-if-key-doesnt-exist/72807851#72807851
 // workaround to change default double value in map from 0 to -INFINITY
@@ -329,7 +228,7 @@ inline double scoreKmer(const double signal, const std::size_t kmer, const std::
  * @param newVals A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double> &defaultVals, std::unordered_map<std::string, double> &newVals);
+void updateTransitions(const std::map<std::string, double> &defaultVals, std::map<std::string, double> &newVals);
 
 /**
  * @brief Calculates the median of a given std::vector of double values.
@@ -368,6 +267,26 @@ double calculateMedian(std::vector<double> &vec);
  * // medianStr will be "3.00000"
  */
 std::string formattedMedian(std::vector<double> &vec);
+
+/**
+ * Calculate the logarithmic probability matrix
+ *
+ * @param LP Matrix to store the logarithmic probabilities.
+ * @param FOR Matrix containing forward-values for segment borders.
+ * @param BACK Matrix containing backward-values for extending segment.
+ * @param Z Alignment score.
+ * @param S Size of matrix.
+ *
+ * This function calculates the logarithmic probability matrix for a given forward and backward
+ * matrix by adding the values of the forward and backward matrix and subtracting the alignment score.
+ */
+void logP(double *LP, const double *FOR, const double *BACK, const double Z, const std::size_t S);
+
+// ===============================================================
+// ===============================================================
+// ========================= IO Checks ===========================
+// ===============================================================
+// ===============================================================
 
 void checkModelpath(std::string modelpath);
 

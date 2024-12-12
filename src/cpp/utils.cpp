@@ -3,13 +3,149 @@
 // github: https://github.com/JannesSP
 // website: https://jannessp.github.io
 
-// ===============================================================
-// ===============================================================
-// =========================== Utility ===========================
-// ===============================================================
-// ===============================================================
-
 #include "utils.hpp"
+
+const double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
+bool rna;
+
+const std::map<std::string, double> NTK_rna_r9_transitions = {
+    {"a1", 0.012252440188168037},
+    {"a2", 0.246584724985145},
+    {"p1", 0.04477093133243305},
+    {"p2", 0.007687811003133089},
+    {"p3", 0.4469623669791557},
+    {"s1", 0.05321209670114726},
+    {"s2", 0.0007555035568187239},
+    {"s3", 0.21999557711272136},
+    {"e1", 1.0},
+    {"e2", 0.9467879033992115},
+    {"e3", 0.9552290685034269},
+    {"e4", 0.9792321612614708},
+    {"i1", 7.208408117990252e-05},
+    {"i2", 0.08645733058947891}};
+const std::map<std::string, double> NTK_rna_rp4_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}};
+const std::map<std::string, double> NTK_dna_r9_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}};
+const std::map<std::string, double> NTK_dna_r10_260bps_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}};
+const std::map<std::string, double> NTK_dna_r10_400bps_transitions = {
+    {"a1", 1.0},
+    {"a2", 1.0},
+    {"p1", 1.0},
+    {"p2", 1.0},
+    {"p3", 1.0},
+    {"s1", 1.0},
+    {"s2", 1.0},
+    {"s3", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0},
+    {"e3", 1.0},
+    {"e4", 1.0},
+    {"i1", 1.0},
+    {"i2", 1.0}};
+
+// default params for NT
+const std::map<std::string, double> NT_rna_r9_transitions = {
+    {"m1", 0.03},
+    {"e1", 1.0},
+    {"e2", 0.97}};
+const std::map<std::string, double> NT_rna_rp4_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}};
+const std::map<std::string, double> NT_dna_r9_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}};
+const std::map<std::string, double> NT_dna_r10_260bps_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}};
+const std::map<std::string, double> NT_dna_r10_400bps_transitions = {
+    {"m1", 1.0},
+    {"e1", 1.0},
+    {"e2", 1.0}};
+
+const std::map<char, int> BASE2ID = {
+    {'A', 0},
+    {'a', 0},
+    {'C', 1},
+    {'c', 1},
+    {'G', 2},
+    {'g', 2},
+    {'T', 3},
+    {'t', 3},
+    {'U', 3},
+    {'u', 3},
+    {'N', 4},
+    {'n', 4}}; // Nucleotide : Token map
+const std::map<int, char> ID2BASE = {
+    {'0', 'A'},
+    {'1', 'C'},
+    {'2', 'G'},
+    {'3', 'T'},
+    {'4', 'N'}}; // Token : Nucleotide map
+
+std::map<std::string, double> transitions_NT = {
+    {"m1", -1.0},
+    {"e1", -1.0},
+    {"e2", -1.0}};
+std::map<std::string, double> transitions_NTK = {
+    {"a1", -1.0},
+    {"a2", -1.0},
+    {"p1", -1.0},
+    {"p2", -1.0},
+    {"p3", -1.0},
+    {"s1", -1.0},
+    {"s2", -1.0},
+    {"s3", -1.0},
+    {"e1", -1.0},
+    {"e2", -1.0},
+    {"e3", -1.0},
+    {"e4", -1.0},
+    {"i1", -1.0},
+    {"i2", -1.0},
+    {"e1", -1.0}};
 
 /**
  * Sorts the column indices of a row-major-indexed double matrix.
@@ -196,9 +332,9 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
  * @param newVals A map containing current transition values (std::string keys and double values).
  *                    This map is updated with logarithmic values during the function execution.
  */
-void updateTransitions(const std::unordered_map<std::string, double> &defaultVals, std::unordered_map<std::string, double> &newVals)
+void updateTransitions(const std::map<std::string, double> &defaultVals, std::map<std::string, double> &newVals)
 {
-    // Iterate over each transition in the 'newVals' std::unordered_map
+    // Iterate over each transition in the 'newVals' std::map
     for (const auto &[param, value] : newVals)
     {
         // Check if the transition value is -1, which indicates it should use the default value
@@ -228,7 +364,7 @@ void updateTransitions(const std::unordered_map<std::string, double> &defaultVal
  * @example
  * std::vector<double> values = {1.0, 2.0, 3.0, 4.0, 5.0};
  * double median = calculateMedian(values);
- * // median will be 3.0
+ * median will be 3.0
  */
 double calculateMedian(std::vector<double> &vec)
 {
@@ -268,7 +404,6 @@ double calculateMedian(std::vector<double> &vec)
  * @example
  * std::vector<double> values = {1.0, 2.0, 3.0, 4.0, 5.0};
  * std::string medianStr = formattedMedian(values);
- * // medianStr will be "3.00000"
  */
 std::string formattedMedian(std::vector<double> &vec)
 {
@@ -281,6 +416,33 @@ std::string formattedMedian(std::vector<double> &vec)
 
     return out.str();
 }
+
+/**
+ * Calculate the logarithmic probability matrix
+ *
+ * @param LP Matrix to store the logarithmic probabilities.
+ * @param FOR Matrix containing forward-values for segment borders.
+ * @param BACK Matrix containing backward-values for extending segment.
+ * @param Z Alignment score.
+ * @param S Size of matrix.
+ *
+ * This function calculates the logarithmic probability matrix for a given forward and backward
+ * matrix by adding the values of the forward and backward matrix and subtracting the alignment score.
+ */
+void logP(double *LP, const double *FOR, const double *BACK, const double Z, const std::size_t S)
+{
+#pragma omp parallel for
+    for (std::size_t s = 0; s < S; ++s)
+    {
+        LP[s] = FOR[s] + BACK[s] - Z;
+    }
+}
+
+// ===============================================================
+// ===============================================================
+// ========================= IO Checks ===========================
+// ===============================================================
+// ===============================================================
 
 void checkModelpath(std::string modelpath)
 {
