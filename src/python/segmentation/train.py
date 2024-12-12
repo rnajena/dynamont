@@ -73,18 +73,12 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
     if mode == 'basic':
         CPP_SCRIPT = 'dynamont-NT'
+        # CPP_SCRIPT = 'dynamont-NT-banded'
         transitionParams = {
             'e1': 1.0,
             'm1': 0.03,
             'e2': 0.97
             }
-    # elif mode == 'banded':
-    #     mode = 'dynamont_NT_banded'
-    #     transitionParams = {
-    #         'e1': 1.0,
-    #         'm1': 0.03,
-    #         'e2': 0.97
-    #         }
     elif mode == 'resquiggle':
         CPP_SCRIPT = 'dynamont-NTC'
         transitionParams = {

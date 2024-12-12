@@ -242,14 +242,15 @@ def main() -> None:
 
     match args.mode:
         case "basic":
-            SCRIPT = 'dynamont-NT'
+            # SCRIPT = 'dynamont-NT'
+            CPP_SCRIPT = 'dynamont-NT-banded'
         case "resquiggle":
-            SCRIPT = 'dynamont-NTC'
+            CPP_SCRIPT = 'dynamont-NTC'
 
     if name == 'nt': # check for windows
-        SCRIPT+='.exe'
+        CPP_SCRIPT+='.exe'
 
-    segment(args.raw, args.basecalls, args.processes, SCRIPT, outfile, args.model_path, args.pore, args.qscore)
+    segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, args.model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
     main()

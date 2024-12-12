@@ -181,7 +181,8 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     kmerModels = pd.read_csv(modelPath, sep='\t', index_col = "kmer")
 
     if mode == 'basic':
-        CPP_SCRIPT = 'dynamont-NT'
+        # CPP_SCRIPT = 'dynamont-NT'
+        CPP_SCRIPT = 'dynamont-NT-banded'
         # CPP_SCRIPT = "/home/yi98suv/projects/dynamont/dynamont_NT_heatmap"
         PARAMS = {
             'e1': 1.0,
