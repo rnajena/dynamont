@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #include "utils.hpp"
-#include "dynamont_NTC.hpp"
+#include "NTC.hpp"
 
 TEST(Scorehd, shouldComputeCorrectScoreHDFor5merValues)
 {
@@ -358,8 +358,8 @@ TEST(Calculatemedian, EmptyVector)
 TEST(Updatetransitions, ShouldFetchDefaultValuesCorrectlyFromDefaultTransitionsVals)
 {
     // Given
-    std::unordered_map<std::string, double> defaultVals = {{"a", 5.0}, {"b", 6.0}};
-    std::unordered_map<std::string, double> newVals = {{"a", -1.0}, {"b", -1.0}};
+    std::map<std::string, double> defaultVals = {{"a", 5.0}, {"b", 6.0}};
+    std::map<std::string, double> newVals = {{"a", -1.0}, {"b", -1.0}};
 
     // When
     updateTransitions(defaultVals, newVals);
@@ -373,8 +373,8 @@ TEST(Updatetransitions, ShouldFetchDefaultValuesCorrectlyFromDefaultTransitionsV
 TEST(Updatetransitions, ShouldApplyLogarithmicTransformationToAllTransitionValues)
 {
     // Given
-    std::unordered_map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
-    std::unordered_map<std::string, double> newVals = {{"a", 4.0}, {"b", 9.0}};
+    std::map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
+    std::map<std::string, double> newVals = {{"a", 4.0}, {"b", 9.0}};
 
     // When
     updateTransitions(defaultVals, newVals);
@@ -388,8 +388,8 @@ TEST(Updatetransitions, ShouldApplyLogarithmicTransformationToAllTransitionValue
 TEST(Updatetransitions, ShouldHandleEmptyTransitionsMapWithoutErrors)
 {
     // Given
-    std::unordered_map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
-    std::unordered_map<std::string, double> newVals;
+    std::map<std::string, double> defaultVals = {{"a", 2.0}, {"b", 3.0}};
+    std::map<std::string, double> newVals;
 
     // When
     updateTransitions(defaultVals, newVals);
