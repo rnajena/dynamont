@@ -53,7 +53,9 @@ TODO
 
 ## Exit-Codes
 
-- -9: Out of Memory error. Deacrease the number of processes or move to a system with more memory.
+- -11: Segmentation fault
+- -9: Out of Memory error. Decrease the number of processes or move to a system with more memory.
+- -6: std::bad_alloc
 - 1: `dynamont-NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and read (N) in function: `preProcTN`
 - 2: `dynamont-NTK` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and de novo calling (K) in function: `preProcTK`
 - 3: Alignment score (Z) does not match between forward and backward run in `main` function or is -Infinity

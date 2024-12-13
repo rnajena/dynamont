@@ -395,16 +395,20 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     sns.lineplot(df, x='Distance Threshold', y='Found Change Points', hue='Tool', style='Tool')
     plt.title("Found Change Points vs Directional Distance Threshold", fontsize=18)
     plt.savefig(outfile + "foundEdgesDirectional.svg", dpi=300)
+    plt.savefig(outfile + "foundEdgesDirectional.pdf", dpi=300)
     plt.xlim((-10, 10))
     plt.savefig(outfile + "foundEdgesDirectional_-10-10.svg", dpi=300)
+    plt.savefig(outfile + "foundEdgesDirectional_-10-10.pdf", dpi=300)
     plt.close()
     
     plt.figure(figsize=(8,8), dpi=300)
     sns.lineplot(df, x='Distance Threshold', y='Found Change Points Ratio', hue='Tool', style='Tool')
     plt.title("Found Change Point Ratios vs Directional Distance Threshold", fontsize=18)
     plt.savefig(outfile + "foundEdgesRatioDirectional.svg", dpi=300)
+    plt.savefig(outfile + "foundEdgesRatioDirectional.pdf", dpi=300)
     plt.xlim((-10, 10))
     plt.savefig(outfile + "foundEdgesRatioDirectional_-10-10.svg", dpi=300)
+    plt.savefig(outfile + "foundEdgesRatioDirectional_-10-10.pdf", dpi=300)
     plt.close()
 
     # get counts for undirectional absolute threshold
@@ -429,8 +433,10 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     sns.lineplot(cumulativeDistance, x='Absolute Distance', y='Found Change Points Ratio', hue='Tool', style='Tool')
     plt.title("Found Change Point Ratios vs Absolute Distance Threshold", fontsize=18)
     plt.savefig(outfile + "foundEdgesRatio.svg", dpi=300)
+    plt.savefig(outfile + "foundEdgesRatio.pdf", dpi=300)
     plt.xlim((0, 10))
     plt.savefig(outfile + "foundEdgesRatio_0-10.svg", dpi=300)
+    plt.savefig(outfile + "foundEdgesRatio_0-10.pdf", dpi=300)
     plt.close()
 
     plt.figure(figsize=(10,5), dpi=300)
@@ -447,6 +453,7 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     plt.tight_layout()
     plt.title("Ratio Of Segmented Reads Per Tool", fontsize=18)
     plt.savefig(outfile + "segmentedReadsRatio.svg", dpi=300)
+    plt.savefig(outfile + "segmentedReadsRatio.pdf", dpi=300)
     plt.close()
 
 def generateControl(bamFile : str) -> tuple:

@@ -3,28 +3,11 @@
 // github: https://github.com/JannesSP
 // website: https://jannessp.github.io
 
-#include "dynamont_NTC.hpp"
+#include "NTC.hpp"
 
 std::size_t TNK, NK;
 double ppTNm, ppTNe, ppTKm, ppTKe;
 int alphabetSize, kmerSize, halfKmerSize, stepSize;
-bool rna;
-std::unordered_map<std::string, double> transitions_NTK = {
-    {"a1", -1.0},
-    {"a2", -1.0},
-    {"p1", -1.0},
-    {"p2", -1.0},
-    {"p3", -1.0},
-    {"s1", -1.0},
-    {"s2", -1.0},
-    {"s3", -1.0},
-    {"e1", -1.0},
-    {"e2", -1.0},
-    {"e3", -1.0},
-    {"e4", -1.0},
-    {"i1", -1.0},
-    {"i2", -1.0},
-    {"e1", -1.0}};
 
 /**
  * Computes the posterior probabilities for a hidden Markov model (HMM) using
@@ -40,12 +23,14 @@ std::unordered_map<std::string, double> transitions_NTK = {
  */
 void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &backAPSEI, const double Z, const std::vector<std::size_t> &allowedKeys)
 {
+    // #pragma omp parallel for
     for (const std::size_t &tnk : allowedKeys)
     {
         // Lookup in std::unordered_map is done once per index to avoid repetitive lookups
         auto &logAPSEIRef = logAPSEI[tnk];            // index must not exist
         const auto &forAPSEIRef = forAPSEI.at(tnk);   // .at(idx) : index must exist
         const auto &backAPSEIRef = backAPSEI.at(tnk); // .at(idx) : index must exist
+#pragma omp parallel for
         for (int mat = 0; mat < NUMMAT; ++mat)
         {
             logAPSEIRef[mat] = forAPSEIRef[mat] + backAPSEIRef[mat] - Z;
@@ -66,6 +51,7 @@ void logP(std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI,
  */
 void logP(double *LP, const dproxy *forM, const dproxy *backM, const dproxy *forE, const dproxy *backE, const std::size_t S, const double Z)
 {
+#pragma omp parallel for
     for (std::size_t s = 0; s < S; ++s)
     {
         const double valM = forM[s] + backM[s] - Z;
@@ -95,10 +81,12 @@ void logP(double *LP, const dproxy *forM, const dproxy *backM, const dproxy *for
 void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     E[0] = 0;
+    std::size_t tN = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        const std::size_t tN = t * N;
-        for (std::size_t n = 1; n <= t && n < N; ++n)
+        tN += N;
+#pragma omp parallel for
+        for (std::size_t n = 1; n < N; ++n)
         {
             const double sc = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);
             M[tN + n] = E[tN - N + n - 1] + sc + ppTNm;
@@ -121,23 +109,24 @@ void ppForTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const 
 void ppBackTN(const double *sig, const int *kmerSeq, dproxy *M, dproxy *E, const std::size_t T, const std::size_t N, const std::tuple<double, double> *model)
 {
     E[T * N - 1] = 0;
+    std::size_t tN = (T - 1) * N;
     for (std::size_t t = T - 1; t-- > 0;)
     { // iterates from T-2 to 0
-        const std::size_t tN = t * N;
-        for (std::size_t n = std::min(N, t + 1); n-- > 0;)
+        tN -= N;
+#pragma omp parallel for
+        for (std::size_t n = 0; n < N; ++n)
         {
-            double mat = -INFINITY, ext = -INFINITY;
+            double ext = -INFINITY;
             if (n + 1 < N) [[likely]]
             {
-                ext = logPlus(ext, M[tN + N + n + 1] + scoreKmer(sig[t], kmerSeq[n], model) + ppTNm);
+                ext = M[tN + N + n + 1] + scoreKmer(sig[t], kmerSeq[n], model) + ppTNm;
             }
             if (n > 0) [[likely]]
             {
                 const double sc = scoreKmer(sig[t], kmerSeq[n - 1], model);
-                mat = logPlus(mat, E[tN + N + n] + sc);         // e1 first extend
+                M[tN + n] = E[tN + N + n] + sc;                 // e1 first extend
                 ext = logPlus(ext, E[tN + N + n] + sc + ppTNe); // e2 extend further
             }
-            M[tN + n] = mat;
             E[tN + n] = ext;
         }
     }
@@ -161,10 +150,12 @@ void ppForTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, const
     {
         E[k] = 0.0;
     }
+    std::size_t tK = 0;
     for (std::size_t t = 1; t < T; ++t)
     {
-        const std::size_t tK = t * K;
-        const std::size_t prevTK = tK - K; // (t-1)*K
+        const std::size_t prevTK = tK; // (t-1)*K
+        tK += K;
+        // #pragma omp parallel for
         for (std::size_t k = 0; k < K; ++k)
         {
             double mat = -INFINITY;
@@ -203,11 +194,13 @@ void ppBackTK(const double *sig, dproxy *M, dproxy *E, const std::size_t T, cons
     {
         E[(T - 1) * K + k] = 0.0;
     }
+    std::size_t tK = (T - 1) * K;
     for (std::size_t t = T - 1; t-- > 0;)
     {
-        const std::size_t tK = t * K;
-        const std::size_t nexttK = tK + K; // (t+1)*K
-        for (std::size_t k = K; k-- > 0;)
+        const std::size_t nexttK = tK; // (t+1)*K
+        tK -= K;
+#pragma omp parallel for
+        for (std::size_t k = 0; k < K; ++k)
         {
             double ext = -INFINITY;
 
@@ -259,9 +252,10 @@ void preProcTN(const double *sig, const int *kmerSeq, std::unordered_map<std::si
     logP(LP, forM, backM, forE, backE, TN, Zf);
 
     // extract indices with highest probability per column, until SPARSETHRESHOLD is reached
+    std::size_t tN = -N;
     for (std::size_t t = 0; t < T; ++t)
     {
-        const std::size_t tN = t * N;
+        tN += N;
         double s = -INFINITY;
         // get indices of values in descending order
         for (const std::size_t &n : columnArgsort(LP, N, t))
@@ -326,9 +320,10 @@ void preProcTK(const double *sig, std::unordered_map<std::size_t, std::unordered
     logP(LP, forM, backM, forE, backE, TK, Zb);
 
     // extract indices with highest probability per column, until SPARSETHRESHOLD is reached
+    std::size_t tK = -K;
     for (std::size_t t = 0; t < T; ++t)
     {
-        const std::size_t tK = t * K;
+        tK += K;
         double s = -INFINITY;
         // get indices of values in descending order
         for (const std::size_t &k : columnArgsort(LP, K, t))
@@ -420,7 +415,7 @@ std::vector<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const
  * @param K The number of k-mers.
  * @param model array containing tuples of model parameters.
  */
-void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model)
+void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t K, const std::tuple<double, double> *model)
 {
     std::array<dproxy, NUMMAT> forAPSEIRef;
     for (const std::size_t &tnk : allowedKeys)
@@ -910,281 +905,6 @@ void traceback(std::size_t t, std::size_t n, std::size_t k,
 }
 
 /**
- * @brief Backtracing function for A state.
- *
- * This function backtraces the A state.
- * It checks which state was the previous state and calls the corresponding function.
- * If no match is found, it outputs an error message.
- *
- * @param t Current time index.
- * @param n Current segment index.
- * @param k Current kmer index.
- * @param APSEI The 2D array of scores.
- * @param logAPSEI The 2D array of log scores.
- * @param segString The list to store the segment strings.
- * @param K number of kemrs
- * @param segProb The vector to store the segment probabilities.
- *
- * @details
- * This function backtraces the A state.
- * It checks which state was the previous state and calls the corresponding function.
- * If no match is found, it outputs an error message.
- */
-// void funcA(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-// {
-//     const std::size_t currentIdx = t * NK + n * K + k;
-//     const std::size_t prevIdx = (t - 1) * NK + (n - 1) * K;
-//     // Cache the sc value to avoid redundant lookups
-//     const double sc = APSEI[currentIdx][0];
-//     const double logScore = logAPSEI[currentIdx][0];
-//     segProb.push_back(exp(logScore));
-//     if (t == 1 && n == 1)
-//     {
-//         // Start value
-//         segString.push_front("M" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//         return;
-//     }
-//     for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
-//     {
-//         if (t > 1 && n > 1)
-//         {
-//             // Check match with E state
-//             if (sc == APSEI[prevIdx + preKmer][3] + logScore)
-//             {
-//                 segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//                 segProb.clear();
-//                 return funcE(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
-//             }
-//             // Check match with I state
-//             if (sc == APSEI[prevIdx + preKmer][4] + logScore)
-//             {
-//                 segString.push_front("M" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//                 segProb.clear();
-//                 return funcI(t - 1, n - 1, preKmer, APSEI, logAPSEI, segString, K, segProb);
-//             }
-//         }
-//     }
-//     // If no match is found, output an error
-//     std::cerr << "Error in backtracing funcA!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-// }
-
-/**
- * Backtracing function for E state.
- *
- * @param t Current time index.
- * @param n Current segment index.
- * @param k Current kmer index.
- * @param APSEI The 2D array of scores.
- * @param logAPSEI The 2D array of log scores.
- * @param segString The list to store the segment strings.
- * @param K number of k-mers
- * @param segProb The vector to store the segment probabilities.
- *
- * @details
- * This function backtraces the E state.
- * It checks which state was the previous state and calls the corresponding function.
- * If no match is found, it outputs an error message.
- */
-// void funcE(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-// {
-//     const std::size_t currentIdx = NK * t + n * K + k;
-//     const std::size_t prevIdx = NK * (t - 1) + n * K + k;
-//     // Cache the sc value to avoid redundant lookups
-//     const double sc = APSEI[currentIdx][3];
-//     const double logScore = logAPSEI[currentIdx][3];
-//     segProb.push_back(exp(logScore));
-//     if (t > 1 && n > 0)
-//     {
-//         // Check match with A state
-//         if (sc == APSEI[prevIdx][0] + logScore)
-//         {
-//             return funcA(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//         // Check match with E state
-//         if (sc == APSEI[prevIdx][3] + logScore)
-//         {
-//             return funcE(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//         // Check match with S state
-//         if (sc == APSEI[prevIdx][2] + logScore)
-//         {
-//             return funcS(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//         // Check match with P state
-//         if (sc == APSEI[prevIdx][1] + logScore)
-//         {
-//             return funcP(t - 1, n, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//     }
-//     else [[unlikely]]
-//     { // Start value with t==0 && n==0
-//         segString.push_front("M" + std::to_string(halfKmerSize) + ",0," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//         segProb.clear();
-//         return;
-//     }
-//     // If no match is found, output an error
-//     std::cerr << "Error in backtracing funcE!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-// }
-
-/**
- * @brief Backtraces and constructs segmentation for the P state.
- *
- * This function performs backtracing to construct the segmentation string
- * for the P (probationary) state, using scores from the forward iteration
- * stored in APSEI and logAPSEI. It also updates the probabilities for each
- * segment.
- *
- * @param t Current time step.
- * @param n Current sequence index.
- * @param k Current kmer index.
- * @param APSEI Map containing forward scores.
- * @param logAPSEI Map containing logarithmic forward scores.
- * @param segString List to store the segmentation strings.
- * @param K Number of kmers.
- * @param segProb Vector to store probabilities for each segment.
- */
-// void funcP(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-// {
-//     // Precompute commonly used indices and values
-//     const std::size_t currentIdx = t * NK + n * K + k;
-//     const double sc = APSEI[currentIdx][1];
-//     const double logScore = logAPSEI[currentIdx][1];
-//     const std::size_t prevBaseIdx = NK * (t - 1) + n * K; // Common base index for previous time step
-//     segProb.push_back(exp(logScore));
-//     if (t == 1 && n > 0)
-//     {
-//         // Start value
-//         segString.push_front("P" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//         return;
-//     }
-//     if (t > 1 && n > 0)
-//     {
-//         for (std::size_t preKmer = precessingKmer(k, 0, stepSize, alphabetSize); preKmer < K; preKmer += stepSize)
-//         {
-//             const std::size_t prevIdx = prevBaseIdx + preKmer;
-//             // Check match with E state
-//             if (sc == APSEI[prevIdx][3] + logScore)
-//             {
-//                 segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//                 segProb.clear();
-//                 return funcE(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
-//             }
-//             // Check match with S state
-//             if (sc == APSEI[prevIdx][2] + logScore)
-//             {
-//                 segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//                 segProb.clear();
-//                 return funcS(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
-//             }
-//             // Check match with I state
-//             if (sc == APSEI[prevIdx][4] + logScore)
-//             {
-//                 segString.push_front("P" + std::to_string(n - 1 + halfKmerSize) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + "," + itoa(k, alphabetSize, kmerSize, rna) + ";");
-//                 segProb.clear();
-//                 return funcI(t - 1, n, preKmer, APSEI, logAPSEI, segString, K, segProb);
-//             }
-//         }
-//     }
-//     // If no match is found, output an error
-//     std::cerr << "Error in backtracing funcP!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-// }
-
-/**
- * @brief Backtracing for S state
- *
- * @param[in] t time step
- * @param[in] n sequence index
- * @param[in] k kmer index
- * @param[in] APSEI map of scores from forward iteration
- * @param[in] logAPSEI map of log scores from forward iteration
- * @param[out] segString list of strings representing the segmentation
- * @param[in] K number of kmers
- * @param[out] segProb vector of probabilities for each segment
- *
- * This function is used to construct the segmentation string by backtracing
- * the most likely state path from the forward iteration scores.
- */
-// void funcS(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-// {
-//     const std::size_t currentIdx = NK * t + n * K + k;
-//     const std::size_t prevIdx = NK * (t - 1) + (n - 1) * K + k;
-//     // Cache sc and logScore to avoid repeated map lookups
-//     const double sc = APSEI[currentIdx][2];
-//     const double logScore = logAPSEI[currentIdx][2];
-//     segProb.push_back(exp(logScore));
-//     if (t == 1 && n == 1)
-//     {
-//         // Start value
-//         // segString.push_front("S" + std::to_string(halfKmerSize) + "," + std::to_string(0) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-//         return;
-//     }
-//     if (t > 1 && n > 1)
-//     {
-//         // Check match with E state
-//         if (sc == APSEI[prevIdx][3] + logScore)
-//         {
-//             // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-//             return funcE(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//         // Check match with P state
-//         if (sc == APSEI[prevIdx][1] + logScore)
-//         {
-//             // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-//             return funcP(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//         // Check match with I state
-//         if (sc == APSEI[prevIdx][4] + logScore)
-//         {
-//             // segString.push_front("S" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-//             return funcI(t - 1, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//     }
-//     // If no match is found, output an error
-//     std::cerr << "Error in backtracing funcS!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-// }
-
-/**
- * @brief Backtracing function for the Insertion (I) state
- *
- * @param t The current time step
- * @param n The current position
- * @param k The current kmer
- * @param APSEI The forward probabilities table
- * @param logAPSEI The forward log probabilities table
- * @param segString The output segment string
- * @param K number of kmers
- * @param segProb The output segment probabilities
- *
- * @return void
- */
-// void funcI(const std::size_t t, const std::size_t n, const std::size_t k, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &APSEI, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::list<std::string> &segString, const std::size_t K, std::vector<double> &segProb)
-// {
-//     const std::size_t currentIdx = NK * t + n * K + k;
-//     const std::size_t prevIdx = NK * t + (n - 1) * K + k;
-//     // Cache the score and logScore to avoid repeated lookups
-//     const double sc = APSEI[currentIdx][4];
-//     const double logScore = logAPSEI[currentIdx][4];
-//     segProb.push_back(exp(logScore));
-//     if (t > 0 && n > 1)
-//     {
-//         // Check match with I state
-//         if (sc == APSEI[prevIdx][4] + logScore)
-//         {
-//             // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-//             return funcI(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//         // Check match with E state
-//         if (sc == APSEI[prevIdx][3] + logScore)
-//         {
-//             // segString.push_front("I" + std::to_string(n-1+halfKmerSize) + "," + std::to_string(t-1) + "," + std::to_string(exp(logScore)) + "," + itoa(k, alphabet_size, kmerSize, rna) + ";");
-//             return funcE(t, n - 1, k, APSEI, logAPSEI, segString, K, segProb);
-//         }
-//     }
-//     // If no match is found, output an error
-//     std::cerr << "Error in backtracing funcI!: t: " << t << ", n: " << n << ", k: " << k << "\n";
-// }
-
-/**
  * Computes transition probabilities for a hidden Markov model (HMM) using
  * forward and backward probabilities, signal data, and k-mer sequences.
  *
@@ -1337,7 +1057,7 @@ std::tuple<double, double, double, double, double, double, double, double, doubl
  *
  * Outputs the trained emission parameters to the console.
  */
-std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K)
+std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &logAPSEI, std::vector<std::size_t> &allowedKeys, const std::size_t K)
 {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
@@ -1442,7 +1162,7 @@ void trainParams(const double *sig, const int *kmerSeq, std::unordered_map<std::
     auto [a1, a2, p1, p2, p3, s1, s2, s3, e1, e2, e3, e4, i1, i2] = trainTransition(sig, kmerSeq, forAPSEI, backAPSEI, allowedKeys, T, N, K, model);
     std::cout << "a1:" << a1 << ";a2:" << a2 << ";p1:" << p1 << ";p2:" << p2 << ";p3:" << p3 << ";s1:" << s1 << ";s2:" << s2 << ";s3:" << s3 << ";e1:" << e1 << ";e2:" << e2 << ";e3:" << e3 << ";e4:" << e4 << ";i1:" << i1 << ";i2:" << i2 << "\n";
 
-    auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, T, N, K);
+    auto [newMeans, newStdevs] = trainEmission(sig, logAPSEI, allowedKeys, K);
     for (std::size_t k = 0; k < K; ++k)
     {
         // if (newStdevs[k] != 0.0 && !std::isnan(newStdevs[k]))
@@ -1455,246 +1175,3 @@ void trainParams(const double *sig, const int *kmerSeq, std::unordered_map<std::
     delete[] newMeans;
     delete[] newStdevs;
 }
-
-/**
- * Main entry point for the dynamont 3d sparsed command line tool.
- *
- * @param argc Number of arguments passed to the program.
- * @param argv Array of strings containing the arguments passed to the program.
- *
- * @return 0 if the program succeeded, 3 if the Z values did not match between forward and backward matrices, 4 if the signal input is missing, 5 if the read input is missing.
- *
- * @details
- * This function parses command line arguments, sets up the transition parameters and model based on the specified pore type, reads the input signal and nucleotide sequence, and processes them to calculate segmentation probabilities. Depending on the arguments, it either calculates the partition function Z, trains the transition and emission parameters, or outputs the alignment with segment border probabilities.
- */
-#ifndef UNIT_TESTING
-int main(int argc, char *argv[])
-{
-    // speedup for I/O
-    std::ios_base::sync_with_stdio(0);
-    std::cin.tie(0);
-    std::cout.tie(0);
-
-    bool train, calcZ, prob; // atrain
-    std::string pore, modelpath;
-
-    // std::cerr precisions
-    std::cerr << std::fixed << std::showpoint << std::setprecision(5);
-    // std::cerr precisions
-    std::cout << std::fixed << std::showpoint << std::setprecision(5);
-
-    argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
-    program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["a1"]);     // a1
-    program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["a2"]);     // a2
-    program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e1"]);    // e1
-    program.add_argument("-e2", "--extendscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e2"]);    // e2
-    program.add_argument("-e3", "--extendscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e3"]);    // e3
-    program.add_argument("-e4", "--extendscore4").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e4"]);    // e4
-    program.add_argument("-s1", "--sequencescore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["s1"]);  // s1
-    program.add_argument("-s2", "--sequencescore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["s2"]);  // s2
-    program.add_argument("-s3", "--sequencescore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["s3"]);  // s2
-    program.add_argument("-p1", "--polishscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p1"]);    // p1
-    program.add_argument("-p2", "--polishscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p2"]);    // p2
-    program.add_argument("-p3", "--polishscore3").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["p3"]);    // p2
-    program.add_argument("-i1", "--insertionscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i1"]); // i1
-    program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i2"]); // i2
-    program.add_argument("-t", "--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
-    program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
-    program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
-    program.add_argument("-r", "--pore").help("Pore used to sequence the data").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
-    // unused, just here to match the other modes
-    program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob); //.store_into(prob);
-
-    program.parse_args(argc, argv);
-
-    // load default and set parameters
-    if (pore == "rna_r9")
-    {
-        kmerSize = 5;
-        rna = true;
-        // taken from the trained NT version of dynamont
-        ppTNm = log(NT_rna_r9_transitions.at("m1")), ppTNe = log(NT_rna_r9_transitions.at("e2"));
-        ppTKm = log(NT_rna_r9_transitions.at("m1")), ppTKe = log(NT_rna_r9_transitions.at("e2"));
-        updateTransitions(NTK_rna_r9_transitions, transitions_NTK);
-    }
-    else if (pore == "dna_r9")
-    {
-        kmerSize = 5;
-        rna = false;
-        // taken from the trained NT version of dynamont
-        ppTNm = log(NT_dna_r9_transitions.at("m1")), ppTNe = log(NT_dna_r9_transitions.at("e2"));
-        ppTKm = log(NT_dna_r9_transitions.at("m1")), ppTKe = log(NT_dna_r9_transitions.at("e2"));
-        updateTransitions(NTK_dna_r9_transitions, transitions_NTK);
-    }
-    else if (pore == "rna_rp4")
-    {
-        kmerSize = 9;
-        rna = true;
-        // taken from the trained NT version of dynamont
-        ppTNm = log(NT_rna_rp4_transitions.at("m1")), ppTNe = log(NT_rna_rp4_transitions.at("e2"));
-        ppTKm = log(NT_rna_rp4_transitions.at("m1")), ppTKe = log(NT_rna_rp4_transitions.at("e2"));
-        updateTransitions(NTK_rna_rp4_transitions, transitions_NTK);
-    }
-    else if (pore == "dna_r10_260bps")
-    {
-        kmerSize = 9;
-        rna = false;
-        ppTNm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_260bps_transitions.at("e2"));
-        ppTKm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_260bps_transitions.at("e2"));
-        updateTransitions(NTK_dna_r10_260bps_transitions, transitions_NTK);
-    }
-    else if (pore == "dna_r10_400bps")
-    {
-        kmerSize = 9;
-        rna = false;
-        ppTNm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_400bps_transitions.at("e2"));
-        ppTKm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_400bps_transitions.at("e2"));
-        updateTransitions(NTK_dna_r10_400bps_transitions, transitions_NTK);
-    }
-    halfKmerSize = kmerSize / 2;
-
-    checkModelpath(modelpath);
-    auto result = readKmerModel(modelpath, kmerSize, rna);
-    std::tuple<double, double> *model = std::get<0>(result);
-    alphabetSize = std::get<1>(result);
-    // polishing dimension K = number of possible kmers
-    const std::size_t K = std::get<2>(result);
-
-    stepSize = pow(alphabetSize, kmerSize - 1);
-    std::string signal, read;
-
-    // echo 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105 CAAAAA| src\segment.exe
-    // read input, signal and read whitespace separated in single line
-    getline(std::cin, signal);
-    getline(std::cin, read);
-
-    // exit if wrong input ...
-    if (signal.empty())
-    {
-        std::cout << "Signal missing!" << std::endl;
-        exit(4);
-    }
-    else if (read.empty())
-    {
-        std::cout << "Read missing!" << std::endl;
-        exit(5);
-    }
-
-    // process signal T: convert std::string to double std::array
-    const std::size_t T = count(signal.begin(), signal.end(), ',') + 2; // len(sig) + 1
-    checkInput(T, read.size(), kmerSize);
-    const std::size_t N = read.size() - kmerSize + 1 + 1; // N is number of kmers in sequence + 1
-    // std::cerr << "T: " << T << ", " << "N: " << N << ", " << "K: " << K << ", " << "inputsize: " << TNK << "\n";
-    NK = N * K;
-    TNK = T * NK;
-
-    double *sig = new double[T - 1];
-    std::string value;
-    std::stringstream ss(signal);
-    int i = 0;
-    while (getline(ss, value, ','))
-    {
-        sig[i++] = stod(value);
-    }
-    // process read N: convert std::string to int std::array
-
-    int *kmerSeq = new int[N - 1];
-    for (std::size_t n = 0; n < N - 1; ++n)
-    {
-        kmerSeq[n] = kmer2int(read.substr(n, kmerSize), alphabetSize);
-    }
-
-    // deallocate memory
-    ss.clear();
-    signal.erase();
-    read.erase();
-    value.erase();
-
-    std::vector<std::size_t> allowedKeys = preProcTNK(sig, kmerSeq, T, N, K, model);
-    // std::cerr<<"dense: "<<allowedKeys.size()/double(TNK)<<" ("<<allowedKeys.size()<<" / "<<TNK-allowedKeys.size()<<")"<<"\n"; //", sparse: "<<1-(allowedKeys.size()/double(TNK))<<" ("<<TNK-allowedKeys.size()<<")"<<"\n";
-    std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> forAPSEI;
-
-    // std::cerr<<"forward"<<"\n";
-    logF(sig, kmerSeq, forAPSEI, allowedKeys, T, N, K, model);
-    // std::cerr<<"backward"<<"\n";
-    std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> backAPSEI;
-    logB(sig, kmerSeq, backAPSEI, allowedKeys, T, N, K, model);
-
-    double Zf = -INFINITY;
-    double Zb = -INFINITY;
-    for (std::size_t k = 0; k < K; ++k)
-    {
-        Zf = logPlus(Zf, forAPSEI[TNK - 1 - k][3]);
-        Zb = logPlus(Zb, backAPSEI[k][3]);
-    }
-
-    // Numeric error is scaled by input size, Z in forward and backward should match by some numeric error EPSILON
-    if (abs(Zf - Zb) / TNK >= EPSILON || std::isinf(Zf) || std::isinf(Zb))
-    {
-        std::cerr << "Z values between matrices do not match! forZ: " << Zf << ", backZ: " << Zb << ", " << abs(Zf - Zb) / TNK << " > " << EPSILON << std::endl;
-        delete[] sig;
-        delete[] kmerSeq;
-        delete[] model;
-        exit(3);
-    }
-
-    // std::cerr<<"Zf: "<<Zf<<", Zb: "<<Zb<<", "<<abs(Zf-Zb)/TNK<<" <! "<<EPSILON<<"\n";
-
-    if (calcZ)
-    {
-        std::cout << Zf << std::endl;
-    }
-    else
-    {
-        std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> logAPSEI;
-        logP(logAPSEI, forAPSEI, backAPSEI, Zf, allowedKeys);
-
-        // train both Transitions and Emissions
-        if (train)
-        {
-            trainParams(sig, kmerSeq, forAPSEI, backAPSEI, logAPSEI, allowedKeys, T, N, K, model);
-            std::cout << "Z:" << Zf << std::endl;
-
-            // print out segmentation std::string
-        }
-        else
-        {
-            // Alignment output
-            std::list<std::string> segString;
-            getBorders(segString, logAPSEI, allowedKeys, T, N, K);
-
-            for (const auto &seg : segString)
-            {
-                std::cout << seg;
-            }
-            std::cout << std::endl;
-
-            // calculate sum of segment border probabilities
-            if (prob)
-            {
-                double sum = -INFINITY;
-                std::size_t lastT = T, t;
-                for (const std::size_t &tnk : allowedKeys)
-                {
-                    t = tnk / NK;
-                    if (t != lastT)
-                    {
-                        lastT = t;
-                        std::cout << sum << ",";
-                        sum = -INFINITY;
-                    }
-                    for (const int &i : {0, 1})
-                    { // sum up prob for new segment in dimension K
-                        sum = logPlus(sum, logAPSEI.at(tnk)[i]);
-                    }
-                }
-                std::cout << std::endl;
-            }
-        }
-    }
-    delete[] sig;
-    delete[] kmerSeq;
-    delete[] model;
-    return 0;
-}
-#endif

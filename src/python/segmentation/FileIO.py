@@ -302,9 +302,10 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         exit(1)
 
     try:
-        output, probs = result.split('\n') # , *heatmap, _
+        output, probs = result.split('\n') #, *heatmap
         probs = np.array(list(map(float, probs.split(',')[:-1])))[1:]
         # heatmap = np.array([row.split(',')[:-1] for row in heatmap], dtype=float)
+        # print(heatmap)
     except:
         try:
             output  = result.split('\n')
@@ -344,9 +345,11 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     '''
     pipe = openCPPScriptParams(CPP_SCRIPT, params)
     output, errors, returncode = feedPipe(signal, read, pipe)
-    while returncode == -9: # OOM return code
-        pipe = openCPPScriptParams(CPP_SCRIPT, params)
-        output, errors, returncode = feedPipe(signal, read, pipe)
+    # while returncode == -9: # OOM return code
+    #     import time
+    #     time.sleep(600)
+    #     pipe = openCPPScriptParams(CPP_SCRIPT, params)
+    #     output, errors, returncode = feedPipe(signal, read, pipe)
     if returncode == -11: # Segmentation Fault return code
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         with open("failed_input.txt", 'w') as w:

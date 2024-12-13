@@ -180,18 +180,17 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
 
     kmerModels = pd.read_csv(modelPath, sep='\t', index_col = "kmer")
 
-    if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
     if mode == 'basic':
-        mode = 'dynamont-NT'
-        # mode = 'dynamont_NT_heatmap'
+        # CPP_SCRIPT = 'dynamont-NT'
+        CPP_SCRIPT = 'dynamont-NT-banded'
+        # CPP_SCRIPT = "/home/yi98suv/projects/dynamont/dynamont_NT_heatmap"
         PARAMS = {
             'e1': 1.0,
             'm1': 0.03,
             'e2': 0.97
             }
     elif mode == 'resquiggle':
-        mode = 'dynamont-NTC'
+        CPP_SCRIPT = 'dynamont-NTC'
         PARAMS = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,
@@ -211,8 +210,9 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     else:
         print(f'Mode {mode} not implemented')
         exit(1)
-    
-    CPP_SCRIPT = join(dirname(__file__), f'{mode}')
+        
+    if name == 'nt': # check for windows
+        CPP_SCRIPT+='.exe'
 
     PARAMS['m'] = modelPath
     PARAMS['p'] = probability

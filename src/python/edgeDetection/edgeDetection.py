@@ -142,7 +142,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
 def main() -> None:
     args = parse()
     print('Start extracting')
-    wavelet(args.raw, args.basecalls, args.output, args.processes)
+    wavelet(args.raw, args.basecalls, args.output, args.processes, args.pore)
 
 if __name__ == '__main__':
     main()

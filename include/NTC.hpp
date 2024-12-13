@@ -14,6 +14,7 @@
 #include <numeric>   // std::iota
 #include <vector>
 #include <array>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <tuple>
@@ -21,18 +22,16 @@
 #include <cassert>
 #include <cstddef>
 #include <stack>
+#include <omp.h>
 #include "argparse.hpp"
 #include "utils.hpp"
 
 inline constexpr int NUMMAT = 5;
 inline constexpr double SPARSETHRESHOLD = log(0.95); // using paths with top X% of probability per T
-inline constexpr double EPSILON = 1e-8;              // chose by eye just to distinguish real errors from numeric errors
 
 extern std::size_t TNK, NK;
 extern double ppTNm, ppTNe, ppTKm, ppTKe;
 extern int alphabetSize, kmerSize, halfKmerSize, stepSize;
-extern bool rna;
-extern std::unordered_map<std::string, double> transitions_NTK;
 
 // Asserts double point compatibility at compile time necessary for INFINITY usage
 static_assert(std::numeric_limits<double>::is_iec559, "IEEE 754 required");
@@ -262,7 +261,7 @@ std::vector<std::size_t> preProcTNK(const double *sig, const int *kmerSeq, const
  * @param K The number of k-mers.
  * @param model array containing tuples of model parameters.
  */
-void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t T, const std::size_t N, const std::size_t K, const std::tuple<double, double> *model);
+void logF(const double *sig, const int *kmerSeq, std::unordered_map<std::size_t, std::array<dproxy, NUMMAT>> &forAPSEI, const std::vector<std::size_t> &allowedKeys, const std::size_t K, const std::tuple<double, double> *model);
 
 /**
  * Computes backward probabilities for a hidden Markov model (HMM) using signal
