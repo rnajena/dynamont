@@ -59,17 +59,19 @@ def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 
     return np.array(final_peaks)
 
 def writer(h5file : str, q : mp.Queue) -> None:
+    totalNumEdges = 0
+    totalNumBases = 0
     with h5py.File(h5file, 'w') as hdf:
         i = 0
         while True:
-            signalid, waveletEdges = q.get()
+            signalid, waveletEdges, numBases = q.get()
 
             if signalid == 'kill':
                 break
 
             i+=1
 
-            print(f"Extracting edges for {i} reads", end='\r')
+            print(f"Extracting edges for {i} reads", f"#edges / #bases: {totalNumEdges} / {totalNumBases}", end='\r')
         
             key = f'{signalid}/waveletEdge'
             # save to hdf5 file
@@ -81,9 +83,12 @@ def writer(h5file : str, q : mp.Queue) -> None:
                 hdf[key].resize(new_shape, axis=0)
                 hdf[key][current_shape:new_shape] = waveletEdges
 
+            totalNumEdges += len(waveletEdges)
+            totalNumBases += numBases
+
         print()
         
-def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue) -> None:
+def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue, numBases : int) -> None:
     r5 = read5_ont.read(rawFile)
     if pore in ["rna_r9", "dna_r9"]:
         signal = r5.getpASignal(signalid)
@@ -92,7 +97,7 @@ def extractingEdges(signalid : str, rawFile : str, start : int, end : int, thres
     signal = (signal - shift) / scale
     hampelFilter(signal, 6, 5.)
     waveletEdges = waveletPeaks(signal[start:end], 'gaus1', threshold) + start
-    queue.put((signalid, waveletEdges))
+    queue.put((signalid, waveletEdges, numBases))
         
 def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : str) -> None:
     """
@@ -108,7 +113,6 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
     ---
     None: This function does not return any value. It writes the detected wavelet edges to the specified HDF5 file.
     """
-    # processes = 40
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     watcher = pool.apply_async(writer, (outfile, queue))
@@ -126,7 +130,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
             scale = basecalled_read.get_tag("sd")
             # signal = (signal - shift) / scale
     
-            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 1.1, shift, scale, pore, queue))
+            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 0.5, shift, scale, pore, queue, len(basecalled_read.query_sequence)))
         
     for job in jobs:
         job.get()
@@ -139,10 +143,70 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
 
     print(f'Done extracting edges for {i} reads')
 
+
+def returnEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str) -> None:
+    r5 = read5_ont.read(rawFile)
+    if pore in ["rna_r9", "dna_r9"]:
+        signal = r5.getpASignal(signalid)
+    else:
+        signal = r5.getSignal(signalid)
+    signal = (signal - shift) / scale
+    hampelFilter(signal, 6, 5.)
+    waveletEdges = waveletPeaks(signal[start:end], 'gaus1', threshold) + start
+    return waveletEdges
+
+def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, pore : str) -> None:
+    import pandas as pd
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    pool = mp.Pool(processes)
+
+    df = pd.DataFrame()
+
+    for threshold in np.arange(0.6, 1.2, 0.1):
+        print(f"Threshold: {threshold}")
+        numBases = 0
+        numEdges = 0
+        jobs = []
+
+        with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
+            for i, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
+                if i == 200:
+                    break
+                readid = basecalled_read.query_name
+                signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
+                sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
+                ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+                ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
+                rawFile = join(raw, basecalled_read.get_tag("fn"))
+                shift = basecalled_read.get_tag("sm")
+                scale = basecalled_read.get_tag("sd")
+                # signal = (signal - shift) / scale
+
+                numBases += len(basecalled_read.query_sequence)
+
+                jobs.append(pool.apply_async(returnEdges, (signalid, rawFile, sp+ts, sp+ns, threshold, shift, scale, pore)))
+
+        for job in jobs:
+            numEdges += len(job.get())
+
+        df = pd.concat((df, pd.DataFrame({'threshold' : [threshold], 'numBases' : [numBases], 'numEdges' : [numEdges], 'baseEdgeRatio' : [numEdges / numBases]})), ignore_index=True)
+
+    sns.set_theme()
+    sns.lineplot(df, x='threshold', y='baseEdgeRatio')
+    plt.title("Detected Change Points vs CWT Threshold", fontsize=18)
+    plt.savefig(outfile + "_cwt_threshold.svg", dpi=300)
+    plt.savefig(outfile + "_cwt_threshold.pdf", dpi=300)
+    plt.close()
+
+    print(f'Done extracting edges for {i} reads')
+
 def main() -> None:
     args = parse()
     print('Start extracting')
-    wavelet(args.raw, args.basecalls, args.output, args.processes, args.pore)
+    # wavelet(args.raw, args.basecalls, args.output, args.processes, args.pore)
+    plotThreshold(args.raw, args.basecalls, args.output, args.processes, args.pore)
 
 if __name__ == '__main__':
     main()

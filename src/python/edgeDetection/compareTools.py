@@ -418,7 +418,7 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     zero_counts = cumulativeDistance[cumulativeDistance['Absolute Distance'] == 0].set_index('Tool')['Found Change Points']
 
     cumulativeDistance['Found Change Points'] = cumulativeDistance.apply(
-        lambda row: row['Found Change Points'] - zero_counts[row['Tool']] if row['Absolute Distance'] != 0 else 0,
+        lambda row: row['Found Change Points'] - zero_counts[row['Tool']] if row['Absolute Distance'] != 0 else zero_counts[row['Tool']],
         axis=1
     )
     cumulativeDistance["Found Change Points Ratio"] = cumulativeDistance["Found Change Points"] / df["Total Change Points"].values[0]
