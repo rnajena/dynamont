@@ -25,7 +25,7 @@ def parse() -> Namespace:
     parser.add_argument("-p", "--processes", type=int, default=mp.cpu_count(), metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
-def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 1.1) -> np.ndarray:
+def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 0.8) -> np.ndarray:
     """
     Detects peaks in a signal using continuous wavelet transform.
 
@@ -113,6 +113,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
     ---
     None: This function does not return any value. It writes the detected wavelet edges to the specified HDF5 file.
     """
+    print("Extracting edges")
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     watcher = pool.apply_async(writer, (outfile, queue))
@@ -130,7 +131,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
             scale = basecalled_read.get_tag("sd")
             # signal = (signal - shift) / scale
     
-            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 0.5, shift, scale, pore, queue, len(basecalled_read.query_sequence)))
+            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 0.8, shift, scale, pore, queue, len(basecalled_read.query_sequence)))
         
     for job in jobs:
         job.get()
@@ -159,6 +160,7 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
     import pandas as pd
     import seaborn as sns
     import matplotlib.pyplot as plt
+    print("Plotting threshold")
 
     pool = mp.Pool(processes)
 
@@ -172,7 +174,7 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
 
         with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
             for i, basecalled_read in enumerate(samfile.fetch(until_eof=True)):
-                if i == 200:
+                if i == 500:
                     break
                 readid = basecalled_read.query_name
                 signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
@@ -205,8 +207,8 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
 def main() -> None:
     args = parse()
     print('Start extracting')
-    # wavelet(args.raw, args.basecalls, args.output, args.processes, args.pore)
-    plotThreshold(args.raw, args.basecalls, args.output, args.processes, args.pore)
+    wavelet(args.raw, args.basecalls, args.output, args.processes, args.pore)
+    # plotThreshold(args.raw, args.basecalls, args.output, args.processes, args.pore)
 
 if __name__ == '__main__':
     main()
