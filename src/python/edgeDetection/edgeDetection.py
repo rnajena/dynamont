@@ -136,7 +136,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
     for job in jobs:
         job.get()
     
-    queue.put(('kill', None))
+    queue.put(('kill', None, 0))
     watcher.get()
         
     pool.close()
