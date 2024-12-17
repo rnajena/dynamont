@@ -19,6 +19,9 @@ int main(int argc, char *argv[])
     std::cout << std::fixed << std::showpoint << std::setprecision(7);
 
     argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
+    program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
+    program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
+
     program.add_argument("-a1", "--alignscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["a1"]);     // a1
     program.add_argument("-a2", "--alignscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["a2"]);     // a2
     program.add_argument("-e1", "--extendscore1").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["e1"]);    // e1
@@ -35,8 +38,6 @@ int main(int argc, char *argv[])
     program.add_argument("-i2", "--insertionscore2").help("Transition parameter").default_value(-1.0).scan<'g', double>().store_into(transitions_NTK["i2"]); // i2
     program.add_argument("--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
-    program.add_argument("-m", "--model").help("Path to kmer model table").default_value("/home/yi98suv/projects/dynamont/data/norm_models/rna_r9.4_180mv_70bps.model").store_into(modelpath);
-    program.add_argument("-r", "--pore").help("Pore used to sequence the data").choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
     // unused, just here to match the other modes
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob); //.store_into(prob);
     program.add_argument("-t").help("Number of threads to use").default_value(1).scan<'i', int>();
