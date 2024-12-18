@@ -387,7 +387,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     int *counts = new int[numKmers];
 
     // init everything with zero
-    std::fill_n(kmers, N, 0);
+    std::fill_n(kmers, N, 0.0);
 
 #pragma omp parallel for
     for (int i = 0; i < numKmers; i++)
@@ -404,16 +404,17 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     }
 
     std::size_t tB = 0;
-    for (std::size_t t = 1; t < T - 1; ++t)
+    for (std::size_t t = 1; t < T; ++t)
     {
         tB += B;
         auto [bStart, nStart, nEnd] = bounds[t];
         const long offset = tB - bStart + 1; // TN to TB conversion offset
 
+#pragma omp parallel for
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
-            const double w = exp(logPlus(LPM[idx], LPE[idx]));
+            const double w = exp(LPM[idx]) + exp(LPE[idx]);
             kmers[n] += w * sig[t - 1]; // Accumulate for kmers
             normFactorT[n] += w;        // Accumulate for normalizer
         }
@@ -426,9 +427,9 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     }
 
     // Emission (stdev of kmers)
-    std::fill_n(kmers, N, 0);
+    std::fill_n(kmers, N, 0.0);
     tB = 0;
-    for (std::size_t t = 1; t < T - 1; ++t)
+    for (std::size_t t = 1; t < T; ++t)
     {
         tB += B;
         auto [bStart, nStart, nEnd] = bounds[t];
@@ -437,9 +438,8 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
-            const double w = exp(logPlus(LPM[idx], LPE[idx])); // Compute difference from mean
-            double diff = sig[t - 1] - means[kmerSeq[n - 1]];
-            kmers[n] += w * diff * diff; // Accumulate for variance
+            double diff = sig[t - 1] - means[kmerSeq[n - 1]];          // Compute difference from mean
+            kmers[n] += (exp(LPM[idx]) + exp(LPE[idx])) * diff * diff; // Accumulate for variance
         }
     }
 
@@ -458,6 +458,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
 
     delete[] kmers;
     delete[] normFactorT;
+    delete[] counts;
     return std::tuple<double *, double *>({means, stdevs});
 }
 
@@ -503,4 +504,6 @@ void trainParams(const double *sig, const int *kmerSeq, const double *forM, cons
     std::cout << std::endl;
     delete[] newMeans;
     delete[] newStdevs;
+    delete[] LPM;
+    delete[] LPE;
 }
