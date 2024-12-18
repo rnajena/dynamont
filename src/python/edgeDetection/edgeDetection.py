@@ -25,7 +25,7 @@ def parse() -> Namespace:
     parser.add_argument("-p", "--processes", type=int, default=mp.cpu_count(), metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
-def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 0.8) -> np.ndarray:
+def waveletPeaks(signal: np.ndarray, threshold: float, wavelet: str = 'gaus1') -> np.ndarray:
     """
     Detects peaks in a signal using continuous wavelet transform.
 
@@ -41,12 +41,12 @@ def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 
     """
     from scipy.signal import find_peaks
     halfThreshold = threshold / 2
-    # Perform continuous wavelet transform on the signal with scale 6
-    coef, _ = pywt.cwt(signal, [6], wavelet)
+    # Perform continuous wavelet transform on the signal with scale 10
+    coef, _ = pywt.cwt(signal, [10], wavelet)
     coef = np.abs(coef[0])
 
     # Use SciPy's find_peaks to locate peaks above the threshold
-    peaks, _ = find_peaks(coef, height=threshold, distance=3)
+    peaks, _ = find_peaks(coef, height=threshold, distance=3, width=1)
 
     # Further filter the peaks based on a local standard deviation threshold
     final_peaks = []
@@ -57,6 +57,38 @@ def waveletPeaks(signal: np.ndarray, wavelet: str = 'gaus1', threshold: float = 
             final_peaks.append(peak)
 
     return np.array(final_peaks)
+
+def windowEdges(signal: np.ndarray, threshold: float, windowSize : int = 6) -> np.ndarray:
+    """
+    Detects peaks in a signal using continuous wavelet transform.
+
+    Parameters
+    ---
+    - signal (np.ndarray): The input signal as a numpy array.
+    - threshold (float): The threshold value for peak detection. Peaks with values above this threshold are considered.
+
+    Returns
+    ---
+    np.ndarray: An array of indices where peaks are detected in the input signal.
+    """
+    diff = np.zeros(len(signal), dtype=float)
+    for i in range(windowSize, len(signal) - windowSize):
+        # Define two adjacent windows
+        leftWindow = signal[i - windowSize:i]
+        rightWindow = signal[i:i + windowSize]
+        # Calculate mean and standard deviation for each window
+        mLeft = np.mean(leftWindow)
+        sLeft = np.std(leftWindow) + 1e-8
+        mRight = np.mean(rightWindow)
+        sRight = np.std(rightWindow) + 1e-8
+
+        # Compute scaled mean difference
+        # print(abs(mLeft - mRight) / (sLeft + sRight))
+        diff[i] = abs(mLeft - mRight) / (sLeft + sRight)
+
+    from scipy.signal import find_peaks
+    return find_peaks(diff, threshold, distance=3, widht=1)[0]
+    
 
 def writer(h5file : str, q : mp.Queue) -> None:
     totalNumEdges = 0
@@ -88,7 +120,7 @@ def writer(h5file : str, q : mp.Queue) -> None:
 
         print()
         
-def extractingEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue, numBases : int) -> None:
+def extractEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue, numBases : int) -> None:
     r5 = read5_ont.read(rawFile)
     if pore in ["rna_r9", "dna_r9"]:
         signal = r5.getpASignal(signalid)
@@ -96,9 +128,10 @@ def extractingEdges(signalid : str, rawFile : str, start : int, end : int, thres
         signal = r5.getSignal(signalid)
     signal = (signal - shift) / scale
     hampelFilter(signal, 6, 5.)
-    waveletEdges = waveletPeaks(signal[start:end], 'gaus1', threshold) + start
-    queue.put((signalid, waveletEdges, numBases))
-        
+    # edges = windowEdges(signal[start:end], threshold, 6) + start
+    edges = waveletPeaks(signal[start:end], threshold, 'gaus1') + start
+    queue.put((signalid, edges, numBases))
+
 def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : str) -> None:
     """
     Processes raw signal data and basecalls to detect edges using the wavelet transform and stores the results in an HDF5 file.
@@ -131,7 +164,9 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
             scale = basecalled_read.get_tag("sd")
             # signal = (signal - shift) / scale
     
-            jobs[i%(processes-1)] = pool.apply_async(extractingEdges, (signalid, rawFile, sp+ts, sp+ns, 0.8, shift, scale, pore, queue, len(basecalled_read.query_sequence)))
+            jobs[i%(processes-1)] = pool.apply_async(extractEdges, (signalid, rawFile, sp+ts, sp+ns, 0.8, shift, scale, pore, queue, len(basecalled_read.query_sequence)))
+            # TODO change threshold to window approach if necessary
+            # jobs[i%(processes-1)] = pool.apply_async(extractEdges, (signalid, rawFile, sp+ts, sp+ns, 0.8, shift, scale, pore, queue, len(basecalled_read.query_sequence)))
         
     for job in jobs:
         job.get()
@@ -145,7 +180,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
     print(f'Done extracting edges for {i} reads')
 
 
-def returnEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str) -> None:
+def countEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str) -> None:
     r5 = read5_ont.read(rawFile)
     if pore in ["rna_r9", "dna_r9"]:
         signal = r5.getpASignal(signalid)
@@ -153,8 +188,9 @@ def returnEdges(signalid : str, rawFile : str, start : int, end : int, threshold
         signal = r5.getSignal(signalid)
     signal = (signal - shift) / scale
     hampelFilter(signal, 6, 5.)
-    waveletEdges = waveletPeaks(signal[start:end], 'gaus1', threshold) + start
-    return waveletEdges
+    # edges = waveletPeaks(signal[start:end], threshold, 'gaus1')
+    edges = windowEdges(signal[start:end], threshold, 6)
+    return len(edges)
 
 def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, pore : str) -> None:
     import pandas as pd
@@ -166,7 +202,8 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
 
     df = pd.DataFrame()
 
-    for threshold in np.arange(0.6, 1.2, 0.1):
+    # for threshold in np.arange(0.6, 1.2, 0.1):
+    for threshold in np.arange(0.5, 10.1, 0.5):
         print(f"Threshold: {threshold}")
         numBases = 0
         numEdges = 0
@@ -188,18 +225,20 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
 
                 numBases += len(basecalled_read.query_sequence)
 
-                jobs.append(pool.apply_async(returnEdges, (signalid, rawFile, sp+ts, sp+ns, threshold, shift, scale, pore)))
+                jobs.append(pool.apply_async(countEdges, (signalid, rawFile, sp+ts, sp+ns, threshold, shift, scale, pore)))
 
         for job in jobs:
-            numEdges += len(job.get())
+            numEdges += job.get()
 
         df = pd.concat((df, pd.DataFrame({'threshold' : [threshold], 'numBases' : [numBases], 'numEdges' : [numEdges], 'baseEdgeRatio' : [numEdges / numBases]})), ignore_index=True)
 
     sns.set_theme()
     sns.lineplot(df, x='threshold', y='baseEdgeRatio')
     plt.title("Detected Change Points vs CWT Threshold", fontsize=18)
-    plt.savefig(outfile + "_cwt_threshold.svg", dpi=300)
-    plt.savefig(outfile + "_cwt_threshold.pdf", dpi=300)
+    # plt.savefig(outfile + "_cwt_threshold.svg", dpi=300)
+    # plt.savefig(outfile + "_cwt_threshold.pdf", dpi=300)
+    plt.savefig(outfile + "_window_threshold.svg", dpi=300)
+    plt.savefig(outfile + "_window_threshold.pdf", dpi=300)
     plt.close()
 
     print(f'Done extracting edges for {i} reads')
