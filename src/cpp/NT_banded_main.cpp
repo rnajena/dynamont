@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
     if (train)
     {
         trainParams(sig, kmerSeq, forM, forE, backM, backE, T, N, B, model, alphabetSize, numKmers, kmerSize, bounds, Zb);
+        std::cout << "Z:" << Zb << std::endl;
         delete[] sig;
         delete[] kmerSeq;
         delete[] model;
