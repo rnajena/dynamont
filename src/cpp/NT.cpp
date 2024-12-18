@@ -281,12 +281,12 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     {
         // calibrate with the sum of transitions
         double s = -INFINITY;
-        for (std::size_t n = 0; n <= t && n < N; ++n)
+        for (std::size_t n = 0; n < N; ++n)
         { // speed up, due to rules no need to look at upper triangle of matrices
             G[t * N + n] = logPlus(forM[t * N + n] + backM[t * N + n], forE[t * N + n] + backE[t * N + n]);
             s = logPlus(s, G[t * N + n]);
         }
-        for (std::size_t n = 0; n <= t && n < N; ++n)
+        for (std::size_t n = 0; n < N; ++n)
         {
             if (!std::isinf(s))
             {
@@ -331,10 +331,11 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
         stdevs[kmerSeq[n - 1]] += kmers[n] / counts[kmerSeq[n - 1]];
     }
 
-    for (std::size_t n = 1; n < N; ++n)
+#pragma omp parallel for
+    for (std::size_t i = 0; i < numKmers; ++i)
     {
         // transform vars to stdevs
-        stdevs[kmerSeq[n - 1]] = sqrt(stdevs[kmerSeq[n - 1]]);
+        stdevs[i] = sqrt(stdevs[i]);
     }
 
     delete[] G;
