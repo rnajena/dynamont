@@ -309,7 +309,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
     const double e2 = transitions_NT.at("e2");
     long oldBStart = std::get<0>(bounds[0]);
 
-    std::size_t tB = T * B;
+    std::size_t tB = (T - 1) * B;
     for (std::size_t t = T - 1; t-- > 0;)
     {
         tB -= B;
@@ -333,7 +333,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
             const std::size_t idx = n + offset;
             if (n + 1 < N) [[likely]]
             {
-                // m1:                 forward(i)        a    e(i+1)                                 backward(i+1)
+                // m1:                 forward(i)  a    e(i+1)                                 backward(i+1)
                 newM1 = logPlus(newM1, forE[idx] + m1 + scoreKmer(sig[t], kmerSeq[n], model) + backM[idx + mShift]);
             }
 
@@ -404,7 +404,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     }
 
     std::size_t tB = 0;
-    for (std::size_t t = 1; t < T; ++t)
+    for (std::size_t t = 1; t < T - 1; ++t)
     {
         tB += B;
         auto [bStart, nStart, nEnd] = bounds[t];
@@ -428,7 +428,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     // Emission (stdev of kmers)
     std::fill_n(kmers, N, 0);
     tB = 0;
-    for (std::size_t t = 1; t < T; ++t)
+    for (std::size_t t = 1; t < T - 1; ++t)
     {
         tB += B;
         auto [bStart, nStart, nEnd] = bounds[t];
