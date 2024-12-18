@@ -46,6 +46,40 @@ def hampelFilter(signal : np.ndarray, wSize : int = 3, nSigmas : float = 3.0) ->
         median = np.median(window)
         mad = k * np.median(np.abs(np.array(window) - median))
 
+def countNucleotides(sequence):
+    """
+    Count the occurrences of A, C, G, and T in a DNA sequence.
+
+    Parameters:
+        sequence (str): DNA sequence as a string.
+
+    Returns:
+        dict: Dictionary with counts of A, C, G, and T.
+    """
+    return {
+        "A": sequence.count("A"),
+        "C": sequence.count("C"),
+        "G": sequence.count("G"),
+        "T": sequence.count("T"),
+    }
+
+def countNucleotideRatios(sequence):
+    """
+    Count the occurrences of A, C, G, and T in a DNA sequence.
+
+    Parameters:
+        sequence (str): DNA sequence as a string.
+
+    Returns:
+        dict: Dictionary with counts of A, C, G, and T.
+    """
+    return {
+        "A": sequence.count("A") / len(sequence),
+        "C": sequence.count("C") / len(sequence),
+        "G": sequence.count("G") / len(sequence),
+        "T": sequence.count("T") / len(sequence),
+    }
+
 class SegmentationError(Exception):
     """Raised when no segmentation was calculated for a read"""
     def __init__(self, read) -> None:
@@ -260,7 +294,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : int, params : dict = None) -> tuple:
+def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : int, kmerSize : int, params : dict = None) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Opens and closes a pipe to the given script.
@@ -322,10 +356,10 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             exit(1)
 
     # receive segmentation result and format output into np.ndarray
-    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1])
+    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1], kmerSize)
     return segments, probs #, heatmap
 
-def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, queue : Queue) -> None:
+def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, kmerSize : int, queue : Queue) -> None:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Needs an open pipe for communication.
@@ -358,10 +392,10 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         return
-    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1])
+    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1], kmerSize)
     queue.put(formatSegmentation(readid, signalid, segments))
 
-def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str) -> np.ndarray:
+def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str, kmerSize : int) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
 
@@ -410,7 +444,7 @@ def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, rea
         # Convert base position to 5' -> 3' direction
         pos = len(read) - basepos - 1
         # Create the motif
-        motif = read[max(0, pos - 2):min(len(read), pos + 3)]
+        motif = read[max(0, pos - (kmerSize//2)):min(len(read), pos + (kmerSize//2) + 1)]
 
         segments[i] = [start, end, pos, read[pos], motif, state, prob, polish]
 
