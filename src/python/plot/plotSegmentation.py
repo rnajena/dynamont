@@ -218,7 +218,12 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, PARAMS) # , heatmap
+    if "r9" in pore:
+        kmerSize = 5
+    else:
+        kmerSize = 9
+
+    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, kmerSize, PARAMS) # , heatmap
 
     # sns.set_theme()
     # plt.figure(dpi=200)
