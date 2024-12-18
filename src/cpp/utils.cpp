@@ -199,11 +199,7 @@ std::string itoa(const std::size_t value, const int alphabetSize, const int kmer
     if (base < 2 || base > 16)
         return std::to_string(value);
 
-    enum
-    {
-        kMaxDigits = 35
-    };
-    buf.reserve(kMaxDigits); // Pre-allocate enough space.
+    buf.reserve(kmerSize); // Pre-allocate enough space.
     int quotient = value;
 
     // Translating number to std::string with base:
@@ -212,10 +208,6 @@ std::string itoa(const std::size_t value, const int alphabetSize, const int kmer
         buf += ID2BASE.at("0123456789abcdef"[abs(quotient % base)]);
         quotient /= base;
     } while (quotient);
-
-    // Append the negative sign
-    // if (value < 0)
-    //     buf += '-';
 
     while ((int)buf.length() < kmerSize)
     {
