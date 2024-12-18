@@ -13,7 +13,7 @@ from os.path import exists, join, dirname
 from os import makedirs, name
 from datetime import datetime
 from collections import deque
-from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter
+from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios
 
 class ManagedList:
     def __init__(self, values, max_size=100):
@@ -72,8 +72,8 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     paramWriter = open(param_file, 'w')
 
     if mode == 'basic':
-        CPP_SCRIPT = 'dynamont-NT'
-        # CPP_SCRIPT = 'dynamont-NT-banded'
+        # CPP_SCRIPT = 'dynamont-NT'
+        CPP_SCRIPT = 'dynamont-NT-banded'
         transitionParams = {
             'e1': 1.0,
             'm1': 0.03,
@@ -135,6 +135,14 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
                     # init read
                     seq = basecalledRead.query_sequence
+                    counts = countNucleotideRatios(seq)
+
+                    # saw weird signals in rp4 data, a very homogenous signal jumping between two values
+                    # does not look like a normal read, more like an artifact
+                    # produces reads with high quality but the read consists only of repeats
+                    if any(counts[base] >= 0.6 for base in counts.keys()):
+                        continue
+
                     # init read, sometimes a read got split by the basecaller and got a new id
                     readid = basecalledRead.get_tag("pi") if basecalledRead.has_tag("pi") else basecalledRead.query_name
                     sp = basecalledRead.get_tag("sp") if basecalledRead.has_tag("sp") else 0 # if split read get start offset of the signal
@@ -152,11 +160,16 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         try:
                             if pore in ["dna_r9", "rna_r9"]:
                                 # for r9 pores, shift and scale are stored for pA signal in bam
-                                signal = r5.getpASignal(readid)[sp+ts:sp+ns]
+                                signal = r5.getpASignal(readid)
                             else:
                                 # for new pores, shift and scale is directly applied to stored integer signal (DACs)
                                 # this way the conversion from DACs to pA is skipped
-                                signal = r5.getSignal(readid)[sp+ts:sp+ns]
+                                signal = r5.getSignal(readid)
+
+                            # [start:sp+ns]
+                            # slice signal, remove remaining adapter content
+                            start = np.argmax(signal[sp+ts:] >= 0) + sp + ts
+                            signal = signal[start : sp+ns]
                             shift = basecalledRead.get_tag("sm")
                             scale = basecalledRead.get_tag("sd")
                             signal = (signal - shift) / scale
