@@ -38,7 +38,7 @@ void logF_banded(const double *sig, const int *kmerSeq, double *M, double *E, co
             nStart = 1;
         }
 
-        const long offset = tB - bStart + 1; // TN to TB conversion offsert
+        const long offset = tB - bStart + 1; // TN to TB conversion offset
         // normal lookup: no band shift
         long mShift = -B - 1;
         long eShift = -B;
@@ -90,7 +90,7 @@ void logB_banded(const double *sig, const int *kmerSeq, double *M, double *E, co
         tB -= B;
         auto [bStart, nStart, nEnd] = bounds[t];
 
-        const long offset = tB - bStart + 1; // TN to TB conversion offsert
+        const long offset = tB - bStart + 1; // TN to TB conversion offset
         // normal lookup: no band shift
         long mShift = B + 1;
         long eShift = B;
@@ -162,7 +162,7 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
         {
             nStart = 1;
         }
-        const long offset = tB - bStart + 1; // TN to TB conversion offsert
+        const long offset = tB - bStart + 1; // TN to TB conversion offset
         // normal lookup: no band shift
         long mShift = -B - 1;
         long eShift = -B;
@@ -285,4 +285,222 @@ std::vector<std::tuple<long, std::size_t, std::size_t>> getBounds(const std::siz
     }
 
     return bounds;
+}
+
+/**
+ * Train transition parameter with baum welch algorithm
+ *
+ * @param sig ONT raw signal with pA values
+ * @param kmerSeq nucleotide sequence represented by the ONT signal
+ * @param forM matrix containing forward probabilities for M state
+ * @param forE matrix containing forward probabilities for E state
+ * @param backM matrix containing backward probabilities for M state
+ * @param backE matrix containing backward probabilities for E state
+ * @param T length of the ONT raw signal
+ * @param N length of nucleotide sequence
+ * @param model map containing kmers as keys and (mean, stdev) tuples as values
+ * @return tuple containing new transition probabilities
+ */
+std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, const std::tuple<double, double> *model, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds)
+{
+    // Transition parameters
+    double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
+    const double m1 = transitions_NT.at("m1");
+    const double e2 = transitions_NT.at("e2");
+    long oldBStart = std::get<0>(bounds[0]);
+
+    std::size_t tB = T * B;
+    for (std::size_t t = T - 1; t-- > 0;)
+    {
+        tB -= B;
+        auto [bStart, nStart, nEnd] = bounds[t];
+
+        const long offset = tB - bStart + 1; // TN to TB conversion offset
+        // normal lookup: no band shift
+        long mShift = B + 1;
+        long eShift = B;
+
+        if (oldBStart != bStart) // shift index and t != 0
+        {
+            // different lookup: band shifts with diagonal
+            --mShift; // const std::size_t mShift = +B;
+            --eShift; // const std::size_t e2Shift = +B - 1;
+            oldBStart = bStart;
+        }
+
+        for (std::size_t n = nStart; n < nEnd; ++n)
+        {
+            const std::size_t idx = n + offset;
+            if (n + 1 < N) [[likely]]
+            {
+                // m1:                 forward(i)        a    e(i+1)                                 backward(i+1)
+                newM1 = logPlus(newM1, forE[idx] + m1 + scoreKmer(sig[t], kmerSeq[n], model) + backM[idx + mShift]);
+            }
+
+            if (n > 0) [[likely]]
+            {
+                double score = scoreKmer(sig[t], kmerSeq[n - 1], model);
+                // newE1 = logPlus(newE1, forM[t*N+n] + transitions_NT.at("e1") + score + backE[(t+1)*N+n]);
+                newE2 = logPlus(newE2, forE[idx] + e2 + score + backE[idx + eShift]);
+            }
+        }
+    }
+    // average over the number of transitions
+    // double Am = newE1;
+    // newE1 = newE1 - Am;
+    const double Ae = logPlus(newE2, newM1);
+    if (!std::isinf(Ae))
+    {
+        newM1 = newM1 - Ae;
+        newE2 = newE2 - Ae;
+    }
+    return std::make_tuple(
+        exp(newM1),
+        exp(newE1),
+        exp(newE2));
+}
+
+/**
+ * Train emission parameter with baum welch algorithm
+ * @param sig signal
+ * @param kmerSeq sequence of kmers
+ * @param LPM matrix containing logarithmic probabilities for M state
+ * @param LPE matrix containing logarithmic probabilities for E state
+ * @param T number of time steps
+ * @param N number of latent states (kmers)
+ * @param model emission model
+ * @param numKmers number of kmers
+ * @return tuple of emission parameter means and stdevs
+ */
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *LPM, const double *LPE, const std::size_t T, const std::size_t N, const std::size_t B, const int numKmers, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds)
+{
+    // Emission
+    // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
+    // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
+    // gamma_t(i) is the probability of being in state i at time t
+    // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
+    // Initialize memory
+    double *kmers = new double[N];
+    double *means = new double[numKmers];
+    double *stdevs = new double[numKmers];
+    double *normFactorT = new double[numKmers];
+    int *counts = new int[numKmers];
+
+    // init everything with zero
+    std::fill_n(kmers, N, 0);
+
+#pragma omp parallel for
+    for (int i = 0; i < numKmers; i++)
+    {
+        means[i] = 0.0;
+        stdevs[i] = 0.0;
+        counts[i] = 0;
+    }
+
+    // count kmer appearances in N
+    for (std::size_t n = 1; n < N; ++n)
+    {
+        counts[kmerSeq[n - 1]]++;
+    }
+
+    std::size_t tB = 0;
+    for (std::size_t t = 1; t < T; ++t)
+    {
+        tB += B;
+        auto [bStart, nStart, nEnd] = bounds[t];
+        const long offset = tB - bStart + 1; // TN to TB conversion offset
+
+        for (std::size_t n = nStart; n < nEnd; ++n)
+        {
+            const std::size_t idx = n + offset;
+            const double w = exp(logPlus(LPM[idx], LPE[idx]));
+            kmers[n] += w * sig[t - 1]; // Accumulate for kmers
+            normFactorT[n] += w;        // Accumulate for normalizer
+        }
+    }
+
+    for (std::size_t n = 1; n < N; ++n)
+    {
+        kmers[n] = kmers[n] / normFactorT[n];                       // Normalize
+        means[kmerSeq[n - 1]] += kmers[n] / counts[kmerSeq[n - 1]]; // Update means
+    }
+
+    // Emission (stdev of kmers)
+    std::fill_n(kmers, N, 0);
+    tB = 0;
+    for (std::size_t t = 1; t < T; ++t)
+    {
+        tB += B;
+        auto [bStart, nStart, nEnd] = bounds[t];
+        const long offset = tB - bStart + 1; // TN to TB conversion offset
+
+        for (std::size_t n = nStart; n < nEnd; ++n)
+        {
+            const std::size_t idx = n + offset;
+            const double w = exp(logPlus(LPM[idx], LPE[idx])); // Compute difference from mean
+            double diff = sig[t - 1] - means[kmerSeq[n - 1]];
+            kmers[n] += w * diff * diff; // Accumulate for variance
+        }
+    }
+
+    for (std::size_t n = 1; n < N; ++n)
+    {
+        kmers[n] = kmers[n] / normFactorT[n];
+        stdevs[kmerSeq[n - 1]] += kmers[n] / counts[kmerSeq[n - 1]];
+    }
+
+#pragma omp parallel for
+    for (std::size_t i = 0; i < numKmers; ++i)
+    {
+        // transform vars to stdevs
+        stdevs[i] = sqrt(stdevs[i]);
+    }
+
+    delete[] kmers;
+    delete[] normFactorT;
+    return std::tuple<double *, double *>({means, stdevs});
+}
+
+/**
+ * Trains transition and emission parameters using the Baum-Welch algorithm.
+ *
+ * @param sig Pointer to the ONT raw signal array with pA values.
+ * @param kmerSeq Pointer to the nucleotide sequence represented by the ONT signal.
+ * @param forM Pointer to the forward matrix for match states.
+ * @param forE Pointer to the forward matrix for extend states.
+ * @param backM Pointer to the backward matrix for match states.
+ * @param backE Pointer to the backward matrix for extend states.
+ * @param T Length of the ONT raw signal + 1.
+ * @param N Length of nucleotide sequence + 1.
+ * @param model Reference to a vector containing kmers as keys and (mean, stdev) tuples as values.
+ * @param alphabetSize The size of the nucleotide alphabet.
+ * @param numKmers The number of kmers in the sequence.
+ * @param kmerSize The size of each kmer.
+ */
+void trainParams(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds, const double Z)
+{
+    const auto [newM, newE1, newE2] = trainTransition(sig, kmerSeq, forE, backM, backE, T, N, B, model, bounds);
+    std::cout << "m1:" << newM << ";e1:" << newE1 << ";e2:" << newE2 << std::endl;
+
+    const std::size_t TB = T * B;
+    double *LPM = new double[TB];
+    logP(LPM, forM, backM, Z, TB); // log probs for segmentation
+    delete[] forM;
+    delete[] backM;
+    double *LPE = new double[TB];
+    logP(LPE, forE, backE, Z, TB); // log probs for extension
+    delete[] forE;
+    delete[] backE;
+
+    const auto [newMeans, newStdevs] = trainEmission(sig, kmerSeq, LPM, LPE, T, N, B, numKmers, bounds);
+    for (int i = 0; i < numKmers; i++)
+    {
+        if (newStdevs[i] != 0.0) [[likely]]
+        {
+            std::cout << itoa(i, alphabetSize, kmerSize, rna) << ":" << newMeans[i] << "," << newStdevs[i] << ";";
+        }
+    }
+    std::cout << std::endl;
+    delete[] newMeans;
+    delete[] newStdevs;
 }

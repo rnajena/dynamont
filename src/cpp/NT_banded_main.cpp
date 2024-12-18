@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     auto result = readKmerModel(modelpath, kmerSize, rna);
     std::tuple<double, double> *model = std::get<0>(result);
     const int alphabetSize = std::get<1>(result);
-    // const int numKmers = std::get<2>(result);
+    const int numKmers = std::get<2>(result);
 
     // example
     // 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105
@@ -198,6 +198,16 @@ int main(int argc, char *argv[])
         delete[] forE;
         delete[] backM;
         delete[] backE;
+        delete[] model;
+        exit(0);
+    }
+
+    // train both Transitions and Emissions
+    if (train)
+    {
+        trainParams(sig, kmerSeq, forM, forE, backM, backE, T, N, B, model, alphabetSize, numKmers, kmerSize, bounds, Zb);
+        delete[] sig;
+        delete[] kmerSeq;
         delete[] model;
         exit(0);
     }

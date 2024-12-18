@@ -110,3 +110,51 @@ void traceback(const double *M, const double *E, const double *LPM, const double
  * @return A vector of std::tuple containing the lower and upper bounds for each time step.
  */
 std::vector<std::tuple<long, std::size_t, std::size_t>> getBounds(const std::size_t T, const std::size_t N, const std::size_t TB, const std::size_t BANDWIDTH);
+
+/**
+ * Train transition parameter with baum welch algorithm
+ *
+ * @param sig ONT raw signal with pA values
+ * @param kmerSeq nucleotide sequence represented by the ONT signal
+ * @param forM matrix containing forward probabilities for M state
+ * @param forE matrix containing forward probabilities for E state
+ * @param backM matrix containing backward probabilities for M state
+ * @param backE matrix containing backward probabilities for E state
+ * @param T length of the ONT raw signal
+ * @param N length of nucleotide sequence
+ * @param model map containing kmers as keys and (mean, stdev) tuples as values
+ * @return tuple containing new transition probabilities
+ */
+std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, const std::tuple<double, double> *model, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds);
+
+/**
+ * Train emission parameter with baum welch algorithm
+ * @param sig signal
+ * @param kmerSeq sequence of kmers
+ * @param LPM matrix containing logarithmic probabilities for M state
+ * @param LPE matrix containing logarithmic probabilities for E state
+ * @param T number of time steps
+ * @param N number of latent states (kmers)
+ * @param model emission model
+ * @param numKmers number of kmers
+ * @return tuple of emission parameter means and stdevs
+ */
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *LPM, const double *LPE, const std::size_t T, const std::size_t N, const std::size_t B, const int numKmers, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds);
+
+/**
+ * Trains transition and emission parameters using the Baum-Welch algorithm.
+ *
+ * @param sig Pointer to the ONT raw signal array with pA values.
+ * @param kmerSeq Pointer to the nucleotide sequence represented by the ONT signal.
+ * @param forM Pointer to the forward matrix for match states.
+ * @param forE Pointer to the forward matrix for extend states.
+ * @param backM Pointer to the backward matrix for match states.
+ * @param backE Pointer to the backward matrix for extend states.
+ * @param T Length of the ONT raw signal + 1.
+ * @param N Length of nucleotide sequence + 1.
+ * @param model Reference to a vector containing kmers as keys and (mean, stdev) tuples as values.
+ * @param alphabetSize The size of the nucleotide alphabet.
+ * @param numKmers The number of kmers in the sequence.
+ * @param kmerSize The size of each kmer.
+ */
+void trainParams(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds, const double Z);
