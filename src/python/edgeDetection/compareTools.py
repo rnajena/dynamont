@@ -30,12 +30,12 @@ def parse() -> Namespace:
     parser.add_argument("--dorado", type=str, required=True, metavar="TSV", help="Dorado segmentation output in TSV format")
     parser.add_argument("--f5cresquiggle", type=str, required=True, metavar="TSV", help="f5c resquiggle segmentation output in TSV format")
     parser.add_argument("--f5ceventalign", type=str, required=True, metavar="TSV", help="f5c eventalign segmentation output in TSV format\nSummary file must exists in the same path with extension .sum")
-    parser.add_argument("--tombo", type=str, required=True, metavar="PATH", help="Parent directory of single fast5s processed by Tombo")
     parser.add_argument("--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as .bam file")
     # parser.add_argument("--pod5", type=str, required=True, metavar="POD5", help="raw signals")
     parser.add_argument("--output", type=str, required=True, metavar="CSV", help="Output CSV containing pandas data frame")
     parser.add_argument("--dynamont", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
     parser.add_argument("--labels", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
+    parser.add_argument("--tombo", type=str, metavar="PATH", help="Parent directory of single fast5s processed by Tombo")
     parser.add_argument("--distance", type=int, default=50, metavar="INT", help="Maximum distance to search for")
     parser.add_argument("-p", "--processes", type=int, default=7, metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
@@ -429,6 +429,8 @@ def plot(df: pd.DataFrame, outfile : str) -> None:
     # Sort grouped DataFrame by Tool to maintain the original order
     cumulativeDistance = cumulativeDistance.sort_values(by=['Tool', 'Absolute Distance']).reset_index(drop=True)
 
+    cumulativeDistance.to_csv(outfile + "cumulativeFoundEdges.csv", index=False)
+
     plt.figure(figsize=(8,8), dpi=300)
     sns.lineplot(cumulativeDistance, x='Absolute Distance', y='Found Change Points Ratio', hue='Tool', style='Tool')
     plt.title("Found Change Point Ratios vs Absolute Distance Threshold", fontsize=18)
@@ -521,22 +523,28 @@ def main() -> None:
         f5ceventalignReturn = pool.apply_async(readF5CEventalign, args=(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'))
         f5cresquiggleReturn = pool.apply_async(readF5CResquiggle, args=(args.f5cresquiggle,))
         doradoReturn = pool.apply_async(readDorado, args=(args.dorado,))
-        tomboReturn = pool.apply_async(readTombo, args=(args.tombo,))
         controlReturn = pool.apply_async(generateControl, args=(args.basecalls,))
 
         groundTruths = gtReturn.get()  #readChangepoints(args.changepoints)
         randomBorders, uniformBorders = controlReturn.get() # generating controls
-
+        
+        if args.tombo:
+            tomboReturn = pool.apply_async(readTombo, args=(args.tombo,))
+        
         toolsResult = {
             f"Dynamont {' '.join(label.split('_'))}" : dynamontReturn[label].get() for label in dynamontReturn
         } | {
             'f5c Eventalign' : f5ceventalignReturn.get(), # readF5CEventalign(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'),
             'f5c Resquiggle' : f5cresquiggleReturn.get(), # readF5CResquiggle(args.f5cresquiggle),
             'Dorado' : doradoReturn.get(), # readDorado(args.dorado),
-            'Tombo' : tomboReturn.get(), # readTombo(args.tombo),
             'Control Random' : randomBorders,
             'Control Uniform' : uniformBorders,
         }
+
+        if args.tombo:
+            toolsResult = toolsResult | {
+                'Tombo' : tomboReturn.get(), # readTombo(args.tombo),
+            }
 
         for tool in toolsResult:
             toNumpy(toolsResult[tool])
@@ -569,8 +577,8 @@ def main() -> None:
             for i, job in enumerate(jobs):
                 if (i+1) % 1000 == 0:
                     print(f'{i+1}/{len(groundTruths)}', end='\r')
-                for i, n in enumerate(job.get()):
-                    foundEdges[i] += n
+                for j, n in enumerate(job.get()):
+                    foundEdges[j] += n
             
             for distance in range(2*maxDistance + 1):
                 outfile.write(f"{tool},{distance - maxDistance},{foundEdges[distance]},{totalEdges},{foundEdges[distance] / totalEdges if totalEdges > 0 else 0},{segmentedReads},{totalReads},{segmentedReads / totalReads if totalReads > 0 else 0}\n")
