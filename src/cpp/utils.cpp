@@ -90,9 +90,9 @@ const std::map<std::string, double> NT_rna_r9_transitions = {
     {"e1", 1.0},
     {"e2", 0.97}};
 const std::map<std::string, double> NT_rna_rp4_transitions = {
-    {"m1", 1.0},
+    {"m1", 0.03},
     {"e1", 1.0},
-    {"e2", 1.0}};
+    {"e2", 0.97}};
 const std::map<std::string, double> NT_dna_r9_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
