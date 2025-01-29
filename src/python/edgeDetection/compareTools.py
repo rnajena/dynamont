@@ -30,6 +30,7 @@ def parse() -> Namespace:
     parser.add_argument("--dorado", type=str, required=True, metavar="TSV", help="Dorado segmentation output in TSV format")
     parser.add_argument("--f5cresquiggle", type=str, required=True, metavar="TSV", help="f5c resquiggle segmentation output in TSV format")
     parser.add_argument("--f5ceventalign", type=str, required=True, metavar="TSV", help="f5c eventalign segmentation output in TSV format\nSummary file must exists in the same path with extension .sum")
+    parser.add_argument("--uncalled", type=str, metavar="TSV", required=True, help="Uncalled4 segmentation output in csv format")
     parser.add_argument("--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as .bam file")
     # parser.add_argument("--pod5", type=str, required=True, metavar="POD5", help="raw signals")
     parser.add_argument("--output", type=str, required=True, metavar="CSV", help="Output CSV containing pandas data frame")
@@ -154,6 +155,19 @@ def readF5CResquiggle(file: str) -> dict:
                 readMap[readid].update([int(start), int(end)])
             except ValueError: # no segmentation for that position, e.g. 00b77311-c22c-472e-ad39-59f5f6aea4ec    467     .       .
                 pass
+    return readMap
+
+def readUncalled4(file : str) -> dict:
+    print("Reading uncalled 4 output from " + file)
+    readMap = defaultdict(set)
+    with open(file, 'r') as f:
+        next(f) # skip header
+        # seq.name        seq.pos seq.strand      aln.id  seq.kmer        aln.read_id     dtw.start       dtw.length      dtw.current     dtw.current_sd
+        for line in f:
+            _, _, _, _, _, readid, start, length, *_ = line.strip().split('\t')
+            if start == "*":
+                continue
+            readMap[readid].update([int(start), int(start) + int(length)])
     return readMap
 
 def getFast5s(directory: str) -> list:
@@ -522,6 +536,7 @@ def main() -> None:
         dynamontReturn = {label : pool.apply_async(readDynamont, args=(result,)) for label, result in zip(args.labels, args.dynamont)}
         f5ceventalignReturn = pool.apply_async(readF5CEventalign, args=(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'))
         f5cresquiggleReturn = pool.apply_async(readF5CResquiggle, args=(args.f5cresquiggle,))
+        uncalled4return = pool.apply_async(readUncalled4, args=(args.uncalled,))
         doradoReturn = pool.apply_async(readDorado, args=(args.dorado,))
         controlReturn = pool.apply_async(generateControl, args=(args.basecalls,))
 
@@ -537,6 +552,7 @@ def main() -> None:
             'f5c Eventalign' : f5ceventalignReturn.get(), # readF5CEventalign(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'),
             'f5c Resquiggle' : f5cresquiggleReturn.get(), # readF5CResquiggle(args.f5cresquiggle),
             'Dorado' : doradoReturn.get(), # readDorado(args.dorado),
+            'Uncalled4' : uncalled4return.get(), # readUncalled4(args.uncalled),
             'Control Random' : randomBorders,
             'Control Uniform' : uniformBorders,
         }
@@ -574,9 +590,11 @@ def main() -> None:
                     segmentedReads += 1
                     jobs.append(pool.apply_async(evaluate, args=(gtSet, predictions, maxDistance)))
 
+            [job.wait() for job in jobs]
+
             for i, job in enumerate(jobs):
-                if (i+1) % 1000 == 0:
-                    print(f'{i+1}/{len(groundTruths)}', end='\r')
+                # if (i+1) % 1000 == 0:
+                print(f'{i+1}/{len(groundTruths)}', end='\r')
                 for j, n in enumerate(job.get()):
                     foundEdges[j] += n
             
