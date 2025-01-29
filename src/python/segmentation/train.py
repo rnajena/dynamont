@@ -18,7 +18,6 @@ from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitio
 class ManagedList:
     def __init__(self, values, max_size=100):
         """Initialize the ManagedList with a maximum size."""
-        self.max_size = max_size
         self.values = deque(values, maxlen=max_size)  # deque automatically limits size
 
     def add(self, value):
@@ -161,18 +160,32 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             if pore in ["dna_r9", "rna_r9"]:
                                 # for r9 pores, shift and scale are stored for pA signal in bam
                                 signal = r5.getpASignal(readid)
+
+                                # signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
+
                             else:
                                 # for new pores, shift and scale is directly applied to stored integer signal (DACs)
                                 # this way the conversion from DACs to pA is skipped
                                 signal = r5.getSignal(readid)
+                                
+                                # norm_signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
+                                # # slice signal, remove remaining adapter content until polyA starts
+                                # start = np.argmax(norm_signal[sp+ts:] >= 0.8) + sp + ts + 100
+                                # signal = signal[start : sp+ns]
 
-                            # [start:sp+ns]
-                            # slice signal, remove remaining adapter content until polyA starts
-                            start = np.argmax(signal[sp+ts:] >= 0.4) + sp + ts + 100
-                            signal = signal[start : sp+ns]
-                            shift = basecalledRead.get_tag("sm")
-                            scale = basecalledRead.get_tag("sd")
-                            signal = (signal - shift) / scale
+                                #! normalize poly A region to median 0.9 (as in init models from ONT r9 and rp4) and scale to 0.15 (from training on r9 and rp4)
+                                # shift = np.median(signal[:1000])
+                                # scale = np.median(np.absolute(signal[:1000] - shift))
+                                # signal = ((signal - shift) / scale) * 0.15 + 0.9
+
+
+                            #! normalize whole signal
+                            # mad = np.median(np.absolute(signal - np.median(signal)))
+                            # if mad < 70: # check again for weird repetitive reads/signals with high quality
+                            #     continue
+                            signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
+                            signal = signal[sp+ts : sp+ns]
+                        
                         except:
                             noMatchingReadid+=1
                             continue
@@ -208,7 +221,13 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             for param in trainedParams:
                                 paramCollector[param].add(trainedParams[param])
 
+                            #! skip weird trainings
+                            if newModels['AAAAAAAAA'][0] < 0.5:
+                                continue
+
                             for kmer in newModels:
+                                # if kmer == 'AAAAAAAAA':
+                                #     print(readid, newModels[kmer])
                                 kmerSeen.add(kmer)
                                 paramCollector[kmer][0].add(newModels[kmer][0])
                                 paramCollector[kmer][1].add(newModels[kmer][1])

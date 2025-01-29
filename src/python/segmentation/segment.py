@@ -9,6 +9,7 @@ import read5_ont
 import multiprocessing as mp
 import pysam
 import psutil
+import numpy as np
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name, getpid
@@ -127,10 +128,23 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
         signal = r5.getSignal(signalid)[start:end]
         kmerSize = 9
     r5.close()
+
+    #! normalize poly A region to median 0.9 (as in init models from ONT r9 and rp4) and scale to 0.15 (from training on r9 and rp4)
+    # shift = np.median(signal[:1000])
+    # scale = np.median(np.absolute(signal[:1000] - shift))
+    # signal = ((signal - shift) / scale) * 0.15 + 0.9
+
+    # [start:sp+ns]
+    # slice signal, remove remaining adapter content until polyA starts
+    # start = np.argmax(signal[start:] >= 0.8) + start + 100
+    # signal = signal[start:]
+
     signal = (signal - shift) / scale
     hampelFilter(signal)
     if "rna" in pore:
         read = read[::-1] # change direction from 5' - 3' to 3' - 5'
+        if not read.startswith("AAAAAAAAA"):
+            read = "AAAAAAAAA" + read
     
     feedSegmentationAsynchronous(
                 script,
@@ -204,6 +218,8 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
             ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
             sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
             rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+
+            #! normalize whole signal
             shift = basecalled_read.get_tag("sm")
             scale = basecalled_read.get_tag("sd")
 

@@ -167,7 +167,7 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
         twinax.set_ylabel('log(Border Probability)')
 
     plt.hlines([start, end], lb, ub, colors='black')
-    plt.grid(False)
+    # plt.grid(False)
 
     plt.savefig(join(outpath, readid + '.svg'), dpi=500)
     plt.savefig(join(outpath, readid + '.pdf'), dpi=500)
@@ -294,8 +294,12 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             # change read from 5'-3' to 3'-5'
             if "rna" in pore:
                 seq = seq[::-1]
-                
-            segmentRead(signal, sp+ts, sp+ns, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore, resquiggleBorders)
+                if not seq.startswith("AAAAAAAAA"):
+                    seq = "AAAAAAAAA" + seq
+            
+            start = np.argmax(signal[sp+ts:] >= 0.4) + sp + ts + 100
+
+            segmentRead(signal, start, sp+ns, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore, resquiggleBorders)
 
 def readF5CResquiggle(file: str) -> dict:
     """
@@ -330,7 +334,7 @@ def main() -> None:
     if not exists(args.outdir):
         makedirs(args.outdir)
 
-    f5cReadMap = readF5CResquiggle(args.f5cResquiggle)
+    f5cReadMap = readF5CResquiggle(args.f5cResquiggle) if args.f5cResquiggle is not None else None
 
     start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.probability, args.pore, f5cReadMap)
 
