@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
     bool train, calcZ, prob; // atrain
     std::string pore, modelpath;
 
-    std::cerr << std::fixed << std::showpoint << std::setprecision(7);
-    std::cout << std::fixed << std::showpoint << std::setprecision(7);
+    std::cerr << std::fixed << std::showpoint << std::setprecision(11);
+    std::cout << std::fixed << std::showpoint << std::setprecision(11);
 
     argparse::ArgumentParser program("dynamont 3d sparsed", "0.1");
     program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
@@ -50,7 +50,6 @@ int main(int argc, char *argv[])
     // load default and set parameters
     if (pore == "rna_r9")
     {
-        kmerSize = 5;
         rna = true;
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_rna_r9_transitions.at("m1")), ppTNe = log(NT_rna_r9_transitions.at("e2"));
@@ -59,7 +58,6 @@ int main(int argc, char *argv[])
     }
     else if (pore == "dna_r9")
     {
-        kmerSize = 5;
         rna = false;
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_dna_r9_transitions.at("m1")), ppTNe = log(NT_dna_r9_transitions.at("e2"));
@@ -68,7 +66,6 @@ int main(int argc, char *argv[])
     }
     else if (pore == "rna_rp4")
     {
-        kmerSize = 9;
         rna = true;
         // taken from the trained NT version of dynamont
         ppTNm = log(NT_rna_rp4_transitions.at("m1")), ppTNe = log(NT_rna_rp4_transitions.at("e2"));
@@ -77,7 +74,6 @@ int main(int argc, char *argv[])
     }
     else if (pore == "dna_r10_260bps")
     {
-        kmerSize = 9;
         rna = false;
         ppTNm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_260bps_transitions.at("e2"));
         ppTKm = log(NT_dna_r10_260bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_260bps_transitions.at("e2"));
@@ -85,20 +81,20 @@ int main(int argc, char *argv[])
     }
     else if (pore == "dna_r10_400bps")
     {
-        kmerSize = 9;
         rna = false;
         ppTNm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTNe = log(NT_dna_r10_400bps_transitions.at("e2"));
         ppTKm = log(NT_dna_r10_400bps_transitions.at("m1")), ppTKe = log(NT_dna_r10_400bps_transitions.at("e2"));
         updateTransitions(NTK_dna_r10_400bps_transitions, transitions_NTK);
     }
-    halfKmerSize = kmerSize / 2;
 
     checkModelpath(modelpath);
-    auto result = readKmerModel(modelpath, kmerSize, rna);
+    auto result = readKmerModel(modelpath, rna);
     std::tuple<double, double> *model = std::get<0>(result);
     alphabetSize = std::get<1>(result);
     // polishing dimension K = number of possible kmers
     const std::size_t K = std::get<2>(result);
+    kmerSize = std::get<3>(result);
+    halfKmerSize = kmerSize / 2;
 
     stepSize = pow(alphabetSize, kmerSize - 1);
     std::string signal, read;

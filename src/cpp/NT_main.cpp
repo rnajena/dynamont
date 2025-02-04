@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
   bool train, calcZ, prob;
   std::string pore, modelpath;
 
-  std::cerr << std::fixed << std::showpoint << std::setprecision(7);
-  std::cout << std::fixed << std::showpoint << std::setprecision(7);
+  std::cerr << std::fixed << std::showpoint << std::setprecision(11);
+  std::cout << std::fixed << std::showpoint << std::setprecision(11);
 
   // Argparser
   argparse::ArgumentParser program("dynamont basic", "0.1");
@@ -37,47 +37,42 @@ int main(int argc, char *argv[])
   omp_set_dynamic(1);
   omp_set_num_threads(program.get<int>("-t"));
 
-  int kmerSize = 0;
   // load default and set parameters
   if (pore == "rna_r9")
   {
-    kmerSize = 5;
     rna = true;
     // taken from the trained NT version of dynamont
     updateTransitions(NT_rna_r9_transitions, transitions_NT);
   }
   else if (pore == "dna_r9")
   {
-    kmerSize = 5;
     rna = false;
     // taken from the trained NT version of dynamont
     updateTransitions(NT_dna_r9_transitions, transitions_NT);
   }
   else if (pore == "rna_rp4")
   {
-    kmerSize = 9;
     rna = true;
     // taken from the trained NT version of dynamont
     updateTransitions(NT_rna_rp4_transitions, transitions_NT);
   }
   else if (pore == "dna_r10_260bps")
   {
-    kmerSize = 9;
     rna = false;
     updateTransitions(NT_dna_r10_260bps_transitions, transitions_NT);
   }
   else if (pore == "dna_r10_400bps")
   {
-    kmerSize = 9;
     rna = false;
     updateTransitions(NT_dna_r10_400bps_transitions, transitions_NT);
   }
 
   checkModelpath(modelpath);
-  auto result = readKmerModel(modelpath, kmerSize, rna);
+  auto result = readKmerModel(modelpath, rna);
   std::tuple<double, double> *model = std::get<0>(result);
   const int alphabetSize = std::get<1>(result);
   const int numKmers = std::get<2>(result);
+  const int kmerSize = std::get<3>(result);
 
   // example
   // 107,107,107.2,108.0,108.9,111.2,105.7,104.3,107.1,105.7,105,105
