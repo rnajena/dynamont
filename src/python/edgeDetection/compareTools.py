@@ -605,6 +605,7 @@ def main() -> None:
         outfile.close()
 
         for tool in toolsResult:
+            print("Plotting segment size distribution for " + tool)
             distances = np.array([])
             for readid in toolsResult[tool]:
                 distances = np.append(distances, np.diff(toolsResult[tool][readid]))
