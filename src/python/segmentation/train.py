@@ -213,8 +213,6 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
                             trainedParams, newModels, Z = result
 
-                            # print(readid, newModels)
-
                             i += 1
                             preZ[readid] = Z
 
@@ -222,12 +220,10 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                                 paramCollector[param].add(trainedParams[param])
 
                             #! skip weird trainings
-                            if newModels['AAAAAAAAA'][0] < 0.5:
+                            if ('AAAAAAAAA' in newModels and newModels['AAAAAAAAA'][0] < 0.5) or ('AAAAA' in newModels and newModels['AAAAA'][0] < 0.5):
                                 continue
 
                             for kmer in newModels:
-                                # if kmer == 'AAAAAAAAA':
-                                #     print(readid, newModels[kmer])
                                 kmerSeen.add(kmer)
                                 paramCollector[kmer][0].add(newModels[kmer][0])
                                 paramCollector[kmer][1].add(newModels[kmer][1])
