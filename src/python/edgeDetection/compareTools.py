@@ -603,7 +603,17 @@ def main() -> None:
             outfile.flush()
         
         outfile.close()
-    
+
+        for tool in toolsResult:
+            distances = np.array([])
+            for readid in toolsResult[tool]:
+                distances = np.append(distances, np.diff(toolsResult[tool][readid]))
+            sns.histplot(distances, bins=100)
+            plt.xlabel("Segment Size")
+            plt.title(tool + " Segmentsize Histogram")
+            plt.savefig(os.path.splitext(args.output)[0] + "_" + tool + "_segmentsize.pdf", dpi=300)
+            plt.savefig(os.path.splitext(args.output)[0] + "_" + tool + "_segmentsize.svg", dpi=300)
+
     pool.close()
     pool.join()
 
