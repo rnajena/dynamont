@@ -195,7 +195,7 @@ std::string itoa(const std::size_t value, const int alphabetSize, const int kmer
     std::string buf;
     const int base = alphabetSize;
 
-    // check that the base if valid
+    // check if base is valid
     if (base < 2 || base > 16)
         return std::to_string(value);
 
@@ -310,6 +310,85 @@ std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const s
     // 2. The alphabet size (number of unique characters in the kmers)
     // 3. The total number of kmers (alphabetSize^kmerSize)
     return std::make_tuple(model, alphabetSize, numKmers);
+}
+
+/**
+ * Reads the normal distribution parameters from a given TSV file,
+ * and returns the kmer model and alphabet size.
+ *
+ * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
+ * @param rna        True if input is RNA sequence, false if DNA sequence
+ * @returns          A std::tuple containing:
+ *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
+ *                   2. The alphabet size (number of unique nucleotide characters from the kmer std::set).
+ *                   3. The total number of possible kmers (calculated as alphabetSize^kmerSize).
+ *                   4. The number of bases in the model kmers: kmer size
+ */
+std::tuple<std::tuple<double, double> *, int, std::size_t, std::size_t> readKmerModel(const std::string &file, const bool rna)
+{
+    std::string line, kmer, tmp;
+    std::size_t kmerSize = 0;
+
+    std::set<char> uniqueChars; // std::set to store unique characters from kmers to determine the alphabet size
+    std::ifstream inputFile(file);
+
+    // First pass: read file to collect unique characters from kmer sequences
+    // Skip the header line
+    getline(inputFile, line);
+    while (getline(inputFile, line)) // read line
+    {
+        std::stringstream buffer(line); // parse line to std::stringstream for getline
+        getline(buffer, kmer, '\t');
+        // Add all unique characters in the kmer to the std::set
+        for (char c : kmer)
+        {
+            uniqueChars.insert(c);
+        }
+        if (kmerSize == 0)
+        {
+            kmerSize = kmer.length();
+        }
+        else if (kmer.length() != kmerSize)
+        {
+            std::cerr << kmer << " kmer length in model " << file << " does not match kmerSize " << kmerSize << " of pore given pore type" << std::endl;
+            exit(6);
+        }
+    }
+    inputFile.close();
+
+    const int alphabetSize = (int)uniqueChars.size();
+    const std::size_t numKmers = pow(alphabetSize, kmerSize);
+    uniqueChars.clear(); // Clear the unique character std::set (no longer needed) to free up memory
+
+    // std::cout << "kmerSize: " << kmerSize << " numKmers: " << numKmers << "\n";
+
+    std::tuple<double, double> *model = new std::tuple<double, double>[numKmers];
+    inputFile.open(file); // Reopen the file for the second pass
+
+    // Read through the file to populate the model with (mean, stdev) for each kmer
+    // Skip the header line
+    getline(inputFile, line);
+    while (getline(inputFile, line))
+    {                                   // read line
+        std::stringstream buffer(line); // parse line to std::stringstream for getline
+        getline(buffer, kmer, '\t');
+        // models are stored in 5' - 3'
+        if (rna)
+            std::reverse(kmer.begin(), kmer.end()); // 5-3 -> 3-5 orientation
+        getline(buffer, tmp, '\t');                 // level_mean
+        const double mean = stod(tmp);
+        getline(buffer, tmp, '\t'); // level_stdv
+        const double stdev = stod(tmp);
+        model[kmer2int(kmer, alphabetSize)] = std::make_tuple(mean, stdev);
+    }
+    inputFile.close();
+
+    // Return a std::tuple containing:
+    // 1. The model array (containing kmers and their (mean, stdev) tuples)
+    // 2. The alphabet size (number of unique characters in the kmers)
+    // 3. The total number of kmers (alphabetSize^kmerSize)
+    // 4. Model kmerSize
+    return std::make_tuple(model, alphabetSize, numKmers, kmerSize);
 }
 
 /**

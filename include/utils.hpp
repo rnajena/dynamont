@@ -115,6 +115,20 @@ int kmer2int(const std::string &s, const int alphabetSize);
  */
 std::tuple<std::tuple<double, double> *, int, std::size_t> readKmerModel(const std::string &file, const std::size_t kmerSize, const bool rna);
 
+/**
+ * Reads the normal distribution parameters from a given TSV file,
+ * and returns the kmer model and alphabet size.
+ *
+ * @param file       Path to the TSV file containing kmer parameters (mean, stdev).
+ * @param rna        True if input is RNA sequence, false if DNA sequence
+ * @returns          A std::tuple containing:
+ *                   1. An array of tuples, where each std::tuple holds (mean, stdev) for each kmer.
+ *                   2. The alphabet size (number of unique nucleotide characters from the kmer set).
+ *                   3. The total number of possible kmers (calculated as alphabetSize^kmerSize).
+ *                   4. The number of bases in the model kmers: kmer size
+ */
+std::tuple<std::tuple<double, double> *, int, std::size_t, std::size_t> readKmerModel(const std::string &file, const bool rna);
+
 // https://en.wikipedia.org/wiki/Log_probability
 /**
  * Calculate addition of a+b in log space as efficiently as possible
