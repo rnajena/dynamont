@@ -240,7 +240,7 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, i
     -------
     result : str
     '''
-    cookie = f"{','.join([f'{x:.7f}' for x in signal])}\n{read}\n"
+    cookie = f"{','.join([f'{x}' for x in signal])}\n{read}\n"
     results, errors = pipe.communicate(input=cookie)
     returncode = pipe.returncode
     pipe.kill()
@@ -274,8 +274,9 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
         print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}")
+        print(result)
         with open("failed_input.txt", 'w') as w:
-            w.write(",".join([f'{x:.7f}' for x in signal]) + '\n' + read + '\n')
+            w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
         return signalid
     transitionParams, modelParams, Z = result.split('\n')
 
@@ -284,7 +285,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     except:
         print(f"ERROR while extracting transitions params in {signalid}", transitionParams)
         # with open("failed_input.txt", 'w') as w:
-        #     w.write(",".join([f'{x:.7f}' for x in signal]) + '\n' + read + '\n')
+        #     w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
         # raise SegmentationError(readid)
         return signalid
     # then updated emission updated
@@ -387,7 +388,7 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     if returncode == -11: # Segmentation Fault return code
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         with open("failed_input.txt", 'w') as w:
-            w.write(",".join([f'{x:.7f}' for x in signal]) + '\n' + read + '\n')
+            w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
         return
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
