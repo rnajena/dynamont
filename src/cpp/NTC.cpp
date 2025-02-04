@@ -1062,18 +1062,11 @@ std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_m
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
-    double *means = new double[K];
-    double *stdevs = new double[K];
-    double *normFactorT = new double[K];
+    // 0-Initialize memory
+    double *means = new double[K]();
+    double *stdevs = new double[K]();
+    double *normFactorT = new double[K]();
     double w;
-
-    // Initialize
-    for (std::size_t k = 0; k < K; ++k)
-    {
-        means[k] = 0.0;
-        stdevs[k] = 0.0;
-        normFactorT[k] = 0.0;
-    }
 
     // First pass: Compute means and normalization factors
     for (const std::size_t &tnk : allowedKeys)
@@ -1089,9 +1082,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, std::unordered_m
         const auto &logValues = logAPSEI.at(tnk);
         w = logPlus(logPlus(logPlus(logValues[0], logValues[1]), logPlus(logValues[2], logValues[3])), logValues[4]);
         w = exp(w); // Convert log probability to normal probability
-        // if (t>0) [[likely]] {
         means[k] += w * sig[t - 1];
-        // }
         normFactorT[k] += w;
     }
 

@@ -379,23 +379,12 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
-    // Initialize memory
-    double *kmers = new double[N];
-    double *means = new double[numKmers];
-    double *stdevs = new double[numKmers];
-    double *normFactorT = new double[numKmers];
-    int *counts = new int[numKmers];
-
-    // init everything with zero
-    std::fill_n(kmers, N, 0.0);
-
-#pragma omp parallel for
-    for (int i = 0; i < numKmers; i++)
-    {
-        means[i] = 0.0;
-        stdevs[i] = 0.0;
-        counts[i] = 0;
-    }
+    // 0-Initialize memory
+    double *kmers = new double[N]();
+    double *normFactorT = new double[N]();
+    double *means = new double[numKmers]();
+    double *stdevs = new double[numKmers]();
+    int *counts = new int[numKmers]();
 
     // count kmer appearances in N
     for (std::size_t n = 1; n < N; ++n)
@@ -422,7 +411,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
 
     for (std::size_t n = 1; n < N; ++n)
     {
-        kmers[n] = kmers[n] / normFactorT[n];                       // Normalize
+        kmers[n] /= normFactorT[n];                                 // Normalize
         means[kmerSeq[n - 1]] += kmers[n] / counts[kmerSeq[n - 1]]; // Update means
     }
 
@@ -445,7 +434,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
 
     for (std::size_t n = 1; n < N; ++n)
     {
-        kmers[n] = kmers[n] / normFactorT[n];
+        kmers[n] /= normFactorT[n]; // Normalize
         stdevs[kmerSeq[n - 1]] += kmers[n] / counts[kmerSeq[n - 1]];
     }
 
@@ -459,7 +448,7 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     delete[] kmers;
     delete[] normFactorT;
     delete[] counts;
-    return std::tuple<double *, double *>({means, stdevs});
+    return std::make_tuple(means, stdevs);
 }
 
 /**

@@ -254,27 +254,14 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
     // https://f.hubspotusercontent40.net/hubfs/8111846/Unicon_October2020/pdf/bilmes-em-algorithm.pdf
     // gamma_t(i) is the probability of being in state i at time t
     // gamma for state M - expected number of transitions of M at given time (T) for all latent states (kmers)
-    // Initialize memory
+    // 0-Initialize memory
     const std::size_t TN = T * N;
-    double *G = new double[TN];
-    double *kmers = new double[N];
-    double *d = new double[N];
-    double *means = new double[numKmers];
-    double *stdevs = new double[numKmers];
-    int *counts = new int[numKmers];
-
-    // init everything with zero
-    for (std::size_t i = 0; i < N; i++)
-    {
-        kmers[i] = 0.0;
-        d[i] = 0.0;
-    }
-    for (int i = 0; i < numKmers; i++)
-    {
-        means[i] = 0.0;
-        stdevs[i] = 0.0;
-        counts[i] = 0;
-    }
+    double *G = new double[TN]();
+    double *kmers = new double[N]();
+    double *d = new double[N]();
+    double *means = new double[numKmers]();
+    double *stdevs = new double[numKmers]();
+    int *counts = new int[numKmers]();
 
     // initialize G
     for (std::size_t t = 0; t < T; ++t)
