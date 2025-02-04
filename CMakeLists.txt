@@ -17,6 +17,7 @@ include(FetchContent)
 FetchContent_Declare(
   GTest
   URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE  # Add this line
 )
 FetchContent_MakeAvailable(GTest)
 
