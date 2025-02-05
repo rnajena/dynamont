@@ -606,10 +606,13 @@ def main() -> None:
 
         for tool in toolsResult:
             print("Plotting segment size distribution for " + tool)
-            distances = np.array([])
-            for readid in toolsResult[tool]:
-                distances = np.append(distances, np.diff(toolsResult[tool][readid]))
-            sns.histplot(distances, bins=100)
+
+            distance_list = [np.diff(toolsResult[tool][readid]) for readid in toolsResult[tool]]
+            distances = np.concatenate(distance_list) if distance_list else np.array([])
+            
+            sns.set_theme()
+            sns.histplot(distances, bins=100, log_scale=True)
+            plt.xlim((0, 1000))
             plt.xlabel("Segment Size")
             plt.title(tool + " Segmentsize Histogram")
             plt.savefig(os.path.splitext(args.output)[0] + "_" + tool.replace(' ', '_') + "_segmentsize.pdf", dpi=300)
