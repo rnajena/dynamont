@@ -566,6 +566,24 @@ def main() -> None:
             toNumpy(toolsResult[tool])
         toNumpy(groundTruths)
 
+        for tool in toolsResult:
+            print("Plotting segment size distribution for " + tool)
+
+            distance_list = [np.diff(toolsResult[tool][readid]) for readid in toolsResult[tool]]
+            distances = np.concatenate(distance_list) if distance_list else np.array([])
+            
+            distances_clipped = np.clip(distances, 0, 200)
+
+            sns.set_theme()
+            sns.histplot(distances_clipped, bins=np.append(np.linspace(0, 200, 21), np.inf))
+            plt.yscale("log")
+            plt.xlim((0, 210))
+            plt.xlabel("Segment Size")
+            plt.title(tool + " Segmentsize Histogram, Overflow Bin for Values > 1000")
+            plt.savefig(os.path.splitext(args.output)[0] + "_" + tool.replace(' ', '_') + "_segmentsize.pdf", dpi=300)
+            plt.savefig(os.path.splitext(args.output)[0] + "_" + tool.replace(' ', '_') + "_segmentsize.svg", dpi=300)
+            plt.close()
+
         print("Done\nStart Evaluating...")
 
         # df = pd.DataFrame()
@@ -603,21 +621,6 @@ def main() -> None:
             outfile.flush()
         
         outfile.close()
-
-        for tool in toolsResult:
-            print("Plotting segment size distribution for " + tool)
-
-            distance_list = [np.diff(toolsResult[tool][readid]) for readid in toolsResult[tool]]
-            distances = np.concatenate(distance_list) if distance_list else np.array([])
-            
-            sns.set_theme()
-            sns.histplot(distances, bins=100, log_scale=True)
-            plt.xlim((0, 1000))
-            plt.xlabel("Segment Size")
-            plt.title(tool + " Segmentsize Histogram")
-            plt.savefig(os.path.splitext(args.output)[0] + "_" + tool.replace(' ', '_') + "_segmentsize.pdf", dpi=300)
-            plt.savefig(os.path.splitext(args.output)[0] + "_" + tool.replace(' ', '_') + "_segmentsize.svg", dpi=300)
-            plt.close()
 
     pool.close()
     pool.join()
