@@ -106,7 +106,7 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
             ax[plotNumber].add_patch(Rectangle((int(segment[0]), lb), int(segment[1]) - int(segment[0]), ub-lb, alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
         ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "f5c resquiggle segmentation")
-        ax[plotNumber].legend()
+        ax[plotNumber].legend('upper right')
         
         if changepoints is not None:
             ax[plotNumber].set_xticks(changepoints, minor=True)
@@ -166,7 +166,7 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
     ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="Model Mean")
     ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
     ax[plotNumber].plot([0, 0.1], [-6.1, -6], c='black', label='log(Border Probability)')
-    ax[plotNumber].legend()
+    ax[plotNumber].legend(loc='upper right')
     
     if changepoints is not None:
         ax[plotNumber].set_xticks(changepoints, minor=True)
