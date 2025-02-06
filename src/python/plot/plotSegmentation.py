@@ -30,10 +30,10 @@ def parse() -> Namespace:
     parser.add_argument('--model_path', type=str, required=True, help='Kmer model file')
     parser.add_argument('--mode', required=True, choices=['basic', 'resquiggle'])
     parser.add_argument('--probability', action="store_true", help="Output the segment border probability per position.")
-    
+    parser.add_argument("--changepoints", type=str, default=None, metavar="HDF5", help="HDF5 file with ground truth change points")
     return parser.parse_args()
 
-def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, kmerModels : pd.DataFrame, prob : bool, resquiggleBorders : np.ndarray, pore : str):
+def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, segments : np.ndarray, probs : np.ndarray, readid : str, outpath : str, kmerModels : pd.DataFrame, prob : bool, resquiggleBorders : np.ndarray, pore : str, changepoints : np.ndarray):
     '''
     Input
     -----
@@ -72,7 +72,7 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
     if resquiggleBorders is not None:
         nPlots += 1
 
-    fig, ax = plt.subplots(nrows = nPlots, sharex=True, figsize=(120,10), dpi=300)
+    fig, ax = plt.subplots(nrows = nPlots, figsize=(120,10), dpi=300)
     fig.suptitle(f'{readid} segmentation in 3\' -> 5\' orientation')
     if nPlots == 1:
         ax = [ax]
@@ -107,10 +107,17 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
 
         ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "f5c resquiggle segmentation")
         ax[plotNumber].legend()
+        
+        if changepoints is not None:
+            ax[plotNumber].set_xticks(changepoints, minor=True)
+            ax[plotNumber].tick_params(axis='x', which='minor', direction='out', length=5, color='red', labelbottom=False, bottom=True, top=True)
+
         plotNumber += 1
 
     # OUR SEGMENTATION
     for segment in segments:
+        # print(segment)
+        # break
         # start, end, pos, read[pos], read[max(0, pos-2):min(len(read), pos+3)], state, prob, polish
         # extract motif from read
         pos = segment[2]
@@ -160,6 +167,10 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
     ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
     ax[plotNumber].plot([0, 0.1], [-6.1, -6], c='black', label='log(Border Probability)')
     ax[plotNumber].legend()
+    
+    if changepoints is not None:
+        ax[plotNumber].set_xticks(changepoints, minor=True)
+        ax[plotNumber].tick_params(axis='x', which='minor', direction='out', length=5, color='red', labelbottom=False, bottom=True, top=True)
 
     if prob:
         twinax = ax[plotNumber].twinx()
@@ -174,7 +185,7 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
     plt.savefig(join(outpath, readid + '.svg'), dpi=500)
     plt.savefig(join(outpath, readid + '.pdf'), dpi=500)
 
-def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, readid : str, outdir : str, mode : str, modelPath : str, probability : bool, pore : str, resquiggleBorders : np.ndarray):
+def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, readid : str, outdir : str, mode : str, modelPath : str, probability : bool, pore : str, resquiggleBorders : np.ndarray, changepoints : np.ndarray):
     '''
     Takes read in 3' -> 5' direction
     '''
@@ -198,10 +209,10 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    if "r9" in pore:
-        kmerSize = 5
-    else:
-        kmerSize = 9
+    # if "r9" in pore:
+    kmerSize = 5
+    # else:
+        # kmerSize = 9
 
     segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, kmerSize, PARAMS) # , heatmap
 
@@ -232,9 +243,9 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     if "rna" in pore: # change orientation back from 3'-5' to 5'-3'
         read = read[::-1]
 
-    plotBorders(normSignal, start, end, read, segments, borderProbs, readid, outdir, kmerModels, probability, resquiggleBorders, pore)
+    plotBorders(normSignal, start, end, read, segments, borderProbs, readid, outdir, kmerModels, probability, resquiggleBorders, pore, changepoints)
 
-def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str, f5cReadMap : dict) -> tuple:
+def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : str, modelpath : str, probability : bool, pore : str, f5cReadMap : dict, changepoints : np.ndarray) -> tuple:
 
     resquiggleBorders = None
     if f5cReadMap and targetID in f5cReadMap:
@@ -277,7 +288,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
                 if not seq.startswith("AAAAAAAAA"):
                     seq = "AAAAAAAAA" + seq
 
-            segmentRead(signal, sp+ts, sp+ns, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore, resquiggleBorders)
+            segmentRead(signal, sp+ts, sp+ns, seq, basecalledRead.query_name, outdir, mode, modelpath, probability, pore, resquiggleBorders, changepoints)
 
 def readF5CResquiggle(file: str) -> dict:
     """
@@ -307,14 +318,28 @@ def readF5CResquiggle(file: str) -> dict:
             readMap[readid].append([int(start), int(end), int(kmer_idx)])
     return readMap
 
+def readChangepoints(file : str, targetID : str) -> np.ndarray:
+    import h5py
+    print("Reading changepoints from " + file)
+    with h5py.File(file, 'r') as h5:
+        for readid in h5.keys():
+            if readid != targetID:
+                continue
+
+            changepoints = h5[readid + "/waveletEdge"][:]
+            res = changepoints
+
+    return res
+
 def main() -> None:
     args = parse()
     if not exists(args.outdir):
         makedirs(args.outdir)
 
     f5cReadMap = readF5CResquiggle(args.f5cResquiggle) if args.f5cResquiggle is not None else None
+    changepoints = readChangepoints(args.changepoints, args.readid) if args.changepoints is not None else None
 
-    start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.probability, args.pore, f5cReadMap)
+    start(args.raw, args.basecalls, args.readid, args.outdir, args.mode, args.model_path, args.probability, args.pore, f5cReadMap, changepoints)
 
 if __name__ == '__main__':
     main()
