@@ -25,14 +25,15 @@ int main(int argc, char *argv[])
     program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
 
-    program.add_argument("-m1", "--matchscore1").help("Segment transition probability, should be close to (expected number of nucleotdes)/(signal length). Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["m1"]);
+    program.add_argument("-m1", "--matchscore1").help("New segment after extend. Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["m1"]);
+    program.add_argument("-m2", "--matchscore2").help("New segment after segment. Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["m2"]);
     program.add_argument("-e1", "--extendscore1").help("First extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e1"]);
     program.add_argument("-e2", "--extendscore2").help("Further extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e2"]);
     program.add_argument("--train").help("Switch algorithm to transition and emission parameter training mode").default_value(false).implicit_value(true).store_into(train);
     program.add_argument("-z", "--calcZ").help("Switch algorithm to only calculate Z").default_value(false).implicit_value(true).store_into(calcZ);
     program.add_argument("-p", "--probabilty").help("Print out the segment border probability").default_value(false).implicit_value(true).store_into(prob);
     program.add_argument("-t").help("Number of threads to use").default_value(1).scan<'i', int>();
-    program.add_argument("-b", "--band").help("Bandsize for banded DP.").default_value(400).scan<'i', int>();
+    program.add_argument("-b", "--band").help("Bandsize for banded DP.").default_value(50).scan<'i', int>();
 
     program.parse_args(argc, argv);
 

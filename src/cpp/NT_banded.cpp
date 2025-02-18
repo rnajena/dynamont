@@ -24,6 +24,8 @@
 void logF_banded(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t B, const std::tuple<double, double> *model, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds, const std::size_t BANDWIDTH)
 {
     const double m1 = transitions_NT.at("m1");
+    const double m2 = transitions_NT.at("m2");
+    const double e1 = transitions_NT.at("e1");
     const double e2 = transitions_NT.at("e2");
     E[BANDWIDTH + 1] = 0;
     std::size_t tB = 0;
@@ -55,9 +57,9 @@ void logF_banded(const double *sig, const int *kmerSeq, double *M, double *E, co
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
-            const double score = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);       // Cache scoreKmer for (t-1, n-1)
-            M[idx] = E[idx + mShift] + score + m1;                                   // tB - B + n - 1 : (t - 1),(n - 1)
-            E[idx] = logPlus(M[idx + eShift] + score, E[idx + eShift] + score + e2); // tB - B + n (t - 1),n
+            const double score = scoreKmer(sig[t - 1], kmerSeq[n - 1], model);            // Cache scoreKmer for (t-1, n-1)
+            M[idx] = logPlus(E[idx + mShift] + score + m1, M[idx + mShift] + score + m2); // tB - B + n - 1 : (t - 1),(n - 1)
+            E[idx] = logPlus(M[idx + eShift] + score + e1, E[idx + eShift] + score + e2); // tB - B + n (t - 1),n
         }
     }
 }
@@ -81,6 +83,8 @@ void logF_banded(const double *sig, const int *kmerSeq, double *M, double *E, co
 void logB_banded(const double *sig, const int *kmerSeq, double *M, double *E, const std::size_t T, const std::size_t N, const std::size_t B, const std::tuple<double, double> *model, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds, const std::size_t BANDWIDTH)
 {
     const double m1 = transitions_NT.at("m1");
+    const double m2 = transitions_NT.at("m2");
+    const double e1 = transitions_NT.at("e1");
     const double e2 = transitions_NT.at("e2");
     std::size_t tB = (T - 1) * B;
     E[tB + BANDWIDTH + 1] = 0;
@@ -106,19 +110,21 @@ void logB_banded(const double *sig, const int *kmerSeq, double *M, double *E, co
 #pragma omp parallel for
         for (std::size_t n = nStart; n < nEnd; ++n)
         { // speed up, due to rules no need to look at upper triangle of matrices
-            double ext = -INFINITY;
+            double ext = -INFINITY, mat = -INFINITY;
             const std::size_t idx = n + offset;
             if (n + 1 < N) [[likely]]
             {
                 ext = M[idx + mShift] + scoreKmer(sig[t], kmerSeq[n], model) + m1; // tB + B + n + 1; (t+1), (n+1)
+                mat = M[idx + mShift] + scoreKmer(sig[t], kmerSeq[n], model) + m2; // tB + B + n + 1; (t+1), (n+1)
             }
             if (n > 0) [[likely]]
             {
                 const double score = scoreKmer(sig[t], kmerSeq[n - 1], model);
-                M[idx] = E[idx + eShift] + score;                 // transition probability is always 1, e1 first extend, tB + B + n; (t+1), n
+                mat = logPlus(mat, E[idx + eShift] + score + e1); // e1 first extend, tB + B + n; (t+1), n
                 ext = logPlus(ext, E[idx + eShift] + score + e2); // e2 extend further
             }
             E[idx] = ext;
+            M[idx] = mat;
         }
     }
 }
@@ -180,7 +186,7 @@ void getBorders(std::list<std::string> &segString, const double *LPM, const doub
         {
             const std::size_t idx = n + offset;
             // Compute M and E values
-            M[idx] = E[idx + mShift] + LPM[idx];
+            M[idx] = std::max(M[idx + mShift], E[idx + mShift]) + LPM[idx];
             E[idx] = std::max(M[idx + eShift], E[idx + eShift]) + LPE[idx];
         }
     }
@@ -228,14 +234,15 @@ void traceback(const double *M, const double *E, const double *LPM, const double
         if (isFuncM)
         {
             // In funcM
-            segProb.push_back(exp(LPM[tBb]));
+            const double logScore = LPM[tBb];
+            segProb.push_back(exp(logScore));
             segString.push_front("M" + std::to_string(n - 1 + kmerSize / 2) + "," + std::to_string(t - 1) + "," + formattedMedian(segProb) + ";");
             segProb.clear();
             // Transition to E (with t-1, n-1)
             --t;
             --n;
+            isFuncM = (M[tBb] == M[tBb + mShift] + logScore);
             tBb += mShift;
-            isFuncM = false;
         }
         // E
         else
@@ -301,11 +308,13 @@ std::vector<std::tuple<long, std::size_t, std::size_t>> getBounds(const std::siz
  * @param model map containing kmers as keys and (mean, stdev) tuples as values
  * @return tuple containing new transition probabilities
  */
-std::tuple<double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, const std::tuple<double, double> *model, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds)
+std::tuple<double, double, double, double> trainTransition(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, const std::tuple<double, double> *model, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds)
 {
     // Transition parameters
-    double newM1 = -INFINITY, newE1 = 0, newE2 = -INFINITY;
+    double newM1 = -INFINITY, newM2 = -INFINITY, newE1 = -INFINITY, newE2 = -INFINITY;
     const double m1 = transitions_NT.at("m1");
+    const double m2 = transitions_NT.at("m2");
+    const double e1 = transitions_NT.at("e1");
     const double e2 = transitions_NT.at("e2");
     long oldBStart = std::get<0>(bounds[0]);
 
@@ -335,12 +344,13 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
             {
                 // m1:                 forward(i)  a    e(i+1)                                 backward(i+1)
                 newM1 = logPlus(newM1, forE[idx] + m1 + scoreKmer(sig[t], kmerSeq[n], model) + backM[idx + mShift]);
+                newM2 = logPlus(newM2, forM[idx] + m2 + scoreKmer(sig[t], kmerSeq[n], model) + backM[idx + mShift]);
             }
 
             if (n > 0) [[likely]]
             {
                 double score = scoreKmer(sig[t], kmerSeq[n - 1], model);
-                // newE1 = logPlus(newE1, forM[t*N+n] + transitions_NT.at("e1") + score + backE[(t+1)*N+n]);
+                newE1 = logPlus(newE1, forM[idx] + e1 + score + backE[idx + eShift]);
                 newE2 = logPlus(newE2, forE[idx] + e2 + score + backE[idx + eShift]);
             }
         }
@@ -348,14 +358,15 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
     // average over the number of transitions
     // double Am = newE1;
     // newE1 = newE1 - Am;
-    const double Ae = logPlus(newE2, newM1);
-    if (!std::isinf(Ae))
-    {
-        newM1 = newM1 - Ae;
-        newE2 = newE2 - Ae;
-    }
+    const double Ae = logPlus(newM1, newE2);
+    newM1 = newM1 - Ae;
+    newE2 = newE2 - Ae;
+    const double Am = logPlus(newM2, newE1);
+    newM2 = newM2 - Am;
+    newE1 = newE1 - Am;
     return std::make_tuple(
         exp(newM1),
+        exp(newM2),
         exp(newE1),
         exp(newE2));
 }
@@ -469,8 +480,8 @@ std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerS
  */
 void trainParams(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t B, std::tuple<double, double> *model, const int alphabetSize, const int numKmers, const int kmerSize, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds, const double Z)
 {
-    const auto [newM, newE1, newE2] = trainTransition(sig, kmerSeq, forE, backM, backE, T, N, B, model, bounds);
-    std::cout << "m1:" << newM << ";e1:" << newE1 << ";e2:" << newE2 << std::endl;
+    const auto [newM1, newM2, newE1, newE2] = trainTransition(sig, kmerSeq, forM, forE, backM, backE, T, N, B, model, bounds);
+    std::cout << "m1:" << newM1 << ";m2:" << newM2 << ";e1:" << newE1 << ";e2:" << newE2 << std::endl;
 
     const std::size_t TB = T * B;
     double *LPM = new double[TB];

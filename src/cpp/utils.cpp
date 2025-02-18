@@ -38,6 +38,21 @@ const std::map<std::string, double> NTK_rna_rp4_transitions = {
     {"e4", 0.9654529072452087},
     {"i1", 7.651926003806137e-05},
     {"i2", 0.10658440170772512}};
+// {"a1", 0.030993272370199998}, // trained using 7mer model
+// {"a2", 0.040899569831100005},
+// {"p1", 0.7158006373520002},
+// {"p2", 4.895660309999999e-05},
+// {"p3", 0.9261781392693001},
+// {"s1", 0.9344698963675999},
+// {"s2", 7.645415049999999e-05},
+// {"s3", 0.02617245863889999},
+// {"e1", 1.0},
+// {"e2", 0.06553010363249999},
+// {"e3", 0.28419936264810003},
+// {"e4", 0.9688801277809},
+// {"i1", 1.1890948000000002e-06},
+// {"i2", 0.0067498322607000005}};
+
 const std::map<std::string, double> NTK_dna_r9_transitions = {
     {"a1", 1.0},
     {"a2", 1.0},
@@ -91,22 +106,27 @@ const std::map<std::string, double> NTK_dna_r10_400bps_transitions = {
 //     {"e2", 0.97}};
 const std::map<std::string, double> NT_rna_r9_transitions = {
     {"m1", 0.019889650396799997},
-    {"e1", 1.0},
+    {"m2", 0.5},
+    {"e1", 0.5},
     {"e2", 0.9801103496029998}};
 const std::map<std::string, double> NT_rna_rp4_transitions = {
-    {"m1", 0.031111753637096777},
-    {"e1", 1.0},
-    {"e2", 0.9688882463622581}};
+    {"m1", 0.12538011169560004},
+    {"m2", 0.5942274045645001},
+    {"e1", 0.40577259543569993},
+    {"e2", 0.8746198883045999}};
 const std::map<std::string, double> NT_dna_r9_transitions = {
     {"m1", 1.0},
+    {"m2", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}};
 const std::map<std::string, double> NT_dna_r10_260bps_transitions = {
     {"m1", 1.0},
+    {"m2", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}};
 const std::map<std::string, double> NT_dna_r10_400bps_transitions = {
     {"m1", 1.0},
+    {"m2", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}};
 
@@ -132,6 +152,7 @@ const std::map<int, char> ID2BASE = {
 
 std::map<std::string, double> transitions_NT = {
     {"m1", -1.0},
+    {"m2", -1.0},
     {"e1", -1.0},
     {"e2", -1.0}};
 std::map<std::string, double> transitions_NTK = {
@@ -540,7 +561,7 @@ void checkInput(const std::size_t signalSize, const std::size_t readSize, const 
         std::cerr << "Read: " << readSize << " smaller than 1" << std::endl;
         exit(9);
     }
-    if (signalSize < 2 * readSize) // each segment has at least length 2
+    if (signalSize < readSize) // each segment has at least length 1
     {
         std::cerr << "Signal: " << signalSize << " smaller than read: " << readSize << std::endl;
         exit(10);

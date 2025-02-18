@@ -13,7 +13,7 @@ import numpy as np
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname
 from os import makedirs, name, getpid
-from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
+from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, waveletPreprocess
 
 def get_memory_usage():
     """
@@ -80,7 +80,6 @@ def listener(q : mp.Queue, outfile : str) -> None:
             # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
     
     print(f"\nReads segmented: {i}", f"Errors: {e}")
-    
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     """
@@ -126,7 +125,8 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
         # for new pores, shift and scale is directly applied to stored integer signal (DACs)
         # this way the conversion from DACs to pA is skipped
         signal = r5.getSignal(signalid)[start:end]
-        kmerSize = 9
+        # signal = r5.getpASignal(signalid)[start:end]
+        kmerSize = 9 #! only important for output formatting, the segmentation algorithm uses the kmers given by the model
     r5.close()
 
     #! normalize poly A region to median 0.9 (as in init models from ONT r9 and rp4) and scale to 0.15 (from training on r9 and rp4)
@@ -143,13 +143,16 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     hampelFilter(signal)
     if "rna" in pore:
         read = read[::-1] # change direction from 5' - 3' to 3' - 5'
-        if not read.startswith("AAAAAAAAA"):
-            read = "AAAAAAAAA" + read
+        # if not read.startswith("AAAAAAAAA"):
+        #     read = "AAAAAAAAA" + read
     
+    preSeg, meds = waveletPreprocess(signal) # this wavelet preprocessing pre determines the segment borders
+
     feedSegmentationAsynchronous(
                 script,
                 {'m': modelpath, 'r' : pore, 't' : 4},
-                signal,
+                meds, # signal,
+                preSeg, # mapping of pre-segmentation borders to signal
                 read,
                 start,
                 readid,
@@ -160,6 +163,8 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     
     # directly free memory
     del r5
+    del meds
+    del preSeg
     del signal
     del read
     del script

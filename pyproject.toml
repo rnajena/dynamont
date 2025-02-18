@@ -24,6 +24,8 @@ dependencies = [
   "read5_ont >=1.2.5",
   "pysam >=0.22.0",
   "psutil >=6.0.0",
+  "pywavelets >=1.8.0",
+  "scipy >=1.15.1"
 ]
 description = "Segmentation/resquiggling tool for ONT signals."
 dynamic = ["version"]

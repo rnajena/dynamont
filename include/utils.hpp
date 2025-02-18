@@ -216,6 +216,19 @@ inline double logNormalPdf(const double x, const double m, const double s)
 }
 
 /**
+ * Calculate log pdf of the laplace distribution for a given x, mean and scale parameter
+ *
+ * @param x value
+ * @param mu mean
+ * @param b scale parameter
+ * @return laplace probability density at position x for L~(mu, b)
+ */
+inline double logLaplacePdf(double x, double mu, double b)
+{
+    return -std::log(2 * b) - std::abs(x - mu) / b;
+}
+
+/**
  * Return log probability density for a given value and a given normal distribution
  *
  * @param signal point to calculate probability density
@@ -228,6 +241,7 @@ inline double scoreKmer(const double signal, const std::size_t kmer, const std::
     // Access elements of the model std::tuple directly to avoid redundant std::tuple creation and overhead
     const auto &[mean, stddev] = model[kmer];
     return logNormalPdf(signal, mean, stddev);
+    // return logLaplacePdf(signal, mean, stddev);
 }
 
 /**

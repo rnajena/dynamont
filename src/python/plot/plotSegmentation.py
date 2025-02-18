@@ -14,7 +14,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from matplotlib.patches import Rectangle
 from os.path import exists, join
 from os import makedirs, name
-from src.python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
+from src.python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter, waveletPreprocess
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -138,10 +138,12 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
 
         # motif in 5' - 3' direction
         motif = motif.replace('U', 'T')
-        width = segment[1] - segment[0]
+        start = int(segment[0])
+        end = int(segment[1])
+        width = end - start
 
-        ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7)
-        ax[plotNumber].add_patch(Rectangle((int(segment[0]), lb), width, ub-lb, alpha=0.4, facecolor=basecolors[base], edgecolor=basecolors[base]))
+        ax[plotNumber].vlines([start], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7)
+        ax[plotNumber].add_patch(Rectangle((start, lb), width, ub-lb, alpha=0.4, facecolor=basecolors[base], edgecolor=basecolors[base]))
 
         match segment[5]:
             # for 3D: move in t and k, but not n
@@ -149,22 +151,22 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
             case 'M' | 'P':
                 mean, stdev = kmerModels.loc[motif][['level_mean', 'level_stdv']]
                 height = 3.92*stdev # 1.96 * 2 * stdev
-                ax[plotNumber].add_patch(Rectangle((segment[0], mean-1.96*stdev), width, height, alpha=0.3, facecolor="grey", edgecolor="grey"))
+                ax[plotNumber].add_patch(Rectangle((start, mean-1.96*stdev), width, height, alpha=0.3, facecolor="grey", edgecolor="grey"))
                 # write motif
-                ax[plotNumber].text(segment[0] + width/2 - 6, -3.5, motif, fontdict={'size' : 6, 'color':'black'}, rotation=90)
+                ax[plotNumber].text(start + width/2 - 6, -3.5, motif, fontdict={'size' : 6, 'color':'black'}, rotation=90)
                 # draw kmer range as rectangle
-                ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linestyle='--', alpha=0.6)
-                ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.6)
-                ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.6)
+                ax[plotNumber].hlines(y=mean, xmin=start, xmax=end, color='grey', linestyle='--', alpha=0.6)
+                ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=start, xmax=end, color='grey', linewidth=1, linestyle=':', alpha=0.6)
+                ax[plotNumber].hlines(y=mean-1.96*stdev, xmin=start, xmax=end, color='grey', linewidth=1, linestyle=':', alpha=0.6)
             case 'I':
-                ax[plotNumber].text(segment[0] - 3, -3, f'Ins {motif}', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
+                ax[plotNumber].text(start - 3, -3, f'Ins {motif}', rotation=90, fontdict={'size' : 6, 'color' : 'grey'})
             # move in t and n, but not k
             # case 'S':
             #     pass
 
-    ax[plotNumber].vlines([int(segment[0])], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "Dynamont Segmentation")
-    ax[plotNumber].hlines(y=mean, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', alpha=0.8, linestyle='--', label="Model Mean")
-    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=int(segment[0]), xmax=int(segment[1]), color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
+    ax[plotNumber].vlines([start], ymin=lb, ymax=ub, colors=basecolors[base], linestyles='--', linewidth=0.7, label = "Dynamont Segmentation")
+    ax[plotNumber].hlines(y=mean, xmin=start, xmax=end, color='grey', alpha=0.8, linestyle='--', label="Model Mean")
+    ax[plotNumber].hlines(y=mean+1.96*stdev, xmin=start, xmax=end, color='grey', linewidth=1, linestyle=':', alpha=0.8, label="95% conf. Interval")
     ax[plotNumber].plot([0, 0.1], [-6.1, -6], c='black', label='log(Border Probability)')
     ax[plotNumber].legend(loc='upper right')
     
@@ -192,6 +194,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     print(f"Segmenting {readid}")
 
     kmerModels = pd.read_csv(modelPath, sep='\t', index_col = "kmer")
+    kmerSize = len(kmerModels.index[0])
     PARAMS = {}
 
     if mode == 'basic':
@@ -209,12 +212,11 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    # if "r9" in pore:
-    kmerSize = 5
-    # else:
-        # kmerSize = 9
+    waveletSegments, meds = waveletPreprocess(normSignal[start : end])
 
-    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, kmerSize, PARAMS) # , heatmap
+    segments, borderProbs = feedSegmentation(meds, waveletSegments, read, CPP_SCRIPT, start, kmerSize, PARAMS) # , heatmap
+
+    print(len(read), len(segments), len(waveletSegments), len(normSignal))
 
     # sns.set_theme()
     # plt.figure(dpi=200)

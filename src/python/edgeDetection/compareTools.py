@@ -13,6 +13,7 @@ import seaborn as sns
 import multiprocessing as mp
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections import defaultdict
+import read5_ont as r5
 
 # TODO: add support for DNA
 
@@ -32,10 +33,11 @@ def parse() -> Namespace:
     parser.add_argument("--f5ceventalign", type=str, required=True, metavar="TSV", help="f5c eventalign segmentation output in TSV format\nSummary file must exists in the same path with extension .sum")
     parser.add_argument("--uncalled", type=str, metavar="TSV", required=True, help="Uncalled4 segmentation output in csv format")
     parser.add_argument("--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as .bam file")
-    # parser.add_argument("--pod5", type=str, required=True, metavar="POD5", help="raw signals")
+    parser.add_argument("--pod5", type=str, required=True, metavar="POD5", help="raw signals")
     parser.add_argument("--output", type=str, required=True, metavar="CSV", help="Output CSV containing pandas data frame")
     parser.add_argument("--dynamont", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
     parser.add_argument("--labels", type=str, nargs='+', required=True, metavar="CSV", help="Dynamont segmentation output in CSV format")
+    # parser.add_argument("--raw", type=str, metavar="PATH", required=True, help="Path to raw data.")
     parser.add_argument("--tombo", type=str, metavar="PATH", help="Parent directory of single fast5s processed by Tombo")
     parser.add_argument("--distance", type=int, default=50, metavar="INT", help="Maximum distance to search for")
     parser.add_argument("-p", "--processes", type=int, default=7, metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
@@ -268,7 +270,7 @@ def toNumpy(readMap: dict) -> None:
         A dictionary mapping read IDs to a set of positions.
     """
     for readid in readMap:
-        readMap[readid] = np.array(list(readMap[readid]))
+        readMap[readid] = np.array(list(readMap[readid]), dtype=int)
         readMap[readid].sort()
 
 # def evaluate(groundTruth: np.ndarray, prediction: np.ndarray, maxDistance: int) -> int:
@@ -521,6 +523,39 @@ def generateControl(bamFile : str) -> tuple:
         
     return randomBorders, uniformBorders
 
+def calculateIntraSegStddev(pod5 : str, readMaps: dict) -> pd.DataFrame:
+    """
+    Calculate the median of intra-segment standard deviations for each readMap.
+    
+    Parameters:
+    - pod5 (str): Path to the POD5 file.
+    - readMaps (list[dict]): A list of dictionaries mapping read IDs to segment borders.
+
+    Returns:
+    - list[float]: A list of median standard deviations for each readMap.
+    """
+    pod5File = r5.read(pod5)
+    intraSegStddevs = {tool:[] for tool in readMaps}
+
+    for readid in pod5File:
+        pASignal = pod5File.getpASignal(readid)
+        
+        for tool in readMaps:
+            segmentBorders = readMaps[tool].get(readid)
+            if segmentBorders is None:  # Skip if readid is missing
+                continue
+            
+            # Efficient NumPy-based standard deviation calculations of each segment of each read for each tool
+            stddevs = np.array([
+                np.std(pASignal[start:end], dtype=np.float32)  # Use float32 for memory efficiency
+                for start, end in zip(segmentBorders[:-1], segmentBorders[1:])
+            ])
+
+            if stddevs.size > 0:
+                intraSegStddevs[tool].append(np.median(stddevs)) # Store only the median of the segment
+
+    return pd.DataFrame(list({tool: np.median(intraSegStddevs[tool]) for tool in intraSegStddevs}.items()), columns=["Tools", "Intra Segment Stddev"])
+
 def main() -> None:
     args = parse()
     print(args)
@@ -540,21 +575,21 @@ def main() -> None:
         doradoReturn = pool.apply_async(readDorado, args=(args.dorado,))
         controlReturn = pool.apply_async(generateControl, args=(args.basecalls,))
 
+        if args.tombo:
+            tomboReturn = pool.apply_async(readTombo, args=(args.tombo,))
+
         groundTruths = gtReturn.get()  #readChangepoints(args.changepoints)
         randomBorders, uniformBorders = controlReturn.get() # generating controls
         
-        if args.tombo:
-            tomboReturn = pool.apply_async(readTombo, args=(args.tombo,))
-        
         toolsResult = {
-            f"Dynamont {' '.join(label.split('_'))}" : dynamontReturn[label].get() for label in dynamontReturn
+            f"Dyn. {' '.join(label.split('_'))}" : dynamontReturn[label].get() for label in dynamontReturn
         } | {
             'f5c Eventalign' : f5ceventalignReturn.get(), # readF5CEventalign(args.f5ceventalign, os.path.splitext(args.f5ceventalign)[0] + '.sum'),
             'f5c Resquiggle' : f5cresquiggleReturn.get(), # readF5CResquiggle(args.f5cresquiggle),
             'Dorado' : doradoReturn.get(), # readDorado(args.dorado),
             'Uncalled4' : uncalled4return.get(), # readUncalled4(args.uncalled),
-            'Control Random' : randomBorders,
-            'Control Uniform' : uniformBorders,
+            'Ctrl Random' : randomBorders,
+            'Ctrl Uniform' : uniformBorders,
         }
 
         if args.tombo:
@@ -562,9 +597,21 @@ def main() -> None:
                 'Tombo' : tomboReturn.get(), # readTombo(args.tombo),
             }
 
+        print("Sorting arrays and removing duplicates")
         for tool in toolsResult:
             toNumpy(toolsResult[tool])
         toNumpy(groundTruths)
+
+        print("Calculating Intra Segment Stddev")
+        intraSegStddevs = calculateIntraSegStddev(args.pod5, toolsResult)
+        print("Plotting Intra Segment Stddev")
+        sns.barplot(intraSegStddevs, x='Tools', y='Intra Segment Stddev')
+        plt.title("Intra Segment Standard Deviation per Tool")
+        plt.xticks(rotation=60)  # Rotate x labels
+        plt.tight_layout()
+        plt.savefig(os.path.splitext(args.output)[0] + "_" + "IntraSegmentStddev.pdf", dpi=300)
+        plt.savefig(os.path.splitext(args.output)[0] + "_" + "IntraSegmentStddev.svg", dpi=300)
+        plt.close()
 
         for tool in toolsResult:
             print("Plotting segment size distribution for " + tool)
@@ -575,7 +622,7 @@ def main() -> None:
             distances_clipped = np.clip(distances, 0, 200)
 
             sns.set_theme()
-            sns.histplot(distances_clipped, bins=np.append(np.linspace(0, 200, 21), np.inf))
+            sns.histplot(distances_clipped, bins=np.append(np.linspace(0, 200, 41), np.inf))
             plt.yscale("log")
             plt.xlim((0, 210))
             plt.xlabel("Segment Size")

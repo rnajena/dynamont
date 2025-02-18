@@ -13,10 +13,10 @@ from os.path import exists, join, dirname
 from os import makedirs, name
 from datetime import datetime
 from collections import deque
-from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios
+from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios, waveletPreprocess
 
 class ManagedList:
-    def __init__(self, values, max_size=100):
+    def __init__(self, values=[], max_size=100):
         """Initialize the ManagedList with a maximum size."""
         self.values = deque(values, maxlen=max_size)  # deque automatically limits size
 
@@ -69,33 +69,15 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
     writeKmerModels(trainedModels, kmerModels)
     
     paramWriter = open(param_file, 'w')
+    paramWriter.write("epoch,batch,read,")
 
     if mode == 'basic':
         # CPP_SCRIPT = 'dynamont-NT'
         CPP_SCRIPT = 'dynamont-NT-banded'
-        transitionParams = {
-            'e1': 1.0,
-            'm1': 0.03,
-            'e2': 0.97
-            }
+        paramWriter.write("m1,m2,e1,e2,")
     elif mode == 'resquiggle':
         CPP_SCRIPT = 'dynamont-NTC'
-        transitionParams = {
-            'a1': 0.012252440188168037,
-            'a2': 0.246584724985145,
-            'p1': 0.04477093133243305,
-            'p2': 0.007687811003133089,
-            'p3': 0.4469623669791557,
-            's1': 0.05321209670114726,
-            's2': 0.0007555035568187239,
-            's3': 0.21999557711272136,
-            'e1': 1.0,
-            'e2': 0.9467879033992115,
-            'e3': 0.9552290685034269,
-            'e4': 0.9792321612614708,
-            'i1': 7.208408117990252e-05,
-            'i2': 0.08645733058947891
-            }
+        paramWriter.write("a1,a2,p1,p2,p3,s1,s2,s3,e1,e2,e3,e4,i1,i2,")
     else:
         print(f'Mode {mode} not implemented')
         exit(1)
@@ -105,15 +87,12 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
     # collect trained parameters to get an ensemble training in the end to reduce outlier trainings
     paramCollector = {kmer:(ManagedList([kmerModels[kmer][0]]), ManagedList([kmerModels[kmer][1]])) for kmer in kmerModels}
-    paramCollector = paramCollector | {param : ManagedList([transitionParams[param]]) for param in transitionParams}
     kmerSeen = set()
-    paramWriter.write("epoch,batch,read,")
-    for param in transitionParams:
-        paramWriter.write(param+',')
     paramWriter.write("Zchange\n")
     i = 0
     qualSkipped = 0
     noMatchingReadid = 0
+    transitionParams = {}
 
     with mp.Pool(batch_size) as p:
 
@@ -159,15 +138,16 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         try:
                             if pore in ["dna_r9", "rna_r9"]:
                                 # for r9 pores, shift and scale are stored for pA signal in bam
-                                signal = r5.getpASignal(readid)
+                                signal = r5.getpASignal(readid)[sp+ts : sp+ns]
 
                                 # signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
 
                             else:
                                 # for new pores, shift and scale is directly applied to stored integer signal (DACs)
                                 # this way the conversion from DACs to pA is skipped
-                                signal = r5.getSignal(readid)
-                                
+                                signal = r5.getSignal(readid)[sp+ts : sp+ns]
+                                # signal = r5.getpASignal(readid)                                
+
                                 # norm_signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
                                 # # slice signal, remove remaining adapter content until polyA starts
                                 # start = np.argmax(norm_signal[sp+ts:] >= 0.8) + sp + ts + 100
@@ -183,8 +163,8 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             # mad = np.median(np.absolute(signal - np.median(signal)))
                             # if mad < 70: # check again for weird repetitive reads/signals with high quality
                             #     continue
+
                             signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
-                            signal = signal[sp+ts : sp+ns]
                         
                         except:
                             noMatchingReadid+=1
@@ -193,9 +173,12 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         if "rna" in pore:
                             seq = seq[::-1]
-                            if not seq.startswith("AAAAAAAAA"):
-                                seq = "AAAAAAAAA" + seq
-                        mpItems.append([signal, seq, transitionParams | {'r' : pore, 't' : 4}, CPP_SCRIPT, trainedModels, readid])
+                            # if not seq.startswith("AAAAAAAAA"):
+                            #     seq = "AAAAAAAAA" + seq
+
+                        _, meds = waveletPreprocess(signal) # this wavelet preprocessing pre determines the segment borders
+
+                        mpItems.append([meds, seq, transitionParams | {'r' : pore, 't' : 4}, CPP_SCRIPT, trainedModels, readid])
                         trainIDs.append(readid)
 
                     if len(mpItems) == batch_size:
@@ -217,11 +200,17 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             preZ[readid] = Z
 
                             for param in trainedParams:
+                                if param not in paramCollector:
+                                    paramCollector[param] = ManagedList()
                                 paramCollector[param].add(trainedParams[param])
 
                             #! skip weird trainings
-                            if ('AAAAAAAAA' in newModels and newModels['AAAAAAAAA'][0] < 0.5) or ('AAAAA' in newModels and newModels['AAAAA'][0] < 0.5):
-                                continue
+                            # if ('AAAAAAAAA' in newModels and newModels['AAAAAAAAA'][0] < 0.5) or ('AAAAA' in newModels and newModels['AAAAA'][0] < 0.5):
+                            #     continue
+                            # try:
+                            #     del newModels['A'*len(next(iter(kmerModels.keys())))] # do not train poly A distribution due to bad starting indices
+                            # except:
+                            #     pass
 
                             for kmer in newModels:
                                 kmerSeen.add(kmer)
@@ -232,12 +221,15 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
 
                         # update parameters
                         paramWriter.write(f'{e},{batchNum},{i},') # log
-                        for param in transitionParams:
+                        for param in paramCollector:
                             try:
-                                transitionParams[param] = paramCollector[param].mean()
+                                if param not in kmerModels:
+                                    transitionParams[param] = paramCollector[param].mean()
                             except:
                                 print(param, paramCollector[param].get_list())
                                 exit(1)
+                        
+                        for param in transitionParams:
                             paramWriter.write(f'{transitionParams[param]},') # log
 
                         for kmer in kmerSeen:

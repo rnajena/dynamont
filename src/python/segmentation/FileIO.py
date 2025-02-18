@@ -9,9 +9,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from subprocess import PIPE, Popen
-from pathlib import Path
+# from pathlib import Path
 from os.path import join
 from multiprocessing import Queue
+import pywt
+from scipy.signal import find_peaks
 
 def hampelFilter(signal : np.ndarray, wSize : int = 3, nSigmas : float = 3.0) -> None:
     """
@@ -295,7 +297,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : int, kmerSize : int, params : dict = None) -> tuple:
+def feedSegmentation(signal : np.ndarray, preSegmentation : np.ndarray, read : str, script : str, sigOffset : int, kmerSize : int, params : dict = None) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Opens and closes a pipe to the given script.
@@ -357,10 +359,10 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             exit(1)
 
     # receive segmentation result and format output into np.ndarray
-    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1], kmerSize)
+    segments = formatSegmentationOutput(output, preSegmentation, sigOffset, len(signal) + sigOffset, read[::-1], kmerSize)
     return segments, probs #, heatmap
 
-def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, kmerSize : int, queue : Queue) -> None:
+def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, preSegmentation : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, kmerSize : int, queue : Queue) -> None:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Needs an open pipe for communication.
@@ -393,10 +395,10 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         return
-    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1], kmerSize)
+    segments = formatSegmentationOutput(output, preSegmentation, signal_offset, len(signal) + signal_offset, read[::-1], kmerSize)
     queue.put(formatSegmentation(readid, signalid, segments))
 
-def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str, kmerSize : int) -> np.ndarray:
+def formatSegmentationOutput(output : str, preSegmentation : np.ndarray, sigOffset : int, lastIndex : int, read : str, kmerSize : int) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
 
@@ -432,13 +434,13 @@ def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, rea
 
         # Parse base position, start, and other values
         basepos = int(segment[0])
-        start = int(segment[1]) + sigOffset
+        start = preSegmentation[int(segment[1])] + sigOffset
         prob = float(segment[2])
         polish = segment[3] if len(segment) > 3 else 'NA'
 
         # Compute the end index
         if i < n_segments - 1:
-            end = int(output[i + 1][1:].split(',')[1]) + sigOffset
+            end = preSegmentation[int(output[i + 1][1:].split(',')[1])] + sigOffset
         else:
             end = lastIndex
 
@@ -510,3 +512,22 @@ def plotParameters(param_file : str, outdir : str) -> None:
         print("Savefig: ", join(outdir, f"{column}.pdf"))
         plt.savefig(join(outdir, f"{column}.pdf"))
         plt.close()
+
+def waveletPreprocess(signal: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Returns a two-dimensional array containing the segment starting indices and the median value.
+    """
+    # Compute wavelet coefficients
+    coef, _ = pywt.cwt(signal, [4], 'gaus1')
+
+    # Detect peaks efficiently
+    peaks = find_peaks(np.abs(coef[0]))[0]
+    if peaks[0] != 0:
+        peaks[0] = 0
+    if peaks[-1] != len(signal):
+        peaks[-1] = len(signal)
+
+    # Efficiently compute medians using np.fromiter
+    meds = np.fromiter((np.median(signal[start:end]) for start, end in zip(peaks[:-1], peaks[1:])), dtype=signal.dtype)
+
+    return peaks, meds
