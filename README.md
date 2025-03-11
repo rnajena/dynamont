@@ -1,4 +1,4 @@
-# ![Alt text](figures/logo.png)
+# ![Dynamont](figures/logo.png)
 
 A **Dynam**ic Programming Approach to Segment **ONT** Signals
 
@@ -14,12 +14,11 @@ A **Dynam**ic Programming Approach to Segment **ONT** Signals
 
 ---
 
-- [](#)
-  - [Installation](#installation)
-    - [Pypi/pip](#pypipip)
-    - [Conda](#conda)
-  - [Usage](#usage)
-  - [Exit-Codes](#exit-codes)
+- [Installation](#installation)
+  - [Pypi/pip](#pypipip)
+  - [Conda](#conda)
+- [Usage](#usage)
+- [Exit-Codes](#exit-codes)
 
 ---
 
