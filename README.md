@@ -1,13 +1,11 @@
 # ![Dynamont](figures/logo.png)
 
 A **Dynam**ic Programming Approach to Segment **ONT** Signals
+Dynamont is a segmentation/resquiggling tool for ONT signals.
 
-- [**Dynamont**](https://github.com/JannesSP/dynamont) is a segmentation/resquiggling tool for ONT signals. ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dynamont)
-
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dynamont)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-teal.svg)](https://www.gnu.org/licenses/gpl-3.0)
-
 [![PyPI](https://img.shields.io/pypi/v/dynamont) ![PyPI - Downloads](https://img.shields.io/pypi/dm/dynamont) ![PyPI - Status](https://img.shields.io/pypi/status/dynamont)](https://pypi.org/project/dynamont/)
-
 [![Anaconda-Server Badge](https://anaconda.org/jannessp/dynamont/badges/version.svg)](https://anaconda.org/jannessp/dynamont) ![Conda](https://img.shields.io/conda/dn/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/latest_release_date.svg)](https://anaconda.org/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/platforms.svg)](https://anaconda.org/jannessp/dynamont)
 
 <!-- [![DOI](https://zenodo.org/badge/633012569.svg)](https://zenodo.org/badge/latestdoi/633012569) -->

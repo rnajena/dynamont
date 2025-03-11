@@ -31,3 +31,15 @@ Conda
    conda activate dynamont
 
 --------------
+
+Usage
+-----
+
+.. code:: bash
+   # segment a dataset
+   dynamont-resquiggle -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic --model_path <path/to/model> -o <output.csv> -p <pore>
+
+   # train model
+   dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic --model_path <path/to/init/model> -o <output/path> -p <pore>
+
+-----
