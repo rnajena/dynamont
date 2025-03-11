@@ -86,3 +86,4 @@ src/python/plot/plotHardCoded.py
 compile.sh
 eval_banded_time_mem.sh
 dev/
+.qodo
