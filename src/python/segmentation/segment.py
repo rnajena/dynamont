@@ -256,7 +256,7 @@ def main() -> None:
     args = parse()
 
     outfile = args.outfile
-    if not exists(dirname(outfile)):
+    if not exists(dirname(outfile)) and dirname(outfile):
         makedirs(dirname(outfile))
 
     match args.mode:
