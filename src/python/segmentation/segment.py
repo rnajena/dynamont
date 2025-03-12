@@ -11,7 +11,7 @@ import pysam
 import psutil
 import numpy as np
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from os.path import exists, join, dirname
+from os.path import exists, join, dirname, splitext
 from os import makedirs, name, getpid
 from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
 
@@ -58,7 +58,11 @@ def listener(q : mp.Queue, outfile : str) -> None:
     outfile : str
         The path to write the results to
     """
+    errors = {
+
+    }
     print(f"{'Segmented':>9} | {'Errors':>8} | {'Queued':>8} | {'Writer memory (MB)':>20}")
+    errfile = splitext(outfile)[0] + ".errors"
     # print(f"[written,\terrors,\tin queue,\tmemory]")
     with open(outfile, 'w') as f:
         f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
@@ -70,7 +74,9 @@ def listener(q : mp.Queue, outfile : str) -> None:
             if m == 'kill':
                 break
             elif m.startswith('error'):
-                print(m)
+                # print(m)
+                with open(errfile, 'a') as a:
+                    a.write(m + '\n')
                 e+=1
             else:
                 i+=1
@@ -80,7 +86,6 @@ def listener(q : mp.Queue, outfile : str) -> None:
             # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
     
     print(f"\nReads segmented: {i}", f"Errors: {e}")
-    
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     """
