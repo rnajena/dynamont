@@ -107,12 +107,12 @@ int main(int argc, char *argv[])
     // exit if wrong input ...
     if (signal.empty())
     {
-        std::cout << "Signal missing!" << std::endl;
+        std::cerr << "Signal missing!" << std::endl;
         exit(4);
     }
     else if (read.empty())
     {
-        std::cout << "Read missing!" << std::endl;
+        std::cerr << "Read missing!" << std::endl;
         exit(5);
     }
 

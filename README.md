@@ -55,6 +55,7 @@ dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic --mode
 - 3: Alignment score (Z) does not match between forward and backward pass or is -Infinity
 - 4: Input signal is missing or not found in stdin stream
 - 5: Input read is missing or not found in stdin stream
+- 6: 
 - 7: Invalid model path was provided
 - 8: Provided ONT signal is too short
 - 9: Read is too short
