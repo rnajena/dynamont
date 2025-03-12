@@ -6,5 +6,5 @@ make -j$(nproc)
 make install
 cd ..
 # python -m pip install --user --upgrade setuptools wheel build --ignore-installed -v .
-# python -m build
+python -m build
 twine upload dist/*
