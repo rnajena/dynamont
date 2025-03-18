@@ -1110,6 +1110,42 @@ def plotReadStats(readLens : dict, output : str) -> None:
     # Save to CSV
     df_stats.to_csv(output + "_readQuality.csv", index=False, sep='\t')
 
+# def compute_log_likelihood(signal: np.ndarray, segmentation: list, kmer_means: dict, kmer_stds: dict) -> float:
+#     """
+#     Compute the log-likelihood score of the segmentation given the k-mer model.
+
+#     Parameters:
+#     - signal (np.ndarray): The observed signal values.
+#     - segmentation (list): List of tuples (start, end, kmer), where each tuple defines a segment.
+#     - kmer_means (dict): Dictionary mapping k-mers to their expected mean signal values.
+#     - kmer_stds (dict): Dictionary mapping k-mers to their expected standard deviation.
+
+#     Returns:
+#     - float: Total log-likelihood score for the segmentation.
+#     """
+#     total_log_likelihood = 0.0
+    
+#     for start, end, kmer in segmentation:
+#         segment_signal = signal[start:end]
+        
+#         if kmer not in kmer_means or kmer not in kmer_stds:
+#             raise ValueError(f"K-mer {kmer} not found in the model.")
+        
+#         mean_k = kmer_means[kmer]
+#         std_k = kmer_stds[kmer]
+        
+#         if std_k == 0:
+#             std_k = 1e-6  # Prevent division by zero
+        
+#         # Compute Gaussian log-likelihood
+#         log_likelihood = np.sum(
+#             -0.5 * np.log(2 * np.pi * std_k**2) - ((segment_signal - mean_k) ** 2) / (2 * std_k**2)
+#         )
+        
+#         total_log_likelihood += log_likelihood
+    
+#     return total_log_likelihood
+
 def main() -> None:
     args = parse()
     print(args)
@@ -1118,17 +1154,17 @@ def main() -> None:
 
     assert len(args.dynamont) == len(args.labels), "Number of dynamont results must match the number of labels"
     
-    # toolsResult = getResults(args, pool)
+    toolsResult = getResults(args, pool)
     
-    # plotSegmentationRate(toolsResult, os.path.splitext(args.output)[0])
+    plotSegmentationRate(toolsResult, os.path.splitext(args.output)[0])
 
-    # compareTools(toolsResult, args.pod5, os.path.splitext(args.output)[0], pool, args.window)
+    compareTools(toolsResult, args.pod5, os.path.splitext(args.output)[0], pool, args.window)
 
     readStats = getReadStatsDict(args.basecalls)
 
     plotReadStats(readStats, os.path.splitext(args.output)[0])
 
-    # scoreTools(toolsResult, args.pod5, os.path.splitext(args.output)[0], pool, 6)
+    scoreTools(toolsResult, args.pod5, os.path.splitext(args.output)[0], pool, 6)
 
     pool.close()
     pool.join()
