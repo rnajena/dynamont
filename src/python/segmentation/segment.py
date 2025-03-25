@@ -58,9 +58,6 @@ def listener(q : mp.Queue, outfile : str) -> None:
     outfile : str
         The path to write the results to
     """
-    errors = {
-
-    }
     print(f"{'Segmented':>9} | {'Errors':>8} | {'Queued':>8} | {'Writer memory (MB)':>20}")
     errfile = splitext(outfile)[0] + ".errors"
     # print(f"[written,\terrors,\tin queue,\tmemory]")
