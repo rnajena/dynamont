@@ -219,7 +219,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
             ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
             ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
             sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
-            rawFile = join(dataPath, basecalled_read.get_tag("fn"))
+            rawFile = join(dataPath, basecalled_read.get_tag("fn")) if basecalled_read.has_tag("fn") else join(dataPath, basecalled_read.get_tag("f5"))
 
             #! normalize whole signal
             shift = basecalled_read.get_tag("sm")
