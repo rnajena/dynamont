@@ -271,6 +271,8 @@ def main() -> None:
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
 
+    assert exists(args.model_path), "Model path does not exist"
+
     segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, args.model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
