@@ -47,7 +47,7 @@ dynamont-NTC = "src.python.ntc_entry:main"
 dynamont-NT-banded = "src.python.nt_entry:main"
 
 [project.urls]
-repository = "https://github.com/JannesSP/dynamont"
+repository = "https://github.com/rnajena/dynamont"
 
 [tool.coverage.report]
 exclude_lines = [
@@ -76,7 +76,7 @@ packages = ["src"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "src/python",
+  "src",
   "pyproject.toml",
   "README.rst",
   "LICENSE"
