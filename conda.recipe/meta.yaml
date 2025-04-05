@@ -11,9 +11,10 @@ source:
 
 build:
   script:
+    - export PROJECT_VERSION=$VERSION  # Set environment variable
     - mkdir -p build && cd build
     - rm -rf *
-    - cmake ${SRC_DIR} -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_BUILD_TYPE=Release
+    - cmake ${SRC_DIR} -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="$PROJECT_VERSION"
     - make -j${CPU_COUNT}
     - make install
     - cd ..
@@ -48,7 +49,7 @@ test:
     - {{ dep.lower() }}
     {% endfor %}
   commands:
-    - dynamont-NT --help
+    - dynamont-NT-banded --help
     - dynamont-NTC --help
     - dynamont-resquiggle --help
     - dynamont-train --help
