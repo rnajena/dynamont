@@ -53,36 +53,36 @@ const std::map<std::string, double> NTK_dna_r9_transitions = {
     {"e4", 1.0},
     {"i1", 1.0},
     {"i2", 1.0}};
-const std::map<std::string, double> NTK_dna_r10_260bps_transitions = {
-    {"a1", 1.0},
-    {"a2", 1.0},
-    {"p1", 1.0},
-    {"p2", 1.0},
-    {"p3", 1.0},
-    {"s1", 1.0},
-    {"s2", 1.0},
-    {"s3", 1.0},
+const std::map<std::string, double> NTK_dna_r10_260bps_transitions = { // TODO train; so far using the same values as rp4
+    {"a1", 0.029709838889618322},
+    {"a2", 0.2837864344979079},
+    {"p1", 0.15353628902814298},
+    {"p2", 0.0041495012884881655},
+    {"p3", 0.47456322874771467},
+    {"s1", 0.05012685122100474},
+    {"s2", 0.0006112333189296363},
+    {"s3", 0.13506593503589423},
     {"e1", 1.0},
-    {"e2", 1.0},
-    {"e3", 1.0},
-    {"e4", 1.0},
-    {"i1", 1.0},
-    {"i2", 1.0}};
-const std::map<std::string, double> NTK_dna_r10_400bps_transitions = {
-    {"a1", 1.0},
-    {"a2", 1.0},
-    {"p1", 1.0},
-    {"p2", 1.0},
-    {"p3", 1.0},
-    {"s1", 1.0},
-    {"s2", 1.0},
-    {"s3", 1.0},
+    {"e2", 0.949873148779652},
+    {"e3", 0.8464637109688202},
+    {"e4", 0.9654529072452087},
+    {"i1", 7.651926003806137e-05},
+    {"i2", 0.10658440170772512}};
+const std::map<std::string, double> NTK_dna_r10_400bps_transitions = { // TODO train; so far using the same values as rp4
+    {"a1", 0.029709838889618322},
+    {"a2", 0.2837864344979079},
+    {"p1", 0.15353628902814298},
+    {"p2", 0.0041495012884881655},
+    {"p3", 0.47456322874771467},
+    {"s1", 0.05012685122100474},
+    {"s2", 0.0006112333189296363},
+    {"s3", 0.13506593503589423},
     {"e1", 1.0},
-    {"e2", 1.0},
-    {"e3", 1.0},
-    {"e4", 1.0},
-    {"i1", 1.0},
-    {"i2", 1.0}};
+    {"e2", 0.949873148779652},
+    {"e3", 0.8464637109688202},
+    {"e4", 0.9654529072452087},
+    {"i1", 7.651926003806137e-05},
+    {"i2", 0.10658440170772512}};
 
 // default params for NT
 // const std::map<std::string, double> NT_rna_r9_transitions = {
@@ -101,14 +101,14 @@ const std::map<std::string, double> NT_dna_r9_transitions = {
     {"m1", 1.0},
     {"e1", 1.0},
     {"e2", 1.0}};
-const std::map<std::string, double> NT_dna_r10_260bps_transitions = {
-    {"m1", 1.0},
+const std::map<std::string, double> NT_dna_r10_260bps_transitions = { // TODO train; so far using the same values as rp4
+    {"m1", 0.031111753637096777},
     {"e1", 1.0},
-    {"e2", 1.0}};
-const std::map<std::string, double> NT_dna_r10_400bps_transitions = {
-    {"m1", 1.0},
+    {"e2", 0.9688882463622581}};
+const std::map<std::string, double> NT_dna_r10_400bps_transitions = { // TODO train; so far using the same values as rp4
+    {"m1", 0.031111753637096777},
     {"e1", 1.0},
-    {"e2", 1.0}};
+    {"e2", 0.9688882463622581}};
 
 const std::map<char, int> BASE2ID = {
     {'A', 0},
