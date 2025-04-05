@@ -4,16 +4,15 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-import read5_ont.AbstractFileReader
 import read5_ont
 import multiprocessing as mp
 import pysam
 import psutil
-import numpy as np
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname, splitext
 from os import makedirs, name, getpid
 from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
+from src.python._version import __version__
 
 def get_memory_usage():
     """
@@ -31,7 +30,8 @@ def parse() -> Namespace:
         Namespace: Containing the specified command line arguments
     """
     parser = ArgumentParser(
-        formatter_class=ArgumentDefaultsHelpFormatter
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        prog='dynamont-resquiggle',
     )
     parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
@@ -41,6 +41,7 @@ def parse() -> Namespace:
     parser.add_argument('--model_path', type=str, required=True, help='Which kmer model to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
     parser.add_argument('-q', '--qscore', type=float, default=0.0, help='Minimal allowed quality score')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     return parser.parse_args()
 
 def listener(q : mp.Queue, outfile : str) -> None:

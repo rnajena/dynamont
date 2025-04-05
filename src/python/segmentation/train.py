@@ -14,6 +14,7 @@ from os import makedirs, name
 from datetime import datetime
 from collections import deque
 from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios
+from src.python._version import __version__
 
 class ManagedList:
     def __init__(self, values, max_size=100):
@@ -46,7 +47,8 @@ class ManagedList:
 
 def parse() -> Namespace:
     parser = ArgumentParser(
-        formatter_class=ArgumentDefaultsHelpFormatter
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        prog='dynamont-train',
     )
     # required
     parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
@@ -60,6 +62,7 @@ def parse() -> Namespace:
     parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of training epochs')
     parser.add_argument('-q', '--qscore', type=int, default=10, help='Minimal allowed quality score')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     return parser.parse_args()
 
 def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, maxBatch : int, pore : str, minQual : float = None) -> None:
