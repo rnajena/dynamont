@@ -34,6 +34,7 @@ pip install dynamont
 ## Conda
 
 ```bash
+conda config --add channels jannessp # to install all dependencies from the correct channel
 conda create -n dynamont jannessp::dynamont
 conda activate dynamont
 ```
