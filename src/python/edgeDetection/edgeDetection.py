@@ -107,7 +107,7 @@ def writer(h5file : str, q : mp.Queue) -> None:
         
             key = f'{signalid}/waveletEdge'
             # save to hdf5 file
-            if not signalid in hdf.keys():
+            if signalid not in hdf.keys():
                 hdf.create_dataset(key, data=waveletEdges, maxshape=(None,), dtype = 'f')
             else:
                 current_shape = hdf[key].shape[0]

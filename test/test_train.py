@@ -1,12 +1,12 @@
-from src.python.segmentation.train import *
-
 class TestTrain:
     # Parse command line arguments with all required arguments provided
     def test_parse_with_all_required_arguments(self):
+
         # Given
         import sys
         from argparse import Namespace
         from unittest.mock import patch
+        from src.python.segmentation.train import parse
     
         test_args = [
             'dynamont-train',

@@ -1,9 +1,9 @@
-from src.python.segmentation.segment import *
-
 class TestSegment():
 
     # Returns memory usage in MB for the current process
     def test_returns_memory_usage_in_mb(self, mocker):
+        from src.python.segmentation.segment import get_memory_usage
+        import psutil
         # Given
         mock_process = mocker.Mock()
         mock_memory_info = mocker.Mock()
@@ -13,7 +13,6 @@ class TestSegment():
         mocker.patch('src.python.segmentation.segment.getpid', return_value=12345)
     
         # When
-        from src.python.segmentation.segment import get_memory_usage
         result = get_memory_usage()
     
         # Then

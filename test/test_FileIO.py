@@ -1,10 +1,11 @@
+from subprocess import PIPE
 import unittest
-from src.python.segmentation.FileIO import *
 import numpy as np
 
 class TestFileIO(unittest.TestCase):
 
     def test_feed_pipe(self):
+        from src.python.segmentation.FileIO import feedPipe
         from unittest.mock import Mock
         mockPipe = Mock()
         mockPipe.communicate.return_value = ("result", "")
@@ -18,6 +19,7 @@ class TestFileIO(unittest.TestCase):
         self.assertEqual(result, ("result", "", mockPipe.returncode))
         
     def test_format_segmentation_output(self):
+        from src.python.segmentation.FileIO import formatSegmentationOutput
         output = "M2,0,1.000000;M3,2,1.000000;M4,871,0.895648;"
         sigOffset = 0
         lastIndex = 1000
@@ -31,6 +33,7 @@ class TestFileIO(unittest.TestCase):
         assert np.array_equal(result, expected)
         
     def test_format_segmentation(self):
+        from src.python.segmentation.FileIO import formatSegmentation
         readid = "read123"
         signalid = "signal456"
         segmentation = np.array([[1, 2, 3], [4, 5, 6]])
@@ -40,6 +43,7 @@ class TestFileIO(unittest.TestCase):
         
         # Correctly identifies and replaces outliers in a 1D numpy array
     def test_hampel_filter(self):
+        from src.python.segmentation.FileIO import hampelFilter
         signal = np.array([1, 1, 1, 10, 1, 1, 1])
         expectedOutput = np.array([1, 1, 1, 1, 1, 1, 1])
     
@@ -49,6 +53,7 @@ class TestFileIO(unittest.TestCase):
         
     # Count occurrences of A, C, G, T in a standard DNA sequence
     def test_count_nucleotides_in_standard_sequence(self):
+        from src.python.segmentation.FileIO import countNucleotides
         # Given
         sequence = "ACGTACGT"
     
@@ -63,6 +68,7 @@ class TestFileIO(unittest.TestCase):
 
     # Calculate correct ratios for a sequence with equal distribution of nucleotides
     def test_equal_distribution_of_nucleotides(self):
+        from src.python.segmentation.FileIO import countNucleotideRatios
         # Given
         sequence = "ACGTACGTACGTACGT"
         expected_ratios = {"A": 0.25, "C": 0.25, "G": 0.25, "T": 0.25}
@@ -75,6 +81,7 @@ class TestFileIO(unittest.TestCase):
 
     # Writing a dictionary of kmer models with valid data to a file
     def test_write_kmer_models_with_valid_data(self):
+        from src.python.segmentation.FileIO import writeKmerModels
         # Given
         import os
         import tempfile
@@ -109,6 +116,7 @@ class TestFileIO(unittest.TestCase):
 
     # Read a valid TSV file with kmer, level_mean, and level_stdv columns
     def test_read_valid_kmer_model_file(self):
+        from src.python.segmentation.FileIO import readKmerModels
         # Given
         import tempfile
         import os
@@ -168,6 +176,7 @@ class TestFileIO(unittest.TestCase):
 
     # Creating a SegmentationError with a read parameter
     def test_segmentation_error_with_read_parameter(self):
+        from src.python.segmentation.FileIO import SegmentationError
         # Given
         read = "read123"
     
@@ -181,6 +190,7 @@ class TestFileIO(unittest.TestCase):
 
     # Successfully calculates Z value when valid signal, read, params, and script are provided
     def test_calcz_returns_z_value_when_valid_inputs(self):
+        from src.python.segmentation.FileIO import calcZ
         # Given
         from unittest.mock import Mock, patch
     
@@ -204,6 +214,7 @@ class TestFileIO(unittest.TestCase):
 
     # Successfully feed signal and read to pipe and return expected results
     def test_feed_pipe_returns_expected_results(self):
+        from src.python.segmentation.FileIO import feedPipe
         # Given
         import numpy as np
         from unittest.mock import MagicMock

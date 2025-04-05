@@ -9,7 +9,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from subprocess import PIPE, Popen
-from pathlib import Path
 from os.path import join
 from multiprocessing import Queue
 
