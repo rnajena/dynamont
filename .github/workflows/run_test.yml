@@ -42,7 +42,7 @@ jobs:
       - name: Run Tests with pytest
         run: |
           pip install pytest pytest-cov pytest-mock
-          pytest --cov=src --cov-report=xml -v test/
+          pytest --cov=src/python --cov-report=xml -v test/
 
       - name: Generate Coverage Report
         run: |
