@@ -27,15 +27,31 @@ set(INSTALL_GTEST OFF CACHE BOOL "Disable GTest installation" FORCE)
 # Add the include directory to the search path
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# Create the first executable dynamont-NT
-add_library(NT_library src/cpp/utils.cpp src/cpp/NT.cpp)
-add_executable(dynamont-NT src/cpp/NT_main.cpp)
-target_link_libraries(dynamont-NT PRIVATE NT_library)
-if(OpenMP_CXX_FOUND)
-  target_link_libraries(dynamont-NT PUBLIC OpenMP::OpenMP_CXX)
+# generate version.hpp
+# CMakeLists.txt
+if(DEFINED ENV{PROJECT_VERSION})
+    set(PROJECT_VERSION $ENV{PROJECT_VERSION})
 endif()
+
+# Write the version to a header file
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/version.hpp.in
+    ${CMAKE_BINARY_DIR}/version.hpp
+    @ONLY
+)
+
+include_directories(${CMAKE_BINARY_DIR})
+
+
+# Create the first executable dynamont-NT
+# add_library(NT_library src/cpp/utils.cpp src/cpp/NT.cpp)
+# add_executable(dynamont-NT src/cpp/NT_main.cpp)
+# target_link_libraries(dynamont-NT PRIVATE NT_library)
+# if(OpenMP_CXX_FOUND)
+  # target_link_libraries(dynamont-NT PUBLIC OpenMP::OpenMP_CXX)
+# endif()
 # Include header files for NT_library
-target_include_directories(dynamont-NT PRIVATE include)
+# target_include_directories(dynamont-NT PRIVATE include)
 
 # Create the second executable dynamont-NTC
 add_library(NTC_library src/cpp/utils.cpp src/cpp/NTC.cpp)
@@ -79,7 +95,7 @@ target_include_directories(test_dynamont PRIVATE include)
 add_test(NAME DynamontTests COMMAND test_dynamont)
 
 # Specify installation location
-install(TARGETS dynamont-NT DESTINATION bin)
+# install(TARGETS dynamont-NT DESTINATION bin)
 install(TARGETS dynamont-NTC DESTINATION bin)
 install(TARGETS dynamont-NT-banded DESTINATION bin)
 install(TARGETS test_dynamont DESTINATION bin)

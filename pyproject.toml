@@ -21,7 +21,7 @@ dependencies = [
   "pandas >=2.2.0",
   "seaborn >=0.13.0",
   "matplotlib >=3.2.0",
-  "read5_ont >=1.2.5",
+  "read5_ont >=1.2.8",
   "pysam >=0.22.0",
   "psutil >=6.0.0",
 ]
@@ -42,6 +42,8 @@ test = [
 [project.scripts]
 dynamont-resquiggle = "src.python.segmentation.segment:main"
 dynamont-train = "src.python.segmentation.train:main"
+dynamont-NTC = "dynamont.wrappers.ntc_entry:main"
+dynamont-NT-banded = "dynamont.wrappers.nt_banded_entry:main"
 
 [project.urls]
 repository = "https://github.com/JannesSP/dynamont"
@@ -65,7 +67,11 @@ universal = true
 version-file = "src/python/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/python"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/bin/dynamont-NTC" = "dynamont/bin/dynamont-NTC"
+"src/bin/dynamont-NT-banded" = "dynamont/bin/dynamont-NT-banded"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -74,6 +80,10 @@ include = [
   "README.rst",
   "LICENSE"
 ]
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/bin/dynamont-NTC" = "src/bin/dynamont-NTC"
+"src/bin/dynamont-NT-banded" = "src/bin/dynamont-NT-banded"
 
 [tool.hatch.version]
 source = "vcs"
