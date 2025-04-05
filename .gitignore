@@ -88,3 +88,4 @@ eval_banded_time_mem.sh
 dev/
 .qodo
 src/bin/
+_build/
