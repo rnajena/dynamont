@@ -36,6 +36,7 @@ requires-python = ">=3.10"
 test = [
   "pytest",
   "pytest-cov",
+  "pytest-mock",
   "mypy"
 ]
 
