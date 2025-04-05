@@ -4,6 +4,7 @@
 // website: https://jannessp.github.io
 
 #include "NT_banded.hpp"
+#include "version.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -20,7 +21,7 @@ int main(int argc, char *argv[])
     std::cout << std::fixed << std::showpoint << std::setprecision(11);
 
     // Argparser
-    argparse::ArgumentParser program("dynamont basic", "0.1");
+    argparse::ArgumentParser program("dynamont basic", PROJECT_VERSION);
     // parameters for DP
     program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
     program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
