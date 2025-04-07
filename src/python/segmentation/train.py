@@ -9,11 +9,11 @@ import read5_ont
 import multiprocessing as mp
 import pysam
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from os.path import exists, join, dirname
+from os.path import exists, join, dirname, basename
 from os import makedirs, name
 from datetime import datetime
 from collections import deque
-from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios
+from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios, getModel
 from src.python._version import __version__
 
 class ManagedList:
@@ -54,10 +54,10 @@ def parse() -> Namespace:
     parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
-    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
+    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9"
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     # optional
-    parser.add_argument('--model_path', type=str, required=True, help='Which initial kmer models to use for training')
+    parser.add_argument('--model_path', type=str, help='Which initial kmer models to use for training')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of training epochs')
@@ -290,7 +290,15 @@ def main() -> None:
 
     paramFile = join(outdir, 'params.csv')
 
-    train(args.raw, args.basecalls, args.batch_size, args.epochs, paramFile, args.mode, args.model_path, args.max_batches, args.pore, args.qscore)
+    if args.model_path:
+        model_path = args.model_path
+        assert exists(model_path), "Model path does not exist"
+    else:
+        model_path = getModel(args.pore)
+        assert exists(model_path), f"Default model not found for pore: {args.pore}, {model_path}"
+    print(f"Loaded model: {basename(model_path)}")
+
+    train(args.raw, args.basecalls, args.batch_size, args.epochs, paramFile, args.mode, model_path, args.max_batches, args.pore, args.qscore)
     plotParameters(paramFile, outdir)
 
 if __name__ == '__main__':

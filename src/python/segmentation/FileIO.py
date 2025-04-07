@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from subprocess import PIPE, Popen
-from os.path import join
+from os.path import join, dirname
 from multiprocessing import Queue
 
 def hampelFilter(signal : np.ndarray, wSize : int = 3, nSigmas : float = 3.0) -> None:
@@ -509,3 +509,26 @@ def plotParameters(param_file : str, outdir : str) -> None:
         print("Savefig: ", join(outdir, f"{column}.pdf"))
         plt.savefig(join(outdir, f"{column}.pdf"))
         plt.close()
+
+def getModel(pore : str) -> str:
+    """
+    Return the path to the kmer model file for a given pore type.
+
+    Parameters
+    ----------
+    pore : str
+        Pore generation used to sequence the data.
+
+    Returns
+    -------
+    str
+        Path to the kmer model file.
+    """
+    MODELS = {
+        "rna_r9" : "models/rna/r9.4.1/rna002_5mer.model",
+        "rna_rp4" : "models/rna/rp4/rna004_9mer.model",
+        "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
+        "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
+    }
+    base_dir = dirname(dirname(dirname(dirname(__file__))))
+    return join(base_dir, MODELS.get(pore, pore))

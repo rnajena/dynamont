@@ -9,9 +9,9 @@ import multiprocessing as mp
 import pysam
 import psutil
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from os.path import exists, join, dirname, splitext
+from os.path import exists, join, dirname, splitext, basename
 from os import makedirs, name, getpid
-from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter
+from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
 from src.python._version import __version__
 
 def get_memory_usage():
@@ -255,29 +255,6 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     writer.join()
     print(f"Skipped reads: low quality: {qualSkipped}")
 
-def getModel(pore : str) -> str:
-    """
-    Return the path to the kmer model file for a given pore type.
-
-    Parameters
-    ----------
-    pore : str
-        Pore generation used to sequence the data.
-
-    Returns
-    -------
-    str
-        Path to the kmer model file.
-    """
-    MODELS = {
-        "rna_r9" : "models/rna/r9.4.1/rna002_5mer.model",
-        "rna_rp4" : "models/rna/rp4/rna004_9mer.model",
-        "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
-        "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
-    }
-    base_dir = dirname(dirname(dirname(dirname(__file__))))
-    return join(base_dir, MODELS.get(pore, pore))
-
 def main() -> None:
     args = parse()
 
@@ -301,6 +278,7 @@ def main() -> None:
     else:
         model_path = getModel(args.pore)
         assert exists(model_path), f"Default model not found for pore: {args.pore}, {model_path}"
+    print(f"Loaded model: {basename(model_path)}")
 
     segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, model_path, args.pore, args.qscore)
 
