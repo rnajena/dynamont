@@ -21,7 +21,12 @@ build:
     - make install
     - cd ..
     - {{ PYTHON }} -m pip install --no-build-isolation --no-deps --ignore-installed -vv $SRC_DIR
-    
+
+outputs:
+  - name: dynamont
+    files:
+      - models/
+
 requirements:
   build:
     - {{ compiler('cxx') }}  # This ensures the correct C++ compiler is used
