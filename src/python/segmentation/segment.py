@@ -38,8 +38,8 @@ def parse() -> Namespace:
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     parser.add_argument('--processes', type=int, default=mp.cpu_count()-1, help='Number of processes to use for segmentation')
-    parser.add_argument('--model_path', type=str, required=True, help='Which kmer model to use for segmentation')
-    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
+    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9", 
+    parser.add_argument('--model_path', type=str, help='Which kmer model to use for segmentation')
     parser.add_argument('-q', '--qscore', type=float, default=0.0, help='Minimal allowed quality score')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     return parser.parse_args()
@@ -255,6 +255,29 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     writer.join()
     print(f"Skipped reads: low quality: {qualSkipped}")
 
+def getModel(pore : str) -> str:
+    """
+    Return the path to the kmer model file for a given pore type.
+
+    Parameters
+    ----------
+    pore : str
+        Pore generation used to sequence the data.
+
+    Returns
+    -------
+    str
+        Path to the kmer model file.
+    """
+    MODELS = {
+        "rna_r9" : "models/rna/r9.4.1/rna002_5mer.model",
+        "rna_rp4" : "models/rna/rp4/rna004_9mer.model",
+        "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
+        "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
+    }
+    base_dir = dirname(dirname(dirname(dirname(__file__))))
+    return join(base_dir, MODELS.get(pore, pore))
+
 def main() -> None:
     args = parse()
 
@@ -272,9 +295,14 @@ def main() -> None:
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
 
-    assert exists(args.model_path), "Model path does not exist"
+    if args.model_path:
+        model_path = args.model_path
+        assert exists(model_path), "Model path does not exist"
+    else:
+        model_path = getModel(args.pore)
+        assert exists(model_path), f"Default model not found for pore: {args.pore}, {model_path}"
 
-    segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, args.model_path, args.pore, args.qscore)
+    segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
     main()
