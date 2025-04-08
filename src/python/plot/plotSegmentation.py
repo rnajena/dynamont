@@ -14,7 +14,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from matplotlib.patches import Rectangle
 from os.path import exists, join
 from os import makedirs, name
-from src.python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
+from python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
 
 def parse() -> Namespace:
     parser = ArgumentParser(

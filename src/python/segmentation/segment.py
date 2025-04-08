@@ -11,8 +11,8 @@ import psutil
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname, splitext, basename
 from os import makedirs, name, getpid
-from src.python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
-from src.python._version import __version__
+from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
+from python._version import __version__
 
 def get_memory_usage():
     """

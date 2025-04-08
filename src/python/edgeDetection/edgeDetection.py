@@ -12,7 +12,7 @@ import pywt
 import multiprocessing as mp
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import join
-from src.python.segmentation.FileIO import hampelFilter
+from python.segmentation.FileIO import hampelFilter
 
 def parse() -> Namespace:
     parser = ArgumentParser(

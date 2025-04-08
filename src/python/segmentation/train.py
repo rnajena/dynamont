@@ -13,8 +13,8 @@ from os.path import exists, join, dirname, basename
 from os import makedirs, name
 from datetime import datetime
 from collections import deque
-from src.python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios, getModel
-from src.python._version import __version__
+from python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios, getModel
+from python._version import __version__
 
 class ManagedList:
     def __init__(self, values, max_size=100):
