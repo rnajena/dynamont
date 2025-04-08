@@ -14,18 +14,16 @@ build:
   script_env:
     - PROJECT_VERSION={{ version }}
   script:
-    - mkdir -p _build && cd _build
+    - mkdir -p build && cd build
     - rm -rf *
     - cmake ${SRC_DIR} -DCMAKE_INSTALL_PREFIX=${PREFIX} -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="$PROJECT_VERSION" -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
     - make -j${CPU_COUNT}
     - make install
     - cd ..
+    - cp -r ${SRC_DIR}/models ${PREFIX}/models
+    - cp ${SRC_DIR}/build/bin/dynamont-NT-banded ${PREFIX}/bin
+    - cp ${SRC_DIR}/build/bin/dynamont-NTC ${PREFIX}/bin
     - {{ PYTHON }} -m pip install --no-build-isolation --no-deps --ignore-installed -vv $SRC_DIR
-
-outputs:
-  - name: dynamont
-    files:
-      - models/
 
 requirements:
   build:
@@ -51,7 +49,6 @@ requirements:
 test:
   source_files:
     - test
-    # - $PREFIX/bin  # Ensure binaries are in the PATH
   requires:
     {% for dep in project['optional-dependencies']['test'] %}
     - {{ dep.lower() }}

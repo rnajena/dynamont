@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BUILD_DIR="_build"
+BUILD_DIR="build"
 BIN_DIR="src/bin/"
 
 # Ensure clean build dirs

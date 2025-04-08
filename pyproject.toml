@@ -70,12 +70,6 @@ version-file = "src/python/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
-[tool.hatch.build.targets.wheel.include]
-"models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model"
-"models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model"
-"models/rna/r9.4.1/rna002_5mer.model" = "models/rna/r9.4.1/rna002_5mer.model"
-"models/rna/rp4/rna004_9mer.model" = "models/rna/rp4/rna004_9mer.model"
-
 [tool.hatch.build.targets.wheel.force-include]
 "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model"
 "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model"
@@ -86,10 +80,6 @@ packages = ["src"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
-  "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
-  "models/rna/r9.4.1/rna002_5mer.model",
-  "models/rna/rp4/rna004_9mer.model",
   "src",
   "pyproject.toml",
   "README.md",

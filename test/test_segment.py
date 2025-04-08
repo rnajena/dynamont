@@ -38,7 +38,7 @@ class TestSegment():
             '-o', '/path/to/output',
             '--mode', 'basic',
             '--model_path', '/path/to/model',
-            '-p', 'dna_r9'
+            '-p', 'rna_r9'
         ]
     
         try:
@@ -50,7 +50,7 @@ class TestSegment():
             assert args.outfile == '/path/to/output'
             assert args.mode == 'basic'
             assert args.model_path == '/path/to/model'
-            assert args.pore == 'dna_r9'
+            assert args.pore == 'rna_r9'
             assert args.processes > 0  # Default value should be set
             assert args.qscore == 0.0  # Default value
         finally:

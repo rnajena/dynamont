@@ -13,7 +13,7 @@ class TestTrain:
             '-r', '/path/to/raw',
             '-b', '/path/to/basecalls.bam',
             '-o', '/path/to/outdir',
-            '-p', 'dna_r9',
+            '-p', 'rna_r9',
             '--mode', 'basic',
             '--model_path', '/path/to/model'
         ]
@@ -27,7 +27,7 @@ class TestTrain:
         assert args.raw == '/path/to/raw'
         assert args.basecalls == '/path/to/basecalls.bam'
         assert args.outdir == '/path/to/outdir'
-        assert args.pore == 'dna_r9'
+        assert args.pore == 'rna_r9'
         assert args.mode == 'basic'
         assert args.model_path == '/path/to/model'
         assert args.batch_size == 24  # Default value
