@@ -18,6 +18,7 @@ Dynamont is a segmentation/resquiggling tool for ONT signals.
   - [Pypi/pip](#pypipip)
   - [Conda](#conda)
 - [Usage](#usage)
+- [Default models:](#default-models)
 - [Output](#output)
   - [Example Output](#example-output)
 - [Exit-Codes](#exit-codes)
@@ -44,11 +45,21 @@ conda activate dynamont
 
 ```bash
 # segment a dataset
-dynamont-resquiggle -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic --model_path <path/to/model> -o <output.csv> -p <pore>
+dynamont-resquiggle -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic -o <output.csv> -p <pore>
 
 # train model
-dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic --model_path <path/to/init/model> -o <output/path> -p <pore>
+dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic -o <output/path> -p <pore>
+
+# choosing a pore will automatically load the default model for that pore, a custom model can be used with the parameter --pore_model <model/path>
 ```
+
+# Default models:
+
+- [rna_r9](models/rna/r9.4.1/rna002_5mer.model) (tested)
+- [rna_rp4](models/rna/rp4/rna004_9mer.model) (tested)
+- dna_r9 not available yet
+- [dna_r10.4.1 260 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model) (not tested)
+- [dna_r10.4.1 400 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model) (not tested)
 
 # Output
 
