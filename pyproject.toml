@@ -41,10 +41,10 @@ test = [
 ]
 
 [project.scripts]
-dynamont-resquiggle = "src.python.segmentation.segment:main"
-dynamont-train = "src.python.segmentation.train:main"
-dynamont-NTC = "src.python.ntc_entry:main"
-dynamont-NT-banded = "src.python.nt_entry:main"
+dynamont-resquiggle = "python.segmentation.segment:main"
+dynamont-train = "python.segmentation.train:main"
+dynamont-NTC = "python.ntc_entry:main"
+dynamont-NT-banded = "python.nt_entry:main"
 
 [project.urls]
 repository = "https://github.com/rnajena/dynamont"
@@ -68,7 +68,7 @@ universal = true
 version-file = "src/python/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/python"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model"
@@ -80,7 +80,7 @@ packages = ["src"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "src",
+  "src/python",
   "pyproject.toml",
   "README.md",
   "LICENSE"
