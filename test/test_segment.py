@@ -2,7 +2,7 @@ class TestSegment():
 
     # Returns memory usage in MB for the current process
     def test_returns_memory_usage_in_mb(self, mocker):
-        from src.python.segmentation.segment import get_memory_usage
+        from python.segmentation.segment import get_memory_usage
         import psutil
         # Given
         mock_process = mocker.Mock()
@@ -10,7 +10,7 @@ class TestSegment():
         mock_memory_info.rss = 104857600  # 100 MB in bytes
         mock_process.memory_info.return_value = mock_memory_info
         mocker.patch('psutil.Process', return_value=mock_process)
-        mocker.patch('src.python.segmentation.segment.getpid', return_value=12345)
+        mocker.patch('python.segmentation.segment.getpid', return_value=12345)
     
         # When
         result = get_memory_usage()
@@ -25,7 +25,7 @@ class TestSegment():
         # Given
         import sys
         from argparse import Namespace
-        from src.python.segmentation.segment import parse
+        from python.segmentation.segment import parse
     
         # Save original sys.argv
         original_argv = sys.argv.copy()

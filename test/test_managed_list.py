@@ -1,4 +1,4 @@
-from src.python.segmentation.train import ManagedList
+from python.segmentation.train import ManagedList
 
 class TestManagedList():
 

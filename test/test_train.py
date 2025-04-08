@@ -6,7 +6,7 @@ class TestTrain:
         import sys
         from argparse import Namespace
         from unittest.mock import patch
-        from src.python.segmentation.train import parse
+        from python.segmentation.train import parse
     
         test_args = [
             'dynamont-train',
