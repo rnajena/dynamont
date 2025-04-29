@@ -445,11 +445,12 @@ def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, rea
 
         # Create the motif
         motif = read[max(0, basepos - (kmerSize//2)):min(len(read), basepos + (kmerSize//2) + 1)]
+        base = read[basepos]
         if rna:
             motif = motif[::-1]
             basepos = len(read) - basepos - 1
 
-        segments[i] = [start, end, basepos, read[basepos], motif, state, prob, polish]
+        segments[i] = [start, end, basepos, base, motif, state, prob, polish]
 
     # return np.array(segments, dtype=object)
     return segments
