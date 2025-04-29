@@ -530,5 +530,5 @@ def getModel(pore : str) -> str:
         "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
         "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
     }
-    base_dir = dirname(dirname(dirname(dirname(__file__))))
+    base_dir = dirname(dirname(dirname(__file__)))
     return join(base_dir, MODELS.get(pore, pore))
