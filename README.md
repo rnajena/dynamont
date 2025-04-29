@@ -100,8 +100,10 @@ readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish
 - 3: Alignment score (Z) does not match between forward and backward pass or is -Infinity
 - 4: Input signal is missing or not found in stdin stream
 - 5: Input read is missing or not found in stdin stream
+- 6: raw file does not exist
 - 7: Invalid model path was provided
 - 8: Provided ONT signal is too short
 - 9: Read is too short
 - 10: Signal is smaller than read
 - 11: Read is smaller than `kmerSize` of provided pore model
+- 20: Terminated using KeyboardInterrupt (Ctrl + C)
