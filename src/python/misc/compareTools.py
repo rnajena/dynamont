@@ -17,6 +17,7 @@ import itertools
 # from venn import venn
 import read5_ont
 from scipy.stats import median_abs_deviation as mad
+from tqdm import tqdm
 
 # TODO: add support for DNA
 
@@ -751,104 +752,111 @@ def processReadScores(args):
     readid, toolsResult, toolNames, pod5, window = args
     r5 = read5_ont.read(pod5)
     signal = r5.getSignal(readid)
+    sig_len = len(signal)
 
     toolScores = {tool: [] for tool in toolNames}
 
     # Compute scores per tool
     for tool in toolNames:
         
-        segPos = np.array(toolsResult[tool][readid])
+        segPos = toolsResult[tool].get(readid)
+        segPos = np.asarray(segPos)
+        scores = []
+
         for i in range(1, len(segPos) - 1):
-            start = max(0, segPos[i] - window)
-            end = min(segPos[i] + window, len(signal))
+            curr_pos = segPos[i]
+            next_pos = segPos[i + 1]
+
+            start = max(0, curr_pos - window)
+            end = min(curr_pos + window, sig_len)
+
+            window1 = signal[start:curr_pos]
+            window2 = signal[curr_pos:end]
+
+            # Median and MAD shift
+            medShift = np.abs(np.median(window2) - np.median(window1))
+            madShift = np.abs(mad(window2) - mad(window1))
+
+            # Homogeneity score of the segment
+            segment = signal[curr_pos:next_pos]
+            seg_len = len(segment)
             
-            window1 = signal[start : segPos[i]]
-            window2 = signal[segPos[i] : end]  # Next region
-            medShift = abs(np.median(window2) - np.median(window1))
-            madShift = abs(mad(window2) - mad(window1))
-            s1 = medShift + madShift
-            # s1 *= (1 - overSegPen) * (1 - underSegPen) # add weight to scores which penalize over- and undersegmentation
-
-            segment = signal[segPos[i] : segPos[i+1]]
-            if len(segment) >= 10:
-                trim = max(int(0.1 * len(segment)), 1)  # 10% of segment length trimmed, but at least 1
-                s2 = mad(segment[trim:-trim])
+            if seg_len >= 10:
+                trim = max(int(0.1 * seg_len), 1)
+                homogeneity = mad(segment[trim:-trim])
             else:
-                s2 = np.nan
+                homogeneity = np.nan
 
-            toolScores[tool].append([s1, s2])
+            scores.append((medShift, madShift, homogeneity))
 
-        toolScores[tool] = np.array(toolScores[tool])
+        toolScores[tool] = np.array(scores, dtype=np.float32)
 
     return toolScores
 
 def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) -> None:
     
-    if not os.path.exists(output + "_score.csv"):
-        toolNames = list(toolsResult.keys())
+    # if not os.path.exists(output + "_score.csv"):
+    toolNames = list(toolsResult.keys())
 
-        # Find reads segmented by all tools
-        print("Finding reads segmented by all tools...")
-        all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
+    # Find reads segmented by all tools
+    print("Finding reads segmented by all tools...")
+    all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
 
-        # Parallel processing of reads
-        print("Start multiprocessing...")
-        read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
-        toolScoresList = pool.map(processReadScores, read_chunks)
+    # Parallel processing of reads
+    print("Start multiprocessing...")
+    read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
+    # toolScoresList = pool.map(processReadScores, read_chunks)
+    # Use tqdm + imap for progress tracking
+    toolScoresList = list(tqdm(
+        pool.imap(processReadScores, read_chunks),
+        total=len(read_chunks),
+        desc="Scoring reads"
+    ))
 
-        # Aggregate scores
-        print("Aggregating scores...")
-        scoreSum = []
-        for toolReadScores in toolScoresList:
-            for tool, scores in toolReadScores.items():
-                # if scores:  # Ensure non-empty scores
-                scoreSum.extend(
-                    [{"Tool": tool, "Score": s, "Segment Quality": "Contrast"} for s in scores[:, 0]] +
-                    [{"Tool": tool, "Score": s, "Segment Quality": "Homogeneity"} for s in scores[:, 1]]
-                )
+    # Aggregate scores
+    print("Aggregating scores...")
+    scoreSum = []
+    for toolReadScores in toolScoresList:
+        for tool, scores in toolReadScores.items():
+            # if scores:  # Ensure non-empty scores
+            scoreSum.extend(
+                [{"Tool": tool, "Score": s, "Segment Quality": "Median Delta"} for s in scores[:, 0]] +
+                [{"Tool": tool, "Score": s, "Segment Quality": "Mad Delta"} for s in scores[:, 1]] +
+                [{"Tool": tool, "Score": s, "Segment Quality": "Homogeneity"} for s in scores[:, 2]]
+            )
 
-        print("Computing statistics...")
+    print("Computing statistics...")
 
-        # Save results
-        df = pd.DataFrame(scoreSum)
-        df.to_csv(output + "_score.csv", index=False)
+    # Save results
+    df = pd.DataFrame(scoreSum)
+    df.to_csv(output + "_score.csv", index=False)
 
-        print("Scoring complete. Results saved to", output + "_score.csv")
+    print("Scoring complete. Results saved to", output + "_score.csv")
 
-    else:
-
-        df = pd.read_csv(output + "_score.csv", index_col = None)
-
+    # else:
+    #     df = pd.read_csv(output + "_score.csv", index_col = None)
 
     # Compute median and mean scores per tool
-    median_contrasts = (
-        df[df["Segment Quality"] == "Contrast"]
+    median_delta = (
+        df[df["Segment Quality"] == "Median Delta"]
         .groupby("Tool")["Score"]
         .median()
         .sort_values(ascending=False)
     )
 
-    mean_contrasts = (
-        df[df["Segment Quality"] == "Contrast"]
+    mad_delta = (
+        df[df["Segment Quality"] == "Mad Delta"]
         .groupby("Tool")["Score"]
-        .mean()
-        .reindex(median_contrasts.index)
+        .median()
+        .reindex(median_delta.index)
     )
 
     median_homogeneity = (
         df[df["Segment Quality"] == "Homogeneity"]
         .groupby("Tool")["Score"]
         .median()
-        .reindex(median_contrasts.index)
+        .reindex(median_delta.index)
     )
-
-    mean_homogeneity = (
-        df[df["Segment Quality"] == "Homogeneity"]
-        .groupby("Tool")["Score"]
-        .mean()
-        .reindex(median_contrasts.index)
-    )
-
 
     print("Plotting scores")
     plt.figure(figsize=(12, 6))
@@ -858,7 +866,7 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
         data=df,
         x="Tool",
         y="Score",
-        order=median_contrasts.index,  # Use sorted order
+        order=median_delta.index,  # Use sorted order
         hue="Segment Quality",
         legend=True,
         showfliers=True,
@@ -870,16 +878,21 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
         )
     
     # Extract median values from the boxplot
-    for i, tool in enumerate(median_contrasts.index):
-        mc = median_contrasts[tool]  # Extract precomputed median
+    for i, tool in enumerate(median_delta.index):
+        med = median_delta[tool]  # Extract precomputed median
+        mad = mad_delta[tool]
         mh = median_homogeneity[tool]
 
         ax.text(
-            i - 0.15, mc, f"{mc:.2f}",
+            i - 0.3, med, f"{med:.2f}",
             ha="center", va="bottom", fontsize=10, fontweight="bold", color="black"
         )
         ax.text(
-            i + 0.15, mh, f"{mh:.2f}",
+            i, mad, f"{mad:.2f}",
+            ha="center", va="bottom", fontsize=10, fontweight="bold", color="black"
+        )
+        ax.text(
+            i + 0.3, mh, f"{mh:.2f}",
             ha="center", va="bottom", fontsize=10, fontweight="bold", color="black"
         )
 
@@ -910,10 +923,10 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
     print("Saving scores")
     # Create DataFrame
     score_summary = pd.DataFrame({
-        "Tool": list(median_contrasts.index) * 2,  # Repeat tools for both segment qualities
-        "Median Score": list(median_contrasts) + list(median_homogeneity),
-        "Mean Score": list(mean_contrasts) + list(mean_homogeneity),
-        "Segment Quality": ["Contrast"] * len(median_contrasts) + ["Homogeneity"] * len(median_homogeneity)
+        "Tool": list(median_delta.index) * df["Segment Quality"].nunique(),  # Repeat tools for all segment qualities
+        "Median Score": list(median_delta) + list(mad_delta) + list(median_homogeneity),
+        # "Mean Score": list(mean_contrasts) + list(mean_homogeneity),
+        "Segment Quality": ["Median Delta"] * len(median_delta) + ["Mad Delta"] * len(mad_delta) + ["Homogeneity"] * len(median_homogeneity)
     })
     score_summary.to_csv(output + "_score.txt", index=False, sep="\t")
 
@@ -940,7 +953,14 @@ def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) 
         # Parallel processing of reads
         print("Start multiprocessing...")
         read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
-        segmentCounts_list = pool.map(processReadSegments, read_chunks)
+        # segmentCounts_list = pool.map(processReadSegments, read_chunks)
+        segmentCounts_list = list(
+            tqdm(
+                pool.imap_unordered(processReadSegments, read_chunks),
+                total=len(read_chunks),
+                desc="Processing reads",
+            )
+        )
 
         # Merge segment counts from all workers
         print("Aggregating counts...")
@@ -1082,15 +1102,15 @@ def plotReadStats(readLens : dict, output : str) -> None:
 
     # Compute statistics
     n50 = calcN50(df["Readlength"].to_numpy())
-    mean_qual = np.mean(df["Readlength"].to_numpy())
-    median_qual = np.median(df["Readlength"].to_numpy())
-    max_qual = np.max(df["Readlength"].to_numpy())
-    min_qual = np.min(df["Readlength"].to_numpy())
+    mean_len = np.mean(df["Readlength"].to_numpy())
+    median_len = np.median(df["Readlength"].to_numpy())
+    max_len = np.max(df["Readlength"].to_numpy())
+    min_len = np.min(df["Readlength"].to_numpy())
 
     # Create a DataFrame
     df_stats = pd.DataFrame({
         "Metric": ["N50", "Mean", "Median", "Max", "Min"],
-        "Value": [n50, mean_qual, median_qual, max_qual, min_qual]
+        "Value": [n50, mean_len, median_len, max_len, min_len]
     })
 
     # Save to CSV
