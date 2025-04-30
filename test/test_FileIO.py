@@ -29,7 +29,7 @@ class TestFileIO(unittest.TestCase):
             [2, 871, 8, 'A', 'GTACG', 'M', 1.0, 'NA'],
             [871, 1000, 7, 'T', 'CGTAC', 'M', 0.895648, 'NA']
         ], dtype=object)
-        result = formatSegmentationOutput(output, sigOffset, lastIndex, read, 5)
+        result = formatSegmentationOutput(output, sigOffset, lastIndex, read[::-1], 5, True)
         assert np.array_equal(result, expected)
         
     def test_format_segmentation(self):
