@@ -214,7 +214,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     # else:
         # kmerSize = 9
 
-    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, kmerSize, PARAMS) # , heatmap
+    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, kmerSize, "rna" in pore, PARAMS) # , heatmap
 
     # sns.set_theme()
     # plt.figure(dpi=200)

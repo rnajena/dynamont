@@ -294,7 +294,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     return params, newModels, Z
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : int, kmerSize : int, params : dict = None) -> tuple:
+def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : int, kmerSize : int, rna : bool, params : dict = None) -> tuple:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Opens and closes a pipe to the given script.
@@ -356,10 +356,10 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             exit(1)
 
     # receive segmentation result and format output into np.ndarray
-    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1], kmerSize)
+    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1], kmerSize, rna)
     return segments, probs #, heatmap
 
-def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, kmerSize : int, queue : Queue) -> None:
+def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, kmerSize : int, queue : Queue, rna : bool) -> None:
     '''
     Parse & feed signal & read to the C++ segmentation script.
     Needs an open pipe for communication.
@@ -386,16 +386,16 @@ def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.nd
     #     output, errors, returncode = feedPipe(signal, read, pipe)
     if returncode == -11: # Segmentation Fault return code
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
-        with open("failed_input.txt", 'w') as w:
-            w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
+        # with open("failed_input.txt", 'w') as w:
+        #     w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
         return
     if returncode:
         queue.put(f"error: {returncode}, {errors}\tT: {len(signal)}\tN: {len(read)}\tRid: {readid}\tSid: {signalid}")
         return
-    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read[::-1], kmerSize)
+    segments = formatSegmentationOutput(output, signal_offset, len(signal) + signal_offset, read, kmerSize, rna)
     queue.put(formatSegmentation(readid, signalid, segments))
 
-def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str, kmerSize : int) -> np.ndarray:
+def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, read : str, kmerSize : int, rna : bool) -> np.ndarray:
     '''
     Receives the segmentation output from CPP script and returns it as a np.ndarray
 
@@ -408,7 +408,9 @@ def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, rea
     lastIndex : int
         ending index with offset already added
     read : str
-        5' -> 3' direction
+        in sequencing direction (dna 5' - 3', rna 3' - 5')
+    rna : bool
+        true if rna sequencing
 
     Returns
     -------
@@ -441,12 +443,14 @@ def formatSegmentationOutput(output : str, sigOffset : int, lastIndex : int, rea
         else:
             end = lastIndex
 
-        # Convert base position to 5' -> 3' direction
-        pos = len(read) - basepos - 1
         # Create the motif
-        motif = read[max(0, pos - (kmerSize//2)):min(len(read), pos + (kmerSize//2) + 1)]
+        motif = read[max(0, basepos - (kmerSize//2)):min(len(read), basepos + (kmerSize//2) + 1)]
+        base = read[basepos]
+        if rna:
+            motif = motif[::-1]
+            basepos = len(read) - basepos - 1
 
-        segments[i] = [start, end, pos, read[pos], motif, state, prob, polish]
+        segments[i] = [start, end, basepos, base, motif, state, prob, polish]
 
     # return np.array(segments, dtype=object)
     return segments
@@ -530,5 +534,5 @@ def getModel(pore : str) -> str:
         "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
         "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
     }
-    base_dir = dirname(dirname(dirname(dirname(__file__))))
+    base_dir = dirname(dirname(dirname(__file__)))
     return join(base_dir, MODELS.get(pore, pore))

@@ -82,7 +82,6 @@ def listener(q : mp.Queue, outfile : str) -> None:
             
             print(f"{i:>9} | {e:>8} | {q.qsize():>8} | {get_memory_usage():>20.0f}", end='\r')
             # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
-    
     print(f"\nReads segmented: {i}", f"Errors: {e}")
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
@@ -148,7 +147,6 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
         read = read[::-1] # change direction from 5' - 3' to 3' - 5'
         if not read.startswith("AAAAAAAAA"):
             read = "AAAAAAAAA" + read
-    
     feedSegmentationAsynchronous(
                 script,
                 {'m': modelpath, 'r' : pore, 't' : 4},
@@ -158,9 +156,9 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
                 readid,
                 signalid,
                 kmerSize,
-                q
+                q,
+                "rna" in pore
                 )
-    
     # directly free memory
     del r5
     del signal
@@ -204,56 +202,67 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     pool = mp.Pool(processes)
     qualSkipped = 0
 
-    with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-        for basecalled_read in samfile.fetch(until_eof=True):
-            # skip low qual reads if activated
-            qs = basecalled_read.get_tag("qs")
-            if minQual and qs < minQual:
-                qualSkipped+=1
-                continue
+    try:
+        with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
+            for basecalled_read in samfile.fetch(until_eof=True):
+                # skip low qual reads if activated
+                qs = basecalled_read.get_tag("qs")
+                if minQual and qs < minQual:
+                    qualSkipped+=1
+                    continue
 
-            # init read
-            readid = basecalled_read.query_name
-            # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
-            signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-            seq = basecalled_read.query_sequence
-            ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
-            ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
-            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
-            rawFile = join(dataPath, basecalled_read.get_tag("fn")) if basecalled_read.has_tag("fn") else join(dataPath, basecalled_read.get_tag("f5"))
+                # init read
+                readid = basecalled_read.query_name
+                # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
+                signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
+                seq = basecalled_read.query_sequence
+                ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+                ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
+                sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
+                rawFile = join(dataPath, basecalled_read.get_tag("fn")) if basecalled_read.has_tag("fn") else join(dataPath, basecalled_read.get_tag("f5"))
+                if not exists(rawFile): 
+                    queue.put(f"error: 6, no raw file found\t{rawFile}\t{readid}\t{signalid}")
 
-            #! normalize whole signal
-            shift = basecalled_read.get_tag("sm")
-            scale = basecalled_read.get_tag("sd")
+                #! normalize whole signal
+                shift = basecalled_read.get_tag("sm")
+                scale = basecalled_read.get_tag("sd")
 
-            pool.apply_async(
-                asyncSegmentation, (
-                    queue,
-                    SCRIPT,
-                    modelpath,
-                    pore,
-                    rawFile,
-                    shift,
-                    scale,
-                    sp+ts,
-                    sp+ns,
-                    seq,
-                    readid,
-                    signalid
+                pool.apply_async(
+                    asyncSegmentation, (
+                        queue,
+                        SCRIPT,
+                        modelpath,
+                        pore,
+                        rawFile,
+                        shift,
+                        scale,
+                        sp+ts,
+                        sp+ns,
+                        seq,
+                        readid,
+                        signalid
+                        )
                     )
-                )
 
-    # wait for jobs to finish
-    pool.close()
-    pool.join()
-        
-    # tell queue to terminate
-    queue.put("kill")
-    
-    # Close the pool and wait for processes to finish
-    writer.close()
-    writer.join()
-    print(f"Skipped reads: low quality: {qualSkipped}")
+        # wait for jobs to finish
+        pool.close()
+        pool.join()
+
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt detected! Terminating processes...")
+        pool.terminate()
+        writer.terminate()
+        pool.join()
+        writer.join()
+        print("All processes terminated.")
+        exit(20)
+
+    finally:
+        # tell queue to terminate
+        queue.put("kill")
+        writer.close()
+        writer.join()
+        print(f"Skipped reads: low quality: {qualSkipped}")
 
 def main() -> None:
     args = parse()
