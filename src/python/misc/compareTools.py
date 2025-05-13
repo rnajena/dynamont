@@ -19,7 +19,7 @@ import read5_ont
 from scipy.stats import median_abs_deviation as mad
 from tqdm import tqdm
 
-# TODO: add support for DNA
+#! Tombo function only supports RNA, not DNA (no issue so far, cause no tombo dna data was analysed)
 
 def parse() -> Namespace:
     """
@@ -234,7 +234,7 @@ def readTombo(directory: str) -> dict:
                 starts = h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'][:]['start'] + h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'].attrs['read_start_rel_to_raw']
                 ends = starts + h5['Analyses/RawGenomeCorrected_000/BaseCalled_template/Events'][:]['length']
                 borders = np.unique((starts, ends))
-                # reverse indices
+                #! RNA reverse indices
                 borders = signalLen - borders - 1
             except KeyError:
                 continue
@@ -363,7 +363,7 @@ def evaluate(gt : np.ndarray, pred : np.ndarray, maxDistance : int) -> pd.DataFr
             del cur_gt[pred_idx]
 
             if cur_gt:
-                pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[k]))
+                pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[pred_idx]))
 
         next_gt = found[gt_idx + 1] if gt_idx < len(gt) - 1 else {}
         if next_gt and cur_gt and pred_idx in next_gt and abs(next_gt[pred_idx]) < abs(cur_gt[pred_idx]):
@@ -372,7 +372,7 @@ def evaluate(gt : np.ndarray, pred : np.ndarray, maxDistance : int) -> pd.DataFr
             del cur_gt[pred_idx]
 
             if cur_gt:
-                pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[k]))
+                pred_idx = min(cur_gt, key=lambda k: abs(cur_gt[pred_idx]))
 
         # no prediction for this gt value
         if not cur_gt:
@@ -496,17 +496,18 @@ def generateControl(bamFile : str) -> tuple:
 
     randomBorders = {} # randomly drawn borders without replacement
     uniformBorders = {} # equidistant borders
-    for readid in basecalledRegions:
-        regions = np.array([])
-        uniformBorders[readid] = []
-        nts = 0
-        for region in basecalledRegions[readid]:
-            nts += region[0]
-            regions = np.append(regions, np.arange(region[1], region[2], 1))
-            uniformBorders[readid].extend(np.linspace(region[1], region[2] - 1, region[0]).tolist())
+    for readid, regions in basecalledRegions.items():
+        # Combine all regions into a single array
+        nts_total = sum(region[0] for region in regions)
+        all_positions = np.concatenate([np.arange(region[1], region[2]) for region in regions])
 
-        randomBorders[readid] = np.random.choice(regions, size=nts, replace=False)
-        uniformBorders[readid] = np.round(np.array(uniformBorders[readid])).astype(int)
+        # Generate random borders
+        randomBorders[readid] = np.random.choice(all_positions, size=nts_total, replace=False)
+
+        # Generate equidistant borders
+        uniformBorders[readid] = np.concatenate([
+            np.linspace(region[1], region[2] - 1, region[0], dtype=int) for region in regions
+        ])
         
     return randomBorders, uniformBorders
 
@@ -535,7 +536,6 @@ def getResults(args : Namespace, pool) -> dict:
     doradoReturn = pool.apply_async(readDorado, args=(args.dorado,))
     controlReturn = pool.apply_async(generateControl, args=(args.basecalls,))
 
-    # groundTruths = gtReturn.get()  #readChangepoints(args.changepoints)
     randomBorders, uniformBorders = controlReturn.get() # generating controls
     
     if args.tombo:
@@ -559,8 +559,7 @@ def getResults(args : Namespace, pool) -> dict:
 
     for tool in toolsResult:
         toNumpy(toolsResult[tool])
-    # toNumpy(groundTruths)
-
+    
     return toolsResult #, groundTruths
 
 def evaluateAgainstGroundTruth(groundTruths : np.ndarray, toolsResult : dict, maxDistance : int, output : str, pool) -> pd.DataFrame:
@@ -736,8 +735,13 @@ def processReadSegments(args):
             # Instead of `np.all(subsetPresence, axis=0)`, check within window range
             sharedBorders = 0
             for pos in np.where(np.any(subsetPresence, axis=0))[0]:  # Only check marked positions
-                # Check if all tools in the subset have a segment within the window
-                if np.any(np.all(subsetPresence[:, max(0, pos - windowSize): min(signalLength, pos + windowSize + 1)], axis=0)):
+                # Check if each tool in the subset has at least one segmentation within the window
+                if np.all(
+                    np.any(
+                        subsetPresence[:, max(0, pos - windowSize): min(signalLength, pos + windowSize + 1)],
+                        axis=1
+                    )
+                ):
                     sharedBorders += 1
 
             if sharedBorders > 0:
@@ -754,12 +758,11 @@ def processReadScores(args):
     signal = r5.getSignal(readid)
     sig_len = len(signal)
 
-    toolScores = {tool: [] for tool in toolNames}
+    toolScores = {}
 
     # Compute scores per tool
     for tool in toolNames:
-        
-        segPos = toolsResult[tool].get(readid)
+        segPos = toolsResult[tool].get(readid, [])
         segPos = np.asarray(segPos)
         scores = []
 
@@ -780,7 +783,7 @@ def processReadScores(args):
             # Homogeneity score of the segment
             segment = signal[curr_pos:next_pos]
             seg_len = len(segment)
-            
+
             if seg_len >= 10:
                 trim = max(int(0.1 * seg_len), 1)
                 homogeneity = mad(segment[trim:-trim])
@@ -795,48 +798,52 @@ def processReadScores(args):
 
 def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) -> None:
     
-    # if not os.path.exists(output + "_score.csv"):
-    toolNames = list(toolsResult.keys())
+    output_file = output + "_score.csv"
 
-    # Find reads segmented by all tools
-    print("Finding reads segmented by all tools...")
-    all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
+    if not os.path.exists(output_file):
+        toolNames = list(toolsResult.keys())
 
-    # Parallel processing of reads
-    print("Start multiprocessing...")
-    read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
-    # toolScoresList = pool.map(processReadScores, read_chunks)
-    # Use tqdm + imap for progress tracking
-    toolScoresList = list(tqdm(
-        pool.imap(processReadScores, read_chunks),
-        total=len(read_chunks),
-        desc="Scoring reads"
-    ))
+        # Find reads segmented by all tools
+        print("Finding reads segmented by all tools...")
+        all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
 
-    # Aggregate scores
-    print("Aggregating scores...")
-    scoreSum = []
-    for toolReadScores in toolScoresList:
-        for tool, scores in toolReadScores.items():
-            # if scores:  # Ensure non-empty scores
-            scoreSum.extend(
-                [{"Tool": tool, "Score": s, "Segment Quality": "Median Delta"} for s in scores[:, 0]] +
-                [{"Tool": tool, "Score": s, "Segment Quality": "Mad Delta"} for s in scores[:, 1]] +
-                [{"Tool": tool, "Score": s, "Segment Quality": "Homogeneity"} for s in scores[:, 2]]
-            )
+        # Parallel processing of reads
+        print("Start multiprocessing...")
+        read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
 
-    print("Computing statistics...")
+        # Open output file for incremental writing
+        with open(output_file, "w") as f:
+            f.write("Tool,Score,Segment Quality\n")  # Write header
 
-    # Save results
-    df = pd.DataFrame(scoreSum)
-    df.to_csv(output + "_score.csv", index=False)
+            # Process reads in parallel and aggregate results
+            for toolReadScores in tqdm(
+                pool.imap_unordered(processReadScores, read_chunks, chunksize=10),
+                total=len(all_reads),
+                desc="Scoring reads"
+            ):
+                for tool, scores in toolReadScores.items():
+                    if scores.size > 0:  # Ensure non-empty scores
+                        for i, quality in enumerate(["Median Delta", "Mad Delta", "Homogeneity"]):
+                            for score in scores[:, i]:
+                                f.write(f"{tool},{score},{quality}\n")
 
-    print("Scoring complete. Results saved to", output + "_score.csv")
+        print(f"Scoring complete. Results saved to {output_file}")
 
-    # else:
-    #     df = pd.read_csv(output + "_score.csv", index_col = None)
+    return output_file
 
-    # Compute median and mean scores per tool
+def plot_scores(score_file : str, output_prefix : str) -> None:
+    """
+    Load the score file and generate plots for segmentation tool scores.
+
+    Parameters:
+    - score_file (str): Path to the score file (CSV format).
+    - output_prefix (str): Prefix for saving the output plots.
+    """
+    # Load the score file
+    print(f"Loading score file: {score_file}")
+    df = pd.read_csv(score_file)
+
+        # Compute median and mean scores per tool
     median_delta = (
         df[df["Segment Quality"] == "Median Delta"]
         .groupby("Tool")["Score"]
@@ -858,64 +865,68 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
         .reindex(median_delta.index)
     )
 
-    print("Plotting scores")
+    # Compute median scores for each tool and segment quality
+    median_scores = (
+        df.groupby(["Tool", "Segment Quality"])["Score"]
+        .median()
+        .reset_index()
+        .pivot(index="Tool", columns="Segment Quality", values="Score")
+    )
+
+    print("Plotting scores...")
     plt.figure(figsize=(12, 6))
     sns.set_theme(style="whitegrid")
 
+    # Boxplot for scores
     ax = sns.boxplot(
         data=df,
         x="Tool",
         y="Score",
-        order=median_delta.index,  # Use sorted order
         hue="Segment Quality",
-        legend=True,
         showfliers=True,
-        flierprops={"marker": "o", "markersize": 3, "alpha": 0.3},  # Outlier marker
+        flierprops={"marker": "o", "markersize": 3, "alpha": 0.3},
         notch=True,
         showcaps=False,
-        width=0.6,  # Box width
-        linewidth=1.5,  # Box border thickness
-        )
-    
-    # Extract median values from the boxplot
-    for i, tool in enumerate(median_delta.index):
-        med = median_delta[tool]  # Extract precomputed median
-        mad = mad_delta[tool]
-        mh = median_homogeneity[tool]
+        width=0.6,
+        linewidth=1.5,
+    )
 
-        ax.text(
-            i - 0.3, med, f"{med:.2f}",
-            ha="center", va="bottom", fontsize=10, fontweight="bold", color="black"
-        )
-        ax.text(
-            i, mad, f"{mad:.2f}",
-            ha="center", va="bottom", fontsize=10, fontweight="bold", color="black"
-        )
-        ax.text(
-            i + 0.3, mh, f"{mh:.2f}",
-            ha="center", va="bottom", fontsize=10, fontweight="bold", color="black"
-        )
+    # Add median values as text on the plot
+    for i, tool in enumerate(median_scores.index):
+        for j, quality in enumerate(median_scores.columns):
+            median_value = median_scores.loc[tool, quality]
+            ax.text(
+                i + (j - 1) * 0.2,  # Adjust position based on quality index
+                median_value,
+                f"{median_value:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontweight="bold",
+                color="black",
+            )
 
-    plt.xticks(rotation=30, fontsize=12)  # Rotate tool names
-    plt.yticks(fontsize=12)  # Adjust y-axis font size
+    # Customize plot appearance
+    plt.xticks(rotation=30, fontsize=12)
+    plt.yticks(fontsize=12)
     plt.title("Segmentation Tool Score Distribution", fontsize=16, fontweight="bold")
     plt.ylabel("Score", fontsize=14)
     plt.xlabel("Tool", fontsize=14)
     plt.grid(True, linestyle="--", alpha=0.5)
-    ax.legend(loc="upper right", bbox_to_anchor=(1, 1))
+    plt.legend(loc="upper right", bbox_to_anchor=(1, 1))
 
+    # Save plots with different y-axis scales
     plt.tight_layout()
-
     ax.set_yscale("log")
-    plt.savefig(output + "_score_log.pdf", dpi=300)
-    plt.savefig(output + "_score_log.svg", dpi=300)
-    plt.savefig(output + "_score_log.png", dpi=300)
+    plt.savefig(f"{output_prefix}_score_log.pdf", dpi=300)
+    plt.savefig(f"{output_prefix}_score_log.svg", dpi=300)
+    plt.savefig(f"{output_prefix}_score_log.png", dpi=300)
 
     ax.set_yscale("linear")
     plt.ylim((0, 150))
-    plt.savefig(output + "_score.pdf", dpi=300)
-    plt.savefig(output + "_score.svg", dpi=300)
-    plt.savefig(output + "_score.png", dpi=300)
+    plt.savefig(f"{output_prefix}_score.pdf", dpi=300)
+    plt.savefig(f"{output_prefix}_score.svg", dpi=300)
+    plt.savefig(f"{output_prefix}_score.png", dpi=300)
 
     plt.close()
     sns.reset_defaults()
@@ -928,7 +939,7 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
         # "Mean Score": list(mean_contrasts) + list(mean_homogeneity),
         "Segment Quality": ["Median Delta"] * len(median_delta) + ["Mad Delta"] * len(mad_delta) + ["Homogeneity"] * len(median_homogeneity)
     })
-    score_summary.to_csv(output + "_score.txt", index=False, sep="\t")
+    score_summary.to_csv(output_prefix + "_score.txt", index=False, sep="\t")
 
 def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) -> None:
     """
@@ -940,9 +951,6 @@ def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) 
     - output (str): Path prefix for saving the Venn diagram.
     - pool (mp.Pool): Multiprocessing pool object.
     """
-
-    # print("tools result", toolsResult.keys())
-
     if not os.path.exists(output + "_upset.csv"):
         toolNames = list(toolsResult.keys())
 
@@ -956,7 +964,7 @@ def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) 
         # segmentCounts_list = pool.map(processReadSegments, read_chunks)
         segmentCounts_list = list(
             tqdm(
-                pool.imap_unordered(processReadSegments, read_chunks),
+                pool.imap_unordered(processReadSegments, read_chunks, chunksize=100),
                 total=len(read_chunks),
                 desc="Processing reads",
             )
@@ -1169,6 +1177,7 @@ def plotReadStats(readLens : dict, output : str) -> None:
 def main() -> None:
     args = parse()
     print(args)
+    output = os.path.splitext(args.output)[0]
 
     pool = mp.Pool(args.processes)
 
@@ -1176,15 +1185,17 @@ def main() -> None:
     
     toolsResult = getResults(args, pool)
     
-    plotSegmentationRate(toolsResult, os.path.splitext(args.output)[0])
+    plotSegmentationRate(toolsResult, output)
 
-    compareTools(toolsResult, args.pod5, os.path.splitext(args.output)[0], pool, args.window)
+    compareTools(toolsResult, args.pod5, output, pool, args.window)
 
     readStats = getReadStatsDict(args.basecalls)
 
-    plotReadStats(readStats, os.path.splitext(args.output)[0])
+    plotReadStats(readStats, output)
 
-    scoreTools(toolsResult, args.pod5, os.path.splitext(args.output)[0], pool, 6)
+    score_file = scoreTools(toolsResult, args.pod5, output, pool, 6)
+
+    plot_scores(score_file, output)
 
     pool.close()
     pool.join()

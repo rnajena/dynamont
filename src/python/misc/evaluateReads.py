@@ -11,7 +11,7 @@ from statistics import median
 import numpy as np
 import json
 from tqdm import tqdm
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool #, cpu_count
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -19,6 +19,7 @@ def parse() -> Namespace:
     )
     parser.add_argument("basecalls", type=str, help="Path to the basecalled bam file")
     parser.add_argument("fasta", type=str, help="Path to the fasta file")
+    parser.add_argument("-t", type=int, default=None, help="Number of threads to use")
     return parser.parse_args()
 
 def load_basecalls_from_bam(basecalls: str) -> dict[str, str]:
@@ -71,19 +72,35 @@ def load_fasta(fasta_path: str) -> dict[str, str]:
     return reads
 
 def global_alignment(a: str, b: str) -> int:
-    """Compute edit distance using semi-global Needleman-Wunsch."""
+    """Compute edit distance using semi-global Needleman-Wunsch with memory optimization."""
     n, m = len(a), len(b)
-    dp = np.zeros((n+1, m+1), dtype=int)
+    band_size = max(n, m) // 5  # Set band size to 20% of the sequence length
+
+    # Initialize two rows for the DP matrix
+    prev_row = np.zeros(m + 1, dtype=int)
+    curr_row = np.zeros(m + 1, dtype=int)
+
     # Initialization: no penalty for terminal gaps
-    dp[0, :] = 0
-    dp[:, 0] = 0
-    for i in range(1, n+1):
-        for j in range(1, m+1): # banded matrix
-            match = dp[i-1, j-1] + (a[i-1] != b[j-1])
-            delete = dp[i-1, j] + 1
-            insert = dp[i, j-1] + 1
-            dp[i, j] = min(match, delete, insert)
-    return dp[-1, -1]
+    prev_row[0] = 0
+
+    for i in range(1, n + 1):
+        curr_row[0] = i  # Initialize the first column of the current row
+
+        # Determine the band range
+        min_j = max(1, i - band_size)
+        max_j = min(m + 1, i + band_size + 1)
+
+        for j in range(min_j, max_j):
+            match = prev_row[j - 1] + (a[i - 1] != b[j - 1])
+            delete = prev_row[j] + 1
+            insert = curr_row[j - 1] + 1
+            curr_row[j] = min(match, delete, insert)
+
+        # Swap rows: the current row becomes the previous row for the next iteration
+        prev_row, curr_row = curr_row, prev_row
+
+    # The result is in the last cell of the last computed row
+    return prev_row[m]
 
 def _compute_read_stats(args):
     """
@@ -102,8 +119,8 @@ def _compute_read_stats(args):
 
     return (True, is_identical, is_truncated, nt_changes, length)
 
-def compute_stats(basecalls: dict[str, str], segmented: dict[str, str], threads: int = None):
-    threads = threads or cpu_count()
+def compute_stats(basecalls: dict[str, str], segmented: dict[str, str], threads: int):
+    # threads = threads or cpu_count()
     stats = {
         "total": len(basecalls),
         "present": 0,
@@ -117,7 +134,7 @@ def compute_stats(basecalls: dict[str, str], segmented: dict[str, str], threads:
     read_args = [(rid, seq, segmented) for rid, seq in basecalls.items()]
 
     with Pool(threads) as pool:
-        results = pool.imap_unordered(_compute_read_stats, read_args, chunksize = 128)
+        results = pool.imap_unordered(_compute_read_stats, read_args, chunksize=16)
         with tqdm(total=len(read_args), desc="  Computing segmented read stats", unit=" reads") as pbar:
             for present, identical, truncated, nt_changed, length in results:
                 pbar.update()
@@ -210,7 +227,7 @@ def main():
     args = parse()
     basecalls = load_basecalls_from_bam(args.basecalls)
     segmented = load_fasta(args.fasta)
-    stats = compute_stats(basecalls, segmented)
+    stats = compute_stats(basecalls, segmented, args.t)
     print("Done computing stats, now writing to file...")
     report_stats(stats, Path(args.fasta))
 

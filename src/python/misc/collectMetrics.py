@@ -24,8 +24,13 @@ def parse() -> Namespace:
     parser.add_argument("time_uncalled4", type=str, help="Path to the tools time file")
     parser.add_argument("time_f5c_eventalign", type=str, help="Path to the tools time file")
     parser.add_argument("time_f5c_resquiggle", type=str, help="Path to the tools time file")
+    parser.add_argument("subtools_dynamont", type=str, help="Path to the downstream tool metrics file")
+    parser.add_argument("subtools_uncalled4", type=str, help="Path to the downstream tool metrics file")
+    parser.add_argument("subtools_f5c_eventalign", type=str, help="Path to the downstream tool metrics file")
+    parser.add_argument("subtools_f5c_resquiggle", type=str, help="Path to the downstream tool metrics file")
     parser.add_argument("--tombo", type=str, default=None, help="Path to the reads metrics json file")
-    parser.add_argument("--time_tombo", type=str, default=None, help="Path to the tolls time file")
+    parser.add_argument("--time_tombo", type=str, default=None, help="Path to the tools time file")
+    parser.add_argument("--subtools_tombo", type=str, default=None, help="Path to the downstream tool metrics time file")
     return parser.parse_args()
 
 def main() -> None:
@@ -47,12 +52,22 @@ def main() -> None:
         "f5c_resquiggle": args.time_f5c_resquiggle
     }
 
+    downstream_tools = {
+        "dynamont": args.subtools_dynamont,
+        "uncalled4": args.subtools_uncalled4,
+        "f5c_eventalign": args.subtools_f5c_eventalign,
+        "f5c_resquiggle": args.subtools_f5c_resquiggle
+    }
+
     # NA rna004
     if args.tombo and args.tombo != '':
         jsons["tombo"] = args.tombo
 
     if args.time_tombo and args.time_tombo != '':
         times["tombo"] = args.time_tombo
+
+    if args.subtools_tombo and args.subtools_tombo != '':
+        downstream_tools["tombo"] = args.subtools_tombo
 
     for name, json_path in jsons.items():
         with open(json_path, "r") as json_file:
@@ -79,14 +94,33 @@ def main() -> None:
             })  
             scores = pd.concat([scores, new_entry], ignore_index=True)
 
-    control = pd.read_csv(args.control, sep="\t")
-    for _, row in control.iterrows():
-        new_entry = pd.DataFrame({
-            "Tool": ["Control Random", "Control Uniform"],
-            "Value": [row["Value"], row["Value"]],
-            "Metric": [row["Metric"].lower() + '_length', row["Metric"].lower() + '_length']
-        })
-        scores = pd.concat([scores, new_entry], ignore_index=True)
+    for name, downstream_path in downstream_tools.items():
+        with open(downstream_path, "r") as downstream_file:
+            total_assembly_length = int(downstream_file.readline().strip().split(': ')[1])
+            n50 = int(downstream_file.readline().strip().split(': ')[1])
+            mean_cov = float(downstream_file.readline().strip().split(': ')[1])
+            struct_vars = int(downstream_file.readline().strip().split(': ')[1])
+
+            new_entry = pd.DataFrame({
+                "Tool": [name, name, name, name],
+                "Value": [total_assembly_length, n50, mean_cov, struct_vars],
+                "Metric": ["flye total length", "flye n50", "flye mean coverage", "SVIM structural variants"]
+            })
+            scores = pd.concat([scores, new_entry], ignore_index=True)
+
+    # control = pd.read_csv(args.control, sep="\t")
+    # for _, row in control.iterrows():
+    #     new_entry = pd.DataFrame({
+    #         "Tool": ["Control Random", "Control Uniform"],
+    #         "Value": [row["Value"], row["Value"]],
+    #         "Metric": [row["Metric"].lower() + '_length', row["Metric"].lower() + '_length']
+    #     })
+    #     scores = pd.concat([scores, new_entry], ignore_index=True)
+
+    #! remove controls and dorado
+    scores = scores[scores["Tool"] != "Control Random"]
+    scores = scores[scores["Tool"] != "Control Uniform"]
+    scores = scores[scores["Tool"] != "Dorado"]
 
     # fix names
     scores["Tool"] = scores["Tool"].replace(
@@ -100,11 +134,12 @@ def main() -> None:
         }
     )
 
-    # Ensure Value column is numeric where needed
-    # scores["Value"] = pd.to_numeric(scores["Value"], errors="coerce")
+    # Remove unwanted metrics
+    removed_metrics = ["missing reads", "identical reads"]
+    scores = scores[~scores["Metric"].isin(removed_metrics)]
 
     # Exclude specific metrics (e.g., "Time in hh:mm:ss") from the Metric Score calculation
-    excluded_metrics = ["Time in hh:mm:ss"]
+    excluded_metrics = ["Time in hh:mm:ss", "Memory in MB"]
     numeric_scores = scores[~scores["Metric"].isin(excluded_metrics)]
     numeric_scores["Value"] = pd.to_numeric(numeric_scores["Value"], errors="coerce")
 
