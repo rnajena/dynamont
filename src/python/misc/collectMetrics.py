@@ -24,6 +24,7 @@ def parse() -> Namespace:
     parser.add_argument("time_uncalled4", type=str, help="Path to the tools time file")
     parser.add_argument("time_f5c_eventalign", type=str, help="Path to the tools time file")
     parser.add_argument("time_f5c_resquiggle", type=str, help="Path to the tools time file")
+    parser.add_argument("subtools_dorado", type=str, help="Path to the downstream tool metrics file")
     parser.add_argument("subtools_dynamont", type=str, help="Path to the downstream tool metrics file")
     parser.add_argument("subtools_uncalled4", type=str, help="Path to the downstream tool metrics file")
     parser.add_argument("subtools_f5c_eventalign", type=str, help="Path to the downstream tool metrics file")
@@ -53,6 +54,7 @@ def main() -> None:
     }
 
     downstream_tools = {
+        "dorado" : args.subtools_dorado,
         "dynamont": args.subtools_dynamont,
         "uncalled4": args.subtools_uncalled4,
         "f5c_eventalign": args.subtools_f5c_eventalign,
@@ -108,19 +110,29 @@ def main() -> None:
             })
             scores = pd.concat([scores, new_entry], ignore_index=True)
 
-    # control = pd.read_csv(args.control, sep="\t")
-    # for _, row in control.iterrows():
-    #     new_entry = pd.DataFrame({
-    #         "Tool": ["Control Random", "Control Uniform"],
-    #         "Value": [row["Value"], row["Value"]],
-    #         "Metric": [row["Metric"].lower() + '_length', row["Metric"].lower() + '_length']
-    #     })
-    #     scores = pd.concat([scores, new_entry], ignore_index=True)
+    #! add default control values to dorado
+    control = pd.read_csv(args.control, sep="\t")
+    for _, row in control.iterrows():
+        new_entry = pd.DataFrame({
+            "Tool": ["Dorado"],
+            "Value": [row["Value"]],
+            "Metric": [row["Metric"].lower() + '_length']
+        })
+        scores = pd.concat([scores, new_entry], ignore_index=True)
+
+    # print(scores.loc[scores["Metric"] == "total", "Value"].values)
+    total_reads = scores.loc[scores["Metric"] == "total", "Value"].values[0]
+    new_entry = pd.DataFrame({
+        "Tool": ["Dorado", "Dorado", "Dorado", "Dorado", "Dorado", "Dorado"],
+        "Metric": ["total", "present", "missing", "truncated", "identical", "nt changed"],
+        "Value": [total_reads, total_reads, 0, 0, total_reads, 0],
+    })
+    scores = pd.concat([scores, new_entry], ignore_index=True)
 
     #! remove controls and dorado
     scores = scores[scores["Tool"] != "Control Random"]
     scores = scores[scores["Tool"] != "Control Uniform"]
-    scores = scores[scores["Tool"] != "Dorado"]
+    # scores = scores[scores["Tool"] != "Dorado"]
 
     # fix names
     scores["Tool"] = scores["Tool"].replace(
@@ -135,11 +147,8 @@ def main() -> None:
     )
 
     # Remove unwanted metrics
-    removed_metrics = ["missing reads", "identical reads"]
-    scores = scores[~scores["Metric"].isin(removed_metrics)]
-
     # Exclude specific metrics (e.g., "Time in hh:mm:ss") from the Metric Score calculation
-    excluded_metrics = ["Time in hh:mm:ss", "Memory in MB"]
+    excluded_metrics = ["missing reads", "identical reads", "Time in hh:mm:ss", "Memory in MB"]
     numeric_scores = scores[~scores["Metric"].isin(excluded_metrics)]
     numeric_scores["Value"] = pd.to_numeric(numeric_scores["Value"], errors="coerce")
 
@@ -147,7 +156,9 @@ def main() -> None:
     scores["Metric Score"] = numeric_scores.groupby("Metric")["Value"].transform(
         lambda x: x / x.max() if x.max() > 0 else 0
     )
-    
+    # print("GROUP: ", scores["Metric Score"])
+    # exit(1)
+
     # Fill non-numeric rows with NaN for "Metric Score"
     scores["Metric Score"] = scores["Metric Score"].fillna(0)
 
@@ -155,13 +166,37 @@ def main() -> None:
     # scores["Metric Score"] = scores.groupby("Metric")["Value"].transform(lambda x: x / x.max() if x.max() > 0 else 0)
 
     # Adjust Metric Score for specific metrics
-    scores.loc[scores["Metric"].isin(["Homogeneity", "Mad Delta", "missing", "truncated", "nt_changed", "min_length"]), "Metric Score"] = 1 - scores["Metric Score"]
+    scores.loc[scores["Metric"].isin(["Homogeneity", "missing", "truncated", "nt_changed", "min_length"]), "Metric Score"] = 1 - scores["Metric Score"]
+
+    # Calculate Metric Score only for numeric values
+    # def metric_score(series, lower_is_better=False):
+    #     if series.max() == series.min():
+    #         return pd.Series([1.0] * len(series), index=series.index)
+    #     if lower_is_better:
+    #         return (series.max() - series) / (series.max() - series.min())
+    #     else:
+    #         return (series - series.min()) / (series.max() - series.min())
+
+    # # Define which metrics are "lower is better"
+    # lower_is_better_metrics = ["Homogeneity", "missing", "truncated", "nt_changed", "min_length"]
+
+    # # Calculate scores for each metric
+    # scores["Metric Score"] = 0.0
+    # for metric in numeric_scores["Metric"].unique():
+    #     mask = scores["Metric"] == metric
+    #     lower_is_better = metric in lower_is_better_metrics
+    #     values = pd.to_numeric(scores.loc[mask, "Value"], errors="coerce")
+    #     scores.loc[mask, "Metric Score"] = metric_score(values, lower_is_better=lower_is_better)
+
+    # # Fill non-numeric rows with NaN for "Metric Score"
+    # scores["Metric Score"] = scores["Metric Score"].fillna(0)
 
     # Finalize the DataFrame
     scores = scores[["Tool", "Metric", "Value", "Metric Score"]]
     scores = scores.sort_values(by=["Metric", "Tool"])
     scores.reset_index(drop=True, inplace=True)
 
+    print("\nWriting to", args.outfile, "\n")
     scores.to_csv(args.outfile, sep="\t", index=False)
 
 if __name__ == '__main__':

@@ -31,6 +31,27 @@ def convert_metrics_to_latex(input_csv: str, output_tex: str = None):
     df.loc[df['Metric'] == 'present', 'Metric'] = 'segmented reads'
     df.loc[df['Metric'] == 'missing', 'Metric'] = 'missing reads'
 
+    #! include specific metrics
+    df_for_agg = df[df["Metric"].isin([
+        "median delta",
+        "mad delta",
+        "homogeneity",
+        "segmented reads",
+        # "missing reads",
+        "truncated reads",
+        # "identical reads",
+        # "nt changed",
+        "min length",
+        # "mean length",
+        # "median length",
+        "n50 length",
+        "max length",
+        "flye total length",
+        "flye n50",
+        "flye mean coverage",
+        "svim structural variants",
+    ])]
+
     #! collect meta data for controls and dorado
     # total_reads = df.loc[df['Metric'] == 'total reads', 'Value'].values[0]
     # min_length = df.loc[df['Metric'] == 'min length', 'Value'].values[0]
@@ -50,25 +71,26 @@ def convert_metrics_to_latex(input_csv: str, output_tex: str = None):
     #           "Metric Score": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     #           })
     #     ], ignore_index=True)
-    # ## dorado
+    ## dorado
     # df = pd.concat(
     #     [
     #         df, pd.DataFrame({
-    #           "Tool": ["Dorado", "Dorado", "Dorado", "Dorado", "Dorado", "Dorado", "Dorado", "Dorado", "Dorado", "Dorado"],
+    #           "Tool": ["Dorado"] * 10,
     #           "Metric": ["segmented reads", "missing reads", "truncated reads", "identical reads", "nt changed", "min length", "mean length", "median length", "n50 length", "max length"],
     #           "Value": [total_reads, 0, 0, total_reads, 0, min_length, mean_length, median_length, n50_length, max_length],
-    #           "Metric Score": [1.0, 1.0, 1.0, 1.0, 1.0, df.loc[(df['Tool'] == 'Ctrl R.') & (df['Metric'] == 'min length'), 'Metric Score'].squeeze(), 1.0, 1.0, 1.0, 1.0],
+    #         #   "Metric Score": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     #           })
     #     ], ignore_index=True)
 
     # Calculate aggregated metric score for all tools
-    metric_scores = df.groupby("Tool")["Metric Score"].sum().reset_index()
+    # metric_scores = df.groupby("Tool")["Metric Score"].sum().reset_index()
+    metric_scores = df_for_agg.groupby('Tool')["Metric Score"].sum().reset_index()
     metric_scores["Metric"] = "aggregated metric score"
     metric_scores["Value"] = "-"
     metric_scores["Combined"] = (
         "$" +
         metric_scores["Metric Score"].map(lambda x: f"{x:.3f}") +
-        "_{" +
+        "_{~" +
         metric_scores["Value"].map(str) +
         "}$"
     )
@@ -80,7 +102,7 @@ def convert_metrics_to_latex(input_csv: str, output_tex: str = None):
     df["Combined"] = (
         "$" +
         df["Metric Score"].map(lambda x: f"{x:.3f}") +
-        "_{" +
+        "_{~" +
         df["Value"].map(lambda x: f"{float(x):.1f}" if str(x).replace(".", "", 1).isdigit() else str(x)) +
         "}$"
     )
@@ -104,7 +126,7 @@ def convert_metrics_to_latex(input_csv: str, output_tex: str = None):
     aggregated_metric_score_row.index = ["aggregated metric score"]  # Ensure the index is named correctly
     # Format the aggregated metric score to 3 decimal places
     aggregated_metric_score_row = aggregated_metric_score_row.apply(
-        lambda col: col.map(lambda x: f"{x:.1f}" if pd.notna(x) else x)
+        lambda col: col.map(lambda x: f"{x:.2f}" if pd.notna(x) else x)
     )
     # Append the aggregated metric score row to the pivot table
     pivot = pd.concat([pivot, aggregated_metric_score_row])
