@@ -46,6 +46,42 @@ def readDynamont(file: str, readid : str) -> list:
                 pass
     return segments
 
+#! hardcoded for manuscript plot
+def getDynamontProbs() -> np.ndarray:
+    """
+    Hardcoded for Dynamont segments in the manuscript plot.
+    """
+    from python.segmentation.FileIO import feedSegmentation, hampelFilter
+    readid = "131ee77f-085b-4024-a175-cc0a79660576"
+    read = "AAACTTCAAAGTGAAACCTTACGAGCTCCAGCACCATGTTGGTTCGAGTCTCCTGCTTGAGGGTCCAACGGCTCACAGTCGTGTTCATCGATATAGGACGCCATGGCTGCCCAGCCGTCTGACATGTGATGTTTTGATACAGGTATACAATGTGTAACTATCAAATCCGAGTAACTGGGGTATTGATCATCTTGAGAATTTATCATTTCATGTTAGGAACAGTCCAATTCCACTCTTTTAGTTATTTTAAAATATGCAATAAATTATTAACTG"
+    read = read + "AAAAAAAAA" # add poly A to 3' end
+    read = read[::-1] # rna is sequenced 3' -> 5', so we reverse the read to match signal orientation
+    signal = r5.read("/data/fass5/projects/js_dynamont/benchmark/data/raw/rna004/h_sapiens/PNXRXX240011_r10k_2.pod5").getSignal(readid)
+    shift = 795.44
+    scale = 116.091
+    signal = (signal - shift) / scale
+    hampelFilter(signal)
+    start = 2050
+    end = start + 9769
+    script = "dynamont-NT-banded"
+    kmerSize = 9
+    pore = "rna_rp4"
+    PARAMS = {
+        'm' : "/home/yi98suv/projects/dynamont/models/rna/rp4/rna004_9mer.model",
+        'p' : True, # return posterior probabilities
+        'r' : pore, # pore type
+        't' : 4,
+    }
+    segments, borderProbs = feedSegmentation(signal[start:end], read, script, start, kmerSize, "rna" in pore, PARAMS)
+    # safety check
+    print(segments[:10])
+    # convert log probabilities to probabilities
+    borderProbs = np.exp(borderProbs)
+    # print(type(borderProbs), borderProbs.shape, borderProbs)
+    borderProbs = np.concat((np.zeros(start), borderProbs))
+    return borderProbs
+
+
 def readUncalled4(file : str, readid : str) -> list:
     print("Reading Uncalled4 output from " + file)
     segments = []
@@ -166,6 +202,14 @@ def main() -> None:
             ax[i].vlines([start, end], ymin=min(signal), ymax=max(signal), colors=basecolors[base], linestyles='--', linewidth=0.7)
             ax[i].add_patch(Rectangle((start, min(signal)), end - start, max(signal)-min(signal), alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
+        # if tool == "Dynamont":
+        #     prob_ax = ax[i].twinx()
+        #     borderProbs = getDynamontProbs()
+        #     prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
+        #     prob_ax.set_ylabel("Border Probabilities", fontsize=10)
+        #     prob_ax.set_ylim((-0.1, 5))
+        #     prob_ax.set_yticks([0, 1])
+
     plt.tight_layout()
     plt.savefig(join(outpath, args.readid + "_tool_segmentation.svg"), dpi=300)
     plt.savefig(join(outpath, args.readid + "_tool_segmentation.pdf"), dpi=300)
@@ -190,6 +234,14 @@ def main() -> None:
             base = str(s[2])
             ax[i].vlines([start], ymin=min(signal), ymax=max(signal), colors=basecolors[base], linestyles='--', linewidth=0.7)
             ax[i].add_patch(Rectangle((start, min(signal)), end - start, max(signal)-min(signal), alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
+
+        # if tool == "Dynamont":
+        #     prob_ax = ax[i].twinx()
+        #     # borderProbs = getDynamontProbs()
+        #     prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=1, linestyle='-')
+        #     prob_ax.set_ylabel("Border Probabilities", fontsize=10)
+        #     prob_ax.set_ylim((-0.1, 5))
+        #     prob_ax.set_yticks([0, 1])
 
         ax[i].set_xticks(np.arange(0, len(signal), 500))
         # ax[i].set_xlim((19000, 22000)) #! for c28
