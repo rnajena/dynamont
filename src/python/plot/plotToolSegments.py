@@ -62,8 +62,8 @@ def getDynamontProbs() -> np.ndarray:
     signal = (signal - shift) / scale
     hampelFilter(signal)
     start = 2050
-    end = start + 9769
-    script = "dynamont-NT-banded"
+    end = 9769
+    script = "dynamont-NT"
     kmerSize = 9
     pore = "rna_rp4"
     PARAMS = {
@@ -72,14 +72,22 @@ def getDynamontProbs() -> np.ndarray:
         'r' : pore, # pore type
         't' : 4,
     }
-    segments, borderProbs = feedSegmentation(signal[start:end], read, script, start, kmerSize, "rna" in pore, PARAMS)
-    # safety check
-    print(segments[:10])
+    segments, borderProbs, heatmap = feedSegmentation(signal[start:end], read, script, start, kmerSize, "rna" in pore, PARAMS)
     # convert log probabilities to probabilities
     borderProbs = np.exp(borderProbs)
-    # print(type(borderProbs), borderProbs.shape, borderProbs)
     borderProbs = np.concat((np.zeros(start), borderProbs))
-    return borderProbs
+
+    # heatmap has dimensionality TxN
+    nt2idx = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
+    acgt = np.zeros((end - start, 4), dtype=np.float32)
+    print(acgt.shape, heatmap.shape)
+    for t in range(0, heatmap.shape[0] - 1): # iterate signal
+        for n in range(0, heatmap.shape[1] - 1 - kmerSize//2): # iterate read
+            acgt[t, nt2idx[read[n + kmerSize//2]]] += heatmap[t + 1, n + 1]
+    
+    acgt = np.concat((np.zeros((start, 4)), acgt))
+
+    return borderProbs, acgt
 
 
 def readUncalled4(file : str, readid : str) -> list:
@@ -202,13 +210,18 @@ def main() -> None:
             ax[i].vlines([start, end], ymin=min(signal), ymax=max(signal), colors=basecolors[base], linestyles='--', linewidth=0.7)
             ax[i].add_patch(Rectangle((start, min(signal)), end - start, max(signal)-min(signal), alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
-        # if tool == "Dynamont":
-        #     prob_ax = ax[i].twinx()
-        #     borderProbs = getDynamontProbs()
-        #     prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
-        #     prob_ax.set_ylabel("Border Probabilities", fontsize=10)
-        #     prob_ax.set_ylim((-0.1, 5))
-        #     prob_ax.set_yticks([0, 1])
+        if tool == "Dynamont":
+            prob_ax = ax[i].twinx()
+            borderProbs, acgt_probs = getDynamontProbs()
+            # prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
+            prob_ax.plot(acgt_probs[:, 0], c=basecolors['A'], linewidth=1, linestyle='-', label="A probability")
+            prob_ax.plot(acgt_probs[:, 1], c=basecolors['C'], linewidth=1, linestyle='-', label="C probability")
+            prob_ax.plot(acgt_probs[:, 2], c=basecolors['G'], linewidth=1, linestyle='-', label="G probability")
+            prob_ax.plot(acgt_probs[:, 3], c=basecolors['T'], linewidth=1, linestyle='-', label="T probability")
+            prob_ax.set_ylabel("Nucleotide Probabilities", fontsize=10)
+            prob_ax.set_ylim((-0.1, 7))
+            prob_ax.set_yticks([0, 1])
+            prob_ax.legend(loc='upper right', fontsize=10)
 
     plt.tight_layout()
     plt.savefig(join(outpath, args.readid + "_tool_segmentation.svg"), dpi=300)
@@ -235,13 +248,17 @@ def main() -> None:
             ax[i].vlines([start], ymin=min(signal), ymax=max(signal), colors=basecolors[base], linestyles='--', linewidth=0.7)
             ax[i].add_patch(Rectangle((start, min(signal)), end - start, max(signal)-min(signal), alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
-        # if tool == "Dynamont":
-        #     prob_ax = ax[i].twinx()
-        #     # borderProbs = getDynamontProbs()
-        #     prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=1, linestyle='-')
-        #     prob_ax.set_ylabel("Border Probabilities", fontsize=10)
-        #     prob_ax.set_ylim((-0.1, 5))
-        #     prob_ax.set_yticks([0, 1])
+        if tool == "Dynamont":
+            prob_ax = ax[i].twinx()
+            # prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
+            prob_ax.plot(acgt_probs[:, 0], c=basecolors['A'], linewidth=1, linestyle='-', label="A probability")
+            prob_ax.plot(acgt_probs[:, 1], c=basecolors['C'], linewidth=1, linestyle='-', label="C probability")
+            prob_ax.plot(acgt_probs[:, 2], c=basecolors['G'], linewidth=1, linestyle='-', label="G probability")
+            prob_ax.plot(acgt_probs[:, 3], c=basecolors['T'], linewidth=1, linestyle='-', label="T probability")
+            prob_ax.set_ylabel("Nucleotide Probabilities", fontsize=10)
+            prob_ax.set_ylim((-0.1, 7))
+            prob_ax.set_yticks([0, 1])
+            prob_ax.legend(loc='upper right', fontsize=10)
 
         ax[i].set_xticks(np.arange(0, len(signal), 500))
         # ax[i].set_xlim((19000, 22000)) #! for c28
