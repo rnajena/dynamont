@@ -29,11 +29,12 @@ cd ..
 mkdir -p src/bin
 cp $BUILD_DIR/bin/dynamont-NTC $BIN_DIR
 cp $BUILD_DIR/bin/dynamont-NT-banded $BIN_DIR
-strip "$BIN_DIR/dynamont-NTC" "$BIN_DIR/dynamont-NT-banded"
+cp $BUILD_DIR/bin/dynamont-NT $BIN_DIR
+strip "$BIN_DIR/dynamont-NTC" "$BIN_DIR/dynamont-NT-banded" "$BIN_DIR/dynamont-NT"
 
 # Build Python package (wheel + sdist)
 echo "[INFO] Building Python package..."
-# python -m pip install --user --upgrade setuptools wheel build --ignore-installed -v .
+python -m pip install --user --upgrade setuptools wheel build --ignore-installed -v .
 python -m build
 rm -rf $BUILD_DIR
 # twine upload dist/*
