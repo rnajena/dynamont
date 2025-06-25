@@ -44,7 +44,8 @@ test = [
 dynamont-resquiggle = "python.segmentation.segment:main"
 dynamont-train = "python.segmentation.train:main"
 dynamont-NTC = "python.ntc_entry:main"
-dynamont-NT-banded = "python.nt_entry:main"
+dynamont-NT-banded = "python.nt_entry_banded:main"
+dynamont-NT = "python.nt_entry:main"
 
 [project.urls]
 repository = "https://github.com/rnajena/dynamont"
@@ -77,6 +78,7 @@ packages = ["src/python"]
 "models/rna/rp4/rna004_9mer.model" = "models/rna/rp4/rna004_9mer.model"
 "src/bin/dynamont-NTC" = "src/bin/dynamont-NTC"
 "src/bin/dynamont-NT-banded" = "src/bin/dynamont-NT-banded"
+"src/bin/dynamont-NT" = "src/bin/dynamont-NT"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -93,6 +95,7 @@ include = [
 "models/rna/rp4/rna004_9mer.model" = "models/rna/rp4/rna004_9mer.model"
 "src/bin/dynamont-NTC" = "src/bin/dynamont-NTC"
 "src/bin/dynamont-NT-banded" = "src/bin/dynamont-NT-banded"
+"src/bin/dynamont-NT" = "src/bin/dynamont-NT"
 
 [tool.hatch.version]
 source = "vcs"
