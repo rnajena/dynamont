@@ -101,7 +101,6 @@ target_include_directories(test_dynamont PRIVATE include)
 add_test(NAME DynamontTests COMMAND test_dynamont)
 
 # Specify installation location
-# install(TARGETS dynamont-NT DESTINATION bin)
 install(TARGETS dynamont-NTC DESTINATION bin)
 install(TARGETS dynamont-NT-banded DESTINATION bin)
 install(TARGETS dynamont-NT DESTINATION bin)
