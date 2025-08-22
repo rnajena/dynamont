@@ -61,7 +61,7 @@ dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic -o <ou
 - [rna_rp4](models/rna/rp4/rna004_9mer.model) (tested)
 - dna_r9 not available yet
 - [dna_r10.4.1 260 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model) (not tested)
-- [dna_r10.4.1 400 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model) (not tested)
+- [dna_r10.4.1 400 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model) (tested)
 
 # Output
 
