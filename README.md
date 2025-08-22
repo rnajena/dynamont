@@ -2,8 +2,10 @@
 
 A **Dynam**ic Programming Approach to Segment **ONT** Signals. 
 Dynamont is a segmentation/resquiggling tool for ONT signals.
-**Dynamont is currently designed for RNA002 and RNA004 data!**
-- Currently, I applied the trained transition parameters from the RNA004 model to the DNA R10 models. These should be fine-tuned for the DNA models.
+Dynamont was tested on
+* RNA002
+* RNA004
+* DNA R10.4.1 5kHz (I applied the trained transition parameters from the RNA004 model to the DNA R10 models. These should be fine-tuned for the DNA models.)
 
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dynamont)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-teal.svg)](https://www.gnu.org/licenses/gpl-3.0)
