@@ -143,6 +143,7 @@ def main() -> None:
             "f5c_resquiggle": "f5c Resquiggle",
             "uncalled4": "Uncalled4",
             "tombo": "Tombo",
+            "dorado": "Dorado",
         }
     )
 

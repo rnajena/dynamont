@@ -85,20 +85,8 @@ def convert_metrics_to_latex(input_csv: str, output_tex: str = None):
     # Calculate aggregated metric score for all tools
     # metric_scores = df.groupby("Tool")["Metric Score"].sum().reset_index()
     metric_scores = df_for_agg.groupby('Tool')["Metric Score"].sum().reset_index()
-    metric_scores["Metric"] = "aggregated metric score"
-    metric_scores["Value"] = "-"
-    metric_scores["Combined"] = (
-        "$" +
-        metric_scores["Metric Score"].map(lambda x: f"{x:.3f}") +
-        "_{~" +
-        metric_scores["Value"].map(str) +
-        "}$"
-    )
-    
-    # Append the aggregated metric scores to the DataFrame
-    df = pd.concat([df, metric_scores], ignore_index=True)
 
-    # Combine Metric Score and Value
+    # Combine Metric Score and Value (without formatting yet)
     df["Combined"] = (
         "$" +
         df["Metric Score"].map(lambda x: f"{x:.3f}") +
@@ -120,17 +108,68 @@ def convert_metrics_to_latex(input_csv: str, output_tex: str = None):
 
     # Pivot table: rows = Metric, columns = Tool, values = Combined (MetricScore_Value)
     pivot = df.pivot(index="Metric", columns="Tool", values="Combined")
-    
+    score_pivot = df.pivot(index="Metric", columns="Tool", values="Metric Score")
+
+    # Highlight the maximum metric score per metric (row) with \cellcolor{green!15}
+    for metric in pivot.index:
+        if metric not in score_pivot.index:
+            continue
+        row_scores = score_pivot.loc[metric]
+        if row_scores.dropna().empty:
+            continue
+        max_score = row_scores.max()
+        # Find all columns (tools) with the max score (could be ties)
+        max_tools = row_scores[row_scores == max_score].index
+        for tool in max_tools:
+            if pd.notna(pivot.at[metric, tool]):
+                pivot.at[metric, tool] = f"\\cellcolor{{green!15}}{pivot.at[metric, tool]}"
+
     # Add the raw aggregated metric score as the last row
-    aggregated_metric_score_row = df[df["Metric"] == "aggregated metric score"].set_index("Metric").pivot(columns="Tool", values="Metric Score")
-    aggregated_metric_score_row.index = ["aggregated metric score"]  # Ensure the index is named correctly
-    # Format the aggregated metric score to 3 decimal places
-    aggregated_metric_score_row = aggregated_metric_score_row.apply(
-        lambda col: col.map(lambda x: f"{x:.2f}" if pd.notna(x) else x)
-    )
+    agg_row = metric_scores.set_index("Tool").T
+    agg_row.index = ["aggregated metric score"]  # Ensure the index is named correctly
+
+    # Convert all values to string first to avoid dtype issues
+    agg_row = agg_row.astype(str)
+
+    # Color the max value(s) in the row
+    max_val = metric_scores["Metric Score"].max()
+    for tool in agg_row.columns:
+        val = float(agg_row.loc["aggregated metric score", tool])
+        if val == max_val:
+            agg_row.loc["aggregated metric score", tool] = f"\\cellcolor{{green!15}}{val:.2f}"
+        else:
+            agg_row.loc["aggregated metric score", tool] = f"{val:.2f}"
+
     # Append the aggregated metric score row to the pivot table
-    pivot = pd.concat([pivot, aggregated_metric_score_row])
-    
+    pivot = pd.concat([pivot, agg_row])
+
+    # Map metric names to desired LaTeX names
+    metric_name_map = {
+        "median delta": r"median delta ($\Delta\mu$)",
+        "mad delta": r"mad delta ($\Delta\sigma$)",
+        "homogeneity": "homogeneity",
+        "segmented reads": "segmented reads",
+        "truncated reads": "truncated reads",
+        "min length": "min read length",
+        "n50 length": "n50 read length",
+        "max length": "max read length",
+        "flye total length": "flye total length",
+        "flye n50": "flye n50",
+        "flye mean coverage": "flye mean coverage",
+        "svim structural variants": "svim structural variants",
+        "aggregated metric score": "aggregated metric score"
+    }
+
+    # Only keep and rename the desired metrics
+    desired_metrics = list(metric_name_map.keys())
+    pivot = pivot.loc[desired_metrics]
+    pivot.index = [metric_name_map[m] for m in pivot.index]
+
+    # Reorder columns as requested
+    desired_columns = ["Tool", "Dorado", "Tombo", "f5c R.", "f5c E.", "Uncalled4", "Dynamont"]
+    # Only keep columns that exist in the table
+    pivot = pivot[[col for col in desired_columns if col in pivot.columns]]
+
     latex_table = pivot.to_latex(na_rep="-", escape=False)
 
     if output_tex:

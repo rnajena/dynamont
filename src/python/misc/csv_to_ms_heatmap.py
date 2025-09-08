@@ -136,16 +136,13 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
     }
     heatmap_data = heatmap_data.rename(columns=column_rename_map)
 
-    # Add superlabels (multi-index for columns)
-    # superlabels = [
-    #     "RNA002", "RNA002", "RNA002", "RNA002",
-    #     "RNA004", "RNA004", "RNA004", "RNA004",
-    #     "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz"
-    # ]
-    # heatmap_data.columns = pd.MultiIndex.from_tuples(
-    #     zip(superlabels, heatmap_data.columns),
-    #     names=["Dataset Type", "Dataset"]
-    # )
+    # Add average column
+    heatmap_data["tool average"] = heatmap_data.mean(axis=1)
+
+    # Add average row (for each dataset/column, average across all tools)
+    avg_row = heatmap_data.mean(axis=0)
+    avg_row.name = "dataset average"
+    heatmap_data = pd.concat([heatmap_data, avg_row.to_frame().T])
 
     # Sort tools by their mean metric score (descending order)
     print(heatmap_data)
@@ -153,7 +150,7 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
     # ensure that dorado is the top row
     if "Dorado" in tool_order:
         tool_order.remove("Dorado")
-        tool_order = ["Dorado"] + tool_order
+        tool_order = ["Dorado"] + [t for t in tool_order if t != "dataset average"] + (["dataset average"] if "dataset average" in tool_order else [])
     heatmap_data = heatmap_data.loc[tool_order]
 
     # Plot the heatmap
@@ -175,11 +172,12 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
         "RNA002", "RNA002", "RNA002", "RNA002",
         "RNA004", "RNA004", "RNA004", "RNA004",
         "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz"
+        ""
     ]
     dataset_labels = [
         r"$H.\ sapiens$", r"$E.\ coli$", "SARS-CoV-2", "IVT",
-        r"$H.\ sapiens$", r"$S.\ cerevisiae$", "CEVD", "IVT",
-        r"$H.\ sapiens$", "Zymo HMW", r"$S.\ Aureus$", r"$P.\ Anserina$"
+        r"$H.\ sapiens$", r"$S.\ cerevisiae$", "CEVd", "IVT",
+        r"$H.\ sapiens$", "Zymo HMW", r"$S.\ Aureus$", r"$P.\ Anserina$", "tool average"
     ]
 
     # Set the dataset labels
@@ -204,9 +202,9 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
     # Adjust layout to fit the labels
     plt.subplots_adjust(bottom=0.2, top=0.85)
 
-    plt.title("Aggregated Metric Score", fontsize=14)  # Add a bold title
-    plt.ylabel("Tool", fontsize=12)  # Adjust y-axis label font size
-    plt.xlabel("Dataset", fontsize=12, labelpad=25)  # Adjust x-axis label font size
+    # plt.title("Aggregated Metric Score", fontsize=14)  # Add a bold title
+    # plt.ylabel("Tool", fontsize=12)  # Adjust y-axis label font size
+    # plt.xlabel("Dataset", fontsize=12, labelpad=25)  # Adjust x-axis label font size
     # plt.xticks(rotation=45, ha="right", fontsize=10)  # Rotate x-axis labels for better readability
     plt.xticks(rotation=25, ha="center", fontsize=9)  # Rotate x-axis labels for better readability
     plt.yticks(rotation=0, fontsize=9)  # Adjust y-axis label font size
