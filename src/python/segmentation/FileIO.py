@@ -356,7 +356,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             exit(1)
 
     # receive segmentation result and format output into np.ndarray
-    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read[::-1], kmerSize, rna)
+    segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read, kmerSize, rna)
     return segments, probs #, heatmap
 
 def feedSegmentationAsynchronous(CPP_SCRIPT : str, params : dict, signal : np.ndarray, read : str, signal_offset : int, readid : str, signalid : str, kmerSize : int, queue : Queue, rna : bool) -> None:

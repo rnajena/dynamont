@@ -71,6 +71,32 @@ datasetsPaths = {
       "Read Lengths" : "/data/fass5/projects/js_dynamont/benchmark/comparison/rna004/ivt/comparison_w0_readLengths.csv",
       "Read Quality" : "/data/fass5/projects/js_dynamont/benchmark/comparison/rna004/ivt/comparison_w0_readQuality.csv",
     },
+  },
+  "DNA R10.4.1 5kHz" : {
+    "H. Sapiens" : {
+      "Score" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/h_sapiens/comparison_w0_score.txt",
+      "Reads Segmentation Ratio" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/h_sapiens/comparison_w0_segmentedReadsRatio.csv",
+      "Read Lengths" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/h_sapiens/comparison_w0_readLengths.csv",
+      "Read Quality" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/h_sapiens/comparison_w0_readQuality.csv",
+    },
+    "Zymo hmw" : {
+      "Score" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/zymo_hmw/comparison_w0_score.txt",
+      "Reads Segmentation Ratio" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/zymo_hmw/comparison_w0_segmentedReadsRatio.csv",
+      "Read Lengths" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/zymo_hmw/comparison_w0_readLengths.csv",
+      "Read Quality" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/zymo_hmw/comparison_w0_readQuality.csv",
+    },
+    "S. Aureus" : {
+      "Score" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/p_anserina/comparison_w0_score.txt",
+      "Reads Segmentation Ratio" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/p_anserina/comparison_w0_segmentedReadsRatio.csv",
+      "Read Lengths" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/p_anserina/comparison_w0_readLengths.csv",
+      "Read Quality" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/p_anserina/comparison_w0_readQuality.csv",
+    },
+    "P. Anserina" : {
+      "Score" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/s_aureus/comparison_w0_score.txt",
+      "Reads Segmentation Ratio" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/s_aureus/comparison_w0_segmentedReadsRatio.csv",
+      "Read Lengths" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/s_aureus/comparison_w0_readLengths.csv",
+      "Read Quality" : "/data/fass5/projects/js_dynamont/benchmark/comparison/dna_r10.4.1_5kHz/s_aureus/comparison_w0_readQuality.csv",
+    }
   }
 }
 

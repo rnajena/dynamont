@@ -120,15 +120,22 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     None
     """
     r5 = read5_ont.read(rawFile)
-    if pore in ["dna_r9", "rna_r9"]:
+    if "r9" in pore: # in ["dna_r9", "rna_r9"]:
         # for r9 pores, shift and scale are stored for pA signal in bam
-        signal = r5.getpASignal(signalid)[start:end]
+        # signal = r5.getpASignal(signalid)[start:end]
         kmerSize = 5
     else:
         # for new pores, shift and scale is directly applied to stored integer signal (DACs)
         # this way the conversion from DACs to pA is skipped
-        signal = r5.getSignal(signalid)[start:end]
+        # signal = r5.getSignal(signalid)[start:end]
         kmerSize = 9
+
+    #! I do not know anymore in which version, but in some 0.9.x dorado version, the shift and scale values were taken from the raw DACS values instead of the pA signal
+    if shift > 400:
+        signal = r5.getSignal(signalid)[start:end]
+    else:
+        signal = r5.getpASignal(signalid)[start:end]
+
     r5.close()
 
     #! normalize poly A region to median 0.9 (as in init models from ONT r9 and rp4) and scale to 0.15 (from training on r9 and rp4)
