@@ -108,15 +108,20 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
         "rna002 e_coli",
         "rna002 sarscov2",
         "rna002 ivt",
+        "rna002 ivt_h_sapiens",
+        "rna002 m1Y",
         "rna004 h_sapiens",
         "rna004 s_cerevisiae",
         "rna004 cevd",
         "rna004 ivt",
+        "rna004 psU",
         "dna_r10.4.1_5kHz h_sapiens",
         "dna_r10.4.1_5kHz zymo_hmw",
         "dna_r10.4.1_5kHz s_aureus",
         "dna_r10.4.1_5kHz p_anserina",
+        "dna_r10.4.1_5kHz mod_5mc",
     ]
+    # print(heatmap_data.columns)
     heatmap_data = heatmap_data[column_order]
 
     # Rename columns
@@ -125,14 +130,18 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
         "rna002 e_coli": r"$E.\ coli$",
         "rna002 sarscov2": r"SARS-CoV-2",
         "rna002 ivt": r"IVT",
+        "rna002 ivt_h_sapiens": r"IVT $H.\ sapiens$",
+        "rna002 m1Y": r"M1Y",
         "rna004 h_sapiens": r"$H.\ sapiens$",
         "rna004 s_cerevisiae": r"$S.\ cerevisiae$",
         "rna004 cevd": r"CEVD",
         "rna004 ivt": r"IVT",
+        "rna004 psU": r"psU",
         "dna_r10.4.1_5kHz h_sapiens": r"$H.\ sapiens$",
         "dna_r10.4.1_5kHz zymo_hmw": r"Zymo HMW",
         "dna_r10.4.1_5kHz s_aureus": r"$S.\ Aureus$",
         "dna_r10.4.1_5kHz p_anserina": r"$P.\ Anserina$",
+        "dna_r10.4.1_5kHz mod_5mc": r"5mC",
     }
     heatmap_data = heatmap_data.rename(columns=column_rename_map)
 
@@ -163,41 +172,52 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
         cbar_kws={'label': 'Score', 'shrink': 0.8},  # Adjust color bar size
         linewidths=0.5,  # Add grey lines between cells
         linecolor="grey",  # Set the line color to grey
-        annot_kws={"fontsize": 9},  # Adjust font size for annotations
+        annot_kws={"fontsize": 7},  # Adjust font size for annotations
         square=True,  # Make cells square
     )
 
     # Add superlabels above the dataset labels
-    superlabels = [
-        "RNA002", "RNA002", "RNA002", "RNA002",
-        "RNA004", "RNA004", "RNA004", "RNA004",
-        "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz", "DNA R10.4.1 5kHz"
-        ""
-    ]
+    # Define group labels aligned to the columns: 6x RNA002, 5x RNA004, 5x DNA, 1x empty for the tool average column
+    superlabels = (
+        ["RNA002"] * 6
+        + ["RNA004"] * 5
+        + ["DNA R10.4.1 5kHz"] * 5
+        + [""]
+    )
     dataset_labels = [
-        r"$H.\ sapiens$", r"$E.\ coli$", "SARS-CoV-2", "IVT",
-        r"$H.\ sapiens$", r"$S.\ cerevisiae$", "CEVd", "IVT",
-        r"$H.\ sapiens$", "Zymo HMW", r"$S.\ Aureus$", r"$P.\ Anserina$", "tool average"
+        r"$H.\ sapiens$", r"$E.\ coli$", "SARS-CoV-2", "IVT", r"IVT $H.\ sapiens$", "m1Y",
+        r"$H.\ sapiens$", r"$S.\ cerevisiae$", "CEVd", "IVT", "psU",
+        r"$H.\ sapiens$", "Zymo HMW", r"$S.\ Aureus$", r"$P.\ Anserina$", "5mC", "tool average"
     ]
 
     # Set the dataset labels
     ax.set_xticks([i + 0.5 for i in range(len(dataset_labels))])  # Center labels
     ax.set_xticklabels(dataset_labels, rotation=45, ha="right", fontsize=10)
 
-    # Add superlabels
-    for i, label in enumerate(superlabels):
-        if i == 0 or superlabels[i] != superlabels[i - 1]:  # Only add label once per group
-            start = i
-            end = i + superlabels.count(superlabels[i]) - 1
-            ax.text(
-                (start + end) / 2 + 0.5, 1.25 * len(tool_order),  # Center above group
-                label,
-                ha="center",
-                va="bottom",
-                fontsize=10,
-                fontweight="bold",
-                transform=ax.transData
-            )
+    # Add superlabels (draw each group label exactly once)
+    groups = []
+    if superlabels:
+        current = superlabels[0]
+        start_idx = 0
+        for i, label in enumerate(superlabels[1:], start=1):
+            if label != current:
+                groups.append((current, start_idx, i - 1))
+                current = label
+                start_idx = i
+        groups.append((current, start_idx, len(superlabels) - 1))
+
+    for label, start, end in groups:
+        if not label:  # skip empty label for the tool average column
+            continue
+        ax.text(
+            (start + end) / 2 + 0.5, 1.45 * len(tool_order),  # Center above group
+            label,
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold",
+            transform=ax.transData
+        )
 
     # Adjust layout to fit the labels
     plt.subplots_adjust(bottom=0.2, top=0.85)
@@ -206,7 +226,7 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
     # plt.ylabel("Tool", fontsize=12)  # Adjust y-axis label font size
     # plt.xlabel("Dataset", fontsize=12, labelpad=25)  # Adjust x-axis label font size
     # plt.xticks(rotation=45, ha="right", fontsize=10)  # Rotate x-axis labels for better readability
-    plt.xticks(rotation=25, ha="center", fontsize=9)  # Rotate x-axis labels for better readability
+    plt.xticks(rotation=45, ha="center", fontsize=9)  # Rotate x-axis labels for better readability
     plt.yticks(rotation=0, fontsize=9)  # Adjust y-axis label font size
     plt.tight_layout()  # Ensure everything fits within the figure
 

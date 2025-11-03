@@ -86,6 +86,7 @@ def main() -> None:
                 scores = pd.concat([scores, new_entry], ignore_index=True)
 
     for name, time_path in times.items():
+        # try:
         with open(time_path, "r") as time_file:
             time = time_file.readline()[14:22]
             memory = time_file.readline().strip()[13:].split(" MB")[0]
@@ -95,6 +96,9 @@ def main() -> None:
                 "Metric": ["Time in hh:mm:ss", "Memory in MB"]
             })  
             scores = pd.concat([scores, new_entry], ignore_index=True)
+        # except FileNotFoundError:
+        #     print(name)
+        #     exit(1)
 
     for name, downstream_path in downstream_tools.items():
         with open(downstream_path, "r") as downstream_file:

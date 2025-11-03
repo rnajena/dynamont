@@ -800,34 +800,34 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
     
     output_file = output + "_score.csv"
 
-    if not os.path.exists(output_file):
-        toolNames = list(toolsResult.keys())
+    # if not os.path.exists(output_file):
+    toolNames = list(toolsResult.keys())
 
-        # Find reads segmented by all tools
-        print("Finding reads segmented by all tools...")
-        all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
+    # Find reads segmented by all tools
+    print("Finding reads segmented by all tools...")
+    all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
 
-        # Parallel processing of reads
-        print("Start multiprocessing...")
-        read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
+    # Parallel processing of reads
+    print("Start multiprocessing...")
+    read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
 
-        # Open output file for incremental writing
-        with open(output_file, "w") as f:
-            f.write("Tool,Score,Segment Quality\n")  # Write header
+    # Open output file for incremental writing
+    with open(output_file, "w") as f:
+        f.write("Tool,Score,Segment Quality\n")  # Write header
 
-            # Process reads in parallel and aggregate results
-            for toolReadScores in tqdm(
-                pool.imap_unordered(processReadScores, read_chunks, chunksize=10),
-                total=len(all_reads),
-                desc="Scoring reads"
-            ):
-                for tool, scores in toolReadScores.items():
-                    if scores.size > 0:  # Ensure non-empty scores
-                        for i, quality in enumerate(["Median Delta", "Mad Delta", "Homogeneity"]):
-                            for score in scores[:, i]:
-                                f.write(f"{tool},{score},{quality}\n")
+        # Process reads in parallel and aggregate results
+        for toolReadScores in tqdm(
+            pool.imap_unordered(processReadScores, read_chunks, chunksize=10),
+            total=len(all_reads),
+            desc="Scoring reads"
+        ):
+            for tool, scores in toolReadScores.items():
+                if scores.size > 0:  # Ensure non-empty scores
+                    for i, quality in enumerate(["Median Delta", "Mad Delta", "Homogeneity"]):
+                        for score in scores[:, i]:
+                            f.write(f"{tool},{score},{quality}\n")
 
-        print(f"Scoring complete. Results saved to {output_file}")
+    print(f"Scoring complete. Results saved to {output_file}")
 
     return output_file
 
