@@ -185,9 +185,9 @@ def plot_heatmap(ams: pd.DataFrame, output_file: str):
         + [""]
     )
     dataset_labels = [
-        r"$H.\ sapiens$", r"$E.\ coli$", "SARS-CoV-2", "IVT", r"IVT $H.\ sapiens$", "m1Y",
-        r"$H.\ sapiens$", r"$S.\ cerevisiae$", "CEVd", "IVT", "psU",
-        r"$H.\ sapiens$", "Zymo HMW", r"$S.\ Aureus$", r"$P.\ Anserina$", "5mC", "tool average"
+        r"$H.\ sapiens$", r"$E.\ coli$", "SARS-CoV-2", "IVT", r"IVT $H.\ sapiens$", r"m$^1$Ψ",
+        r"$H.\ sapiens$", r"$S.\ cerevisiae$", "CEVd", "IVT", "Ψ",
+        r"$H.\ sapiens$", "Zymo HMW", r"$S.\ Aureus$", r"$P.\ Anserina$", r"$^5$mC", "tool average"
     ]
 
     # Set the dataset labels

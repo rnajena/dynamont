@@ -162,7 +162,7 @@ def readBasecalls(file: str, readid: str) -> str:
     with AlignmentFile(file, "rb", check_sq=False) as bamfile:
         for read in bamfile.fetch(until_eof=True):
             if readid == read.query_name:
-                return read.query_sequence
+                return read.query_sequence, read.get_tag("pi") if read.has_tag("pi") else ""
     return None
 
 def main() -> None:
@@ -177,19 +177,22 @@ def main() -> None:
     
     args = parse()
 
-    read = readBasecalls(args.basecalls, args.readid)
+    readid, signalid = readBasecalls(args.basecalls, args.readid)
 
     tools = {
         "Dynamont" : np.array(readDynamont(args.dynamont, args.readid)),
         "Uncalled4" : np.array(readUncalled4(args.uncalled4, args.readid)),
-        "f5c Resquiggle" : np.array(readF5CResquiggle(args.f5cresquiggle, args.readid, read, args.k)),
+        "f5c Resquiggle" : np.array(readF5CResquiggle(args.f5cresquiggle, args.readid, readid, args.k)),
         "f5c Eventalign" : np.array(readF5CEventalign(args.f5ceventalign, splitext(args.f5ceventalign)[0] + '.sum', args.readid)),
         # "Tombo" : readTombo(args.tombo, args.readid),
         "Dorado" : np.array(readDorado(args.dorado, args.readid)),
     }
 
     outpath = args.out
-    signal = r5.read(args.pod5).getpASignal(args.readid)
+    try:
+        signal = r5.read(args.pod5).getpASignal(args.readid)
+    except:
+        signal = r5.read(args.pod5).getSignal(signalid)
 
     fig, ax = plt.subplots(nrows = 5, figsize=(110,15), dpi=300)
     fig.suptitle("Segmentation of the same read by different tools")
@@ -210,18 +213,18 @@ def main() -> None:
             ax[i].vlines([start, end], ymin=min(signal), ymax=max(signal), colors=basecolors[base], linestyles='--', linewidth=0.7)
             ax[i].add_patch(Rectangle((start, min(signal)), end - start, max(signal)-min(signal), alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
-        if tool == "Dynamont":
-            prob_ax = ax[i].twinx()
-            borderProbs, acgt_probs = getDynamontProbs()
-            # prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
-            prob_ax.plot(acgt_probs[:, 0], c=basecolors['A'], linewidth=1, linestyle='-', label="A probability")
-            prob_ax.plot(acgt_probs[:, 1], c=basecolors['C'], linewidth=1, linestyle='-', label="C probability")
-            prob_ax.plot(acgt_probs[:, 2], c=basecolors['G'], linewidth=1, linestyle='-', label="G probability")
-            prob_ax.plot(acgt_probs[:, 3], c=basecolors['T'], linewidth=1, linestyle='-', label="T probability")
-            prob_ax.set_ylabel("Nucleotide Probabilities", fontsize=10)
-            prob_ax.set_ylim((-0.1, 7))
-            prob_ax.set_yticks([0, 1])
-            prob_ax.legend(loc='upper right', fontsize=10)
+        # if tool == "Dynamont":
+        #     prob_ax = ax[i].twinx()
+        #     borderProbs, acgt_probs = getDynamontProbs()
+        #     # prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
+        #     prob_ax.plot(acgt_probs[:, 0], c=basecolors['A'], linewidth=1, linestyle='-', label="A probability")
+        #     prob_ax.plot(acgt_probs[:, 1], c=basecolors['C'], linewidth=1, linestyle='-', label="C probability")
+        #     prob_ax.plot(acgt_probs[:, 2], c=basecolors['G'], linewidth=1, linestyle='-', label="G probability")
+        #     prob_ax.plot(acgt_probs[:, 3], c=basecolors['T'], linewidth=1, linestyle='-', label="T probability")
+        #     prob_ax.set_ylabel("Nucleotide Probabilities", fontsize=10)
+        #     prob_ax.set_ylim((-0.1, 7))
+        #     prob_ax.set_yticks([0, 1])
+        #     prob_ax.legend(loc='upper right', fontsize=10)
 
     plt.tight_layout()
     plt.savefig(join(outpath, args.readid + "_tool_segmentation.svg"), dpi=300)
@@ -248,23 +251,25 @@ def main() -> None:
             ax[i].vlines([start], ymin=min(signal), ymax=max(signal), colors=basecolors[base], linestyles='--', linewidth=0.7)
             ax[i].add_patch(Rectangle((start, min(signal)), end - start, max(signal)-min(signal), alpha=0.4, edgecolor=basecolors[base], facecolor=basecolors[base]))
 
-        if tool == "Dynamont":
-            prob_ax = ax[i].twinx()
-            # prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
-            prob_ax.plot(acgt_probs[:, 0], c=basecolors['A'], linewidth=1, linestyle='-', label="A probability")
-            prob_ax.plot(acgt_probs[:, 1], c=basecolors['C'], linewidth=1, linestyle='-', label="C probability")
-            prob_ax.plot(acgt_probs[:, 2], c=basecolors['G'], linewidth=1, linestyle='-', label="G probability")
-            prob_ax.plot(acgt_probs[:, 3], c=basecolors['T'], linewidth=1, linestyle='-', label="T probability")
-            prob_ax.set_ylabel("Nucleotide Probabilities", fontsize=10)
-            prob_ax.set_ylim((-0.1, 7))
-            prob_ax.set_yticks([0, 1])
-            prob_ax.legend(loc='upper right', fontsize=10)
+        # if tool == "Dynamont":
+        #     prob_ax = ax[i].twinx()
+        #     # prob_ax.plot(np.arange(len(borderProbs)), borderProbs, c='red', linewidth=0.5, linestyle='-')
+        #     prob_ax.plot(acgt_probs[:, 0], c=basecolors['A'], linewidth=1, linestyle='-', label="A probability")
+        #     prob_ax.plot(acgt_probs[:, 1], c=basecolors['C'], linewidth=1, linestyle='-', label="C probability")
+        #     prob_ax.plot(acgt_probs[:, 2], c=basecolors['G'], linewidth=1, linestyle='-', label="G probability")
+        #     prob_ax.plot(acgt_probs[:, 3], c=basecolors['T'], linewidth=1, linestyle='-', label="T probability")
+        #     prob_ax.set_ylabel("Nucleotide Probabilities", fontsize=10)
+        #     prob_ax.set_ylim((-0.1, 7))
+        #     prob_ax.set_yticks([0, 1])
+        #     prob_ax.legend(loc='upper right', fontsize=10)
 
         ax[i].set_xticks(np.arange(0, len(signal), 500))
         # ax[i].set_xlim((19000, 22000)) #! for c28
-        ax[i].set_xlim((7400, 8000))
+        ax[i].set_xlim((7400, 8000)) #! for paper h_sapiens 131ee77f-...
+        # ax[i].set_xlim((4500, 6000))
+        # ax[i].set_ylim((40, 130))
 
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.savefig(join(outpath, args.readid + "_tool_segmentation_region.svg"), dpi=300)
     plt.savefig(join(outpath, args.readid + "_tool_segmentation_region.pdf"), dpi=300)
     plt.savefig(join(outpath, args.readid + "_tool_segmentation_region.png"), dpi=300)
