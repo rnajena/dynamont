@@ -278,6 +278,8 @@ def main() -> None:
     outfile = args.outfile
     if not exists(dirname(outfile)) and dirname(outfile):
         makedirs(dirname(outfile))
+    if not isfile(outfile):
+        outfile = join(outfile, "dynamont.csv")
 
     match args.mode:
         case "basic":
