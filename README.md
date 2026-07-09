@@ -73,7 +73,7 @@ Dynamont produces a tabular output with the following columns:
 | **signalid**           | Identifier for the signal corresponding to the read. |
 | **start**              | Start position of the signal segment in the read. |
 | **end**                | End position of the signal segment in the read. |
-| **basepos**            | Reference base position in the genomic sequence. |
+| **basepos**            | Base position in the read. |
 | **base**               | The detected base at this position. |
 | **motif**              | The surrounding sequence motif in which the base appears. |
 | **state**              | The methylation state (or modification state) of the base. |
