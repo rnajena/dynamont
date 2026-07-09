@@ -34,7 +34,6 @@ strip "$BIN_DIR/dynamont-NTC" "$BIN_DIR/dynamont-NT-banded" "$BIN_DIR/dynamont-N
 
 # Build Python package (wheel + sdist)
 echo "[INFO] Building Python package..."
-python -m pip install --user --upgrade setuptools wheel build --ignore-installed -v .
 python -m build
 rm -rf $BUILD_DIR
 # twine upload dist/*
