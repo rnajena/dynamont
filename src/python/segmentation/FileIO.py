@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import sys
 from subprocess import PIPE, Popen
 from os.path import join, dirname
 from multiprocessing import Queue
@@ -219,7 +220,7 @@ def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : 
     pipe = openCPPScriptCalcZ(script, params, model)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}")
+        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}", file=sys.stderr)
         return signalid
     Z = float(result)
     return Z
@@ -272,8 +273,8 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
 
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}")
-        print(result)
+        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)} Sid: {signalid}", file=sys.stderr)
+        print(result, file=sys.stderr)
         with open("failed_input.txt", 'w') as w:
             w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
         return signalid
@@ -282,7 +283,7 @@ def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, sc
     try:
         params = {param.split(":")[0] : float(param.split(":")[1]) for param in transitionParams.split(";")}
     except:
-        print(f"ERROR while extracting transitions params in {signalid}", transitionParams)
+        print(f"ERROR while extracting transitions params in {signalid}", transitionParams, file=sys.stderr)
         # with open("failed_input.txt", 'w') as w:
         #     w.write(",".join([f'{x}' for x in signal]) + '\n' + read + '\n')
         # raise SegmentationError(readid)
@@ -332,7 +333,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
         pipe = openCPPScriptParams(script, params)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
-        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)}")
+        print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)}", file=sys.stderr)
         exit(1)
 
     try:
@@ -345,9 +346,9 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             output  = result.split('\n')
             probs = None
         except:
-            print("ERROR while extracting result in {read}")
-            print(signal)
-            print(read)
+            print("ERROR while extracting result in {read}", file=sys.stderr)
+            print(signal, file=sys.stderr)
+            print(read, file=sys.stderr)
             with open("failed_input.txt", "w") as w:
                 w.write(str(np.around(signal, 7).tolist()).replace(' ', '').replace('[', '').replace(']', ''))
                 w.write('\n')
@@ -510,7 +511,7 @@ def plotParameters(param_file : str, outdir : str) -> None:
         sns.lineplot(data=df, x="batch", y=column, hue='epoch')
         plt.title(f"{column} parameter change during training")
         plt.ylabel("Parameter Value")
-        print("Savefig: ", join(outdir, f"{column}.pdf"))
+        print("Savefig: ", join(outdir, f"{column}.pdf"), file=sys.stderr)
         plt.savefig(join(outdir, f"{column}.pdf"))
         plt.close()
 

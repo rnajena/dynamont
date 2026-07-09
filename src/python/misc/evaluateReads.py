@@ -10,6 +10,7 @@ from pathlib import Path
 from statistics import median
 import numpy as np
 import json
+import sys
 from tqdm import tqdm
 from multiprocessing import Pool #, cpu_count
 
@@ -220,7 +221,7 @@ def report_stats(stats: dict, output_path):
     with open(output_file, "w") as f:
         json.dump(convert_numpy(stats), f, indent=2)
 
-    print(f"\nStats written to {output_file}")
+    print(f"\nStats written to {output_file}", file=sys.stderr)
 
 
 def main():
@@ -228,7 +229,7 @@ def main():
     basecalls = load_basecalls_from_bam(args.basecalls)
     segmented = load_fasta(args.fasta)
     stats = compute_stats(basecalls, segmented, args.t)
-    print("Done computing stats, now writing to file...")
+    print("Done computing stats, now writing to file...", file=sys.stderr)
     report_stats(stats, Path(args.fasta))
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+import sys
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
@@ -31,7 +32,7 @@ def parse() -> Namespace:
     return parser.parse_args()
 
 def readDynamont(file: str, readid : str) -> list:
-    print("Reading Dynamont output from " + file)
+    print("Reading Dynamont output from " + file, file=sys.stderr)
     segments = []
     with open(file, 'r') as f:
         next(f) # skip header
@@ -80,7 +81,7 @@ def getDynamontProbs() -> np.ndarray:
     # heatmap has dimensionality TxN
     nt2idx = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
     acgt = np.zeros((end - start, 4), dtype=np.float32)
-    print(acgt.shape, heatmap.shape)
+    print(acgt.shape, heatmap.shape, file=sys.stderr)
     for t in range(0, heatmap.shape[0] - 1): # iterate signal
         for n in range(0, heatmap.shape[1] - 1 - kmerSize//2): # iterate read
             acgt[t, nt2idx[read[n + kmerSize//2]]] += heatmap[t + 1, n + 1]
@@ -91,7 +92,7 @@ def getDynamontProbs() -> np.ndarray:
 
 
 def readUncalled4(file : str, readid : str) -> list:
-    print("Reading Uncalled4 output from " + file)
+    print("Reading Uncalled4 output from " + file, file=sys.stderr)
     segments = []
     with open(file, 'r') as f:
         next(f) # skip header
@@ -106,7 +107,7 @@ def readUncalled4(file : str, readid : str) -> list:
     return segments
 
 def readF5CResquiggle(file : str, readid : str, read : str, kmerSize : int = 5) -> list:
-    print("Reading f5c Resquiggle output from " + file)
+    print("Reading f5c Resquiggle output from " + file, file=sys.stderr)
     segments = []
     HALFKMERSIZE = kmerSize // 2
     with open(file, 'r') as f:
@@ -122,7 +123,7 @@ def readF5CResquiggle(file : str, readid : str, read : str, kmerSize : int = 5) 
     return segments
 
 def readF5CEventalign(file: str, summary : str, readid : str) -> list:
-    print("Reading f5c Eventalign output from " + file)
+    print("Reading f5c Eventalign output from " + file, file=sys.stderr)
     readNum = None
     with open(summary, 'r') as f:
         # read_index    read_name   fast5_path  model_name  strand  num_events  num_steps   num_skips   num_stays   total_duration  shift   scale   drift   var
@@ -145,7 +146,7 @@ def readF5CEventalign(file: str, summary : str, readid : str) -> list:
     return segments
 
 def readDorado(file : str, readid : str) -> list:
-    print("Reading Dorado output from " + file)
+    print("Reading Dorado output from " + file, file=sys.stderr)
     segments = []
     with open(file, 'r') as f:
         next(f) # skip header
@@ -232,7 +233,7 @@ def main() -> None:
     plt.savefig(join(outpath, args.readid + "_tool_segmentation.png"), dpi=300)
     plt.close()
 
-    print("Plotted: " + args.readid + "_tool_segmentation.svg")
+    print("Plotted: " + args.readid + "_tool_segmentation.svg", file=sys.stderr)
 
     fig, ax = plt.subplots(nrows = 5, figsize=(10,10), dpi=300)
     fig.suptitle(f"Segmentation of {args.readid} by Different Tools", fontsize=20)
@@ -274,7 +275,7 @@ def main() -> None:
     plt.savefig(join(outpath, args.readid + "_tool_segmentation_region.pdf"), dpi=300)
     plt.savefig(join(outpath, args.readid + "_tool_segmentation_region.png"), dpi=300)
 
-    print("Plotted: " + args.readid + "_tool_segmentation_region.svg")
+    print("Plotted: " + args.readid + "_tool_segmentation_region.svg", file=sys.stderr)
 
 if __name__ == '__main__':
     main()

@@ -8,8 +8,9 @@ import read5_ont
 import multiprocessing as mp
 import pysam
 import psutil
+import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from os.path import exists, join, dirname, splitext, basename
+from os.path import exists, join, dirname, splitext, basename, isfile
 from os import makedirs, name, getpid
 from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
 from python._version import __version__
@@ -59,7 +60,7 @@ def listener(q : mp.Queue, outfile : str) -> None:
     outfile : str
         The path to write the results to
     """
-    print(f"{'Segmented':>9} | {'Errors':>8} | {'Queued':>8} | {'Writer memory (MB)':>20}")
+    print(f"{'Segmented':>9} | {'Errors':>8} | {'Queued':>8} | {'Writer memory (MB)':>20}", file=sys.stderr)
     errfile = splitext(outfile)[0] + ".errors"
     # print(f"[written,\terrors,\tin queue,\tmemory]")
     with open(outfile, 'w') as f:
@@ -80,9 +81,9 @@ def listener(q : mp.Queue, outfile : str) -> None:
                 i+=1
                 f.write(m)
             
-            print(f"{i:>9} | {e:>8} | {q.qsize():>8} | {get_memory_usage():>20.0f}", end='\r')
+            print(f"{i:>9} | {e:>8} | {q.qsize():>8} | {get_memory_usage():>20.0f}", end='\r', file=sys.stderr)
             # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
-    print(f"\nReads segmented: {i}", f"Errors: {e}")
+    print(f"\nReads segmented: {i}", f"Errors: {e}", file=sys.stderr)
 
 def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     """
@@ -202,7 +203,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     None
     """
     processes = max(1, processes - 1)
-    print(f"Starting segmentation with {processes} processes.")
+    print(f"Starting segmentation with {processes} processes.", file=sys.stderr)
     writer = mp.Pool(1)
     queue = mp.Manager().Queue()
     writer.apply_async(listener, (queue, outfile))
@@ -256,12 +257,12 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
         pool.join()
 
     except KeyboardInterrupt:
-        print("\nKeyboardInterrupt detected! Terminating processes...")
+        print("\nKeyboardInterrupt detected! Terminating processes...", file=sys.stderr)
         pool.terminate()
         writer.terminate()
         pool.join()
         writer.join()
-        print("All processes terminated.")
+        print("All processes terminated.", file=sys.stderr)
         exit(20)
 
     finally:
@@ -269,7 +270,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
         queue.put("kill")
         writer.close()
         writer.join()
-        print(f"Skipped reads: low quality: {qualSkipped}")
+        print(f"Skipped reads: low quality: {qualSkipped}", file=sys.stderr)
 
 def main() -> None:
     args = parse()
@@ -294,7 +295,7 @@ def main() -> None:
     else:
         model_path = getModel(args.pore)
         assert exists(model_path), f"Default model not found for pore: {args.pore}, {model_path}"
-    print(f"Loaded model: {basename(model_path)}")
+    print(f"Loaded model: {basename(model_path)}", file=sys.stderr)
 
     segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, model_path, args.pore, args.qscore)
 

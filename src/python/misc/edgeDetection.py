@@ -10,6 +10,7 @@ import read5_ont
 import pysam
 import pywt
 import multiprocessing as mp
+import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import join
 from python.segmentation.FileIO import hampelFilter
@@ -103,7 +104,7 @@ def writer(h5file : str, q : mp.Queue) -> None:
 
             i+=1
 
-            print(f"Extracting edges for {i} reads", f"#edges / #bases: {totalNumEdges} / {totalNumBases}", end='\r')
+            print(f"Extracting edges for {i} reads", f"#edges / #bases: {totalNumEdges} / {totalNumBases}", end='\r', file=sys.stderr)
         
             key = f'{signalid}/waveletEdge'
             # save to hdf5 file
@@ -118,7 +119,7 @@ def writer(h5file : str, q : mp.Queue) -> None:
             totalNumEdges += len(waveletEdges)
             totalNumBases += numBases
 
-        print()
+        print(file=sys.stderr)
         
 def extractEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue, numBases : int) -> None:
     r5 = read5_ont.read(rawFile)
@@ -146,7 +147,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
     ---
     None: This function does not return any value. It writes the detected wavelet edges to the specified HDF5 file.
     """
-    print("Extracting edges")
+    print("Extracting edges", file=sys.stderr)
     pool = mp.Pool(processes)
     queue = mp.Manager().Queue()
     watcher = pool.apply_async(writer, (outfile, queue))
@@ -177,7 +178,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
     pool.close()
     pool.join()
 
-    print(f'Done extracting edges for {i} reads')
+    print(f'Done extracting edges for {i} reads', file=sys.stderr)
 
 
 def countEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str) -> None:
@@ -196,7 +197,7 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
     import pandas as pd
     import seaborn as sns
     import matplotlib.pyplot as plt
-    print("Plotting threshold")
+    print("Plotting threshold", file=sys.stderr)
 
     pool = mp.Pool(processes)
 
@@ -204,7 +205,7 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
 
     # for threshold in np.arange(0.6, 1.2, 0.1):
     for threshold in np.arange(0.5, 10.1, 0.5):
-        print(f"Threshold: {threshold}")
+        print(f"Threshold: {threshold}", file=sys.stderr)
         numBases = 0
         numEdges = 0
         jobs = []
@@ -241,11 +242,11 @@ def plotThreshold(raw : str, basecalls : str, outfile: str, processes : int, por
     plt.savefig(outfile + "_window_threshold.pdf", dpi=300)
     plt.close()
 
-    print(f'Done extracting edges for {i} reads')
+    print(f'Done extracting edges for {i} reads', file=sys.stderr)
 
 def main() -> None:
     args = parse()
-    print('Start extracting')
+    print('Start extracting', file=sys.stderr)
     wavelet(args.raw, args.basecalls, args.output, args.processes, args.pore)
     # plotThreshold(args.raw, args.basecalls, args.output, args.processes, args.pore)
 

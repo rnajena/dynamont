@@ -7,6 +7,7 @@
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pandas as pd
 import json
+import sys
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -201,7 +202,7 @@ def main() -> None:
     scores = scores.sort_values(by=["Metric", "Tool"])
     scores.reset_index(drop=True, inplace=True)
 
-    print("\nWriting to", args.outfile, "\n")
+    print("\nWriting to", args.outfile, "\n", file=sys.stderr)
     scores.to_csv(args.outfile, sep="\t", index=False)
 
 if __name__ == '__main__':

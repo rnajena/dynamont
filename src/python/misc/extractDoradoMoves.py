@@ -6,6 +6,7 @@
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 import pysam
+import sys
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -77,7 +78,7 @@ def main() -> None:
         out.write('\t'.join(['readid', 'signalid', 'position', 'base', 'motif', 'start', 'end']) + '\n')
 
     for fi, file in enumerate(files):
-        print(f'Extracting segmentation from file {fi}/{len(files)}', end='\r')
+        print(f'Extracting segmentation from file {fi}/{len(files)}', end='\r', file=sys.stderr)
         extractMoves(file, outfile)
 
 if __name__ == '__main__':

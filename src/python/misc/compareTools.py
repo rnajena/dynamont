@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import multiprocessing as mp
+import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections import defaultdict
 import itertools
@@ -62,7 +63,7 @@ def readDynamont(file: str) -> dict:
     dict
         A dictionary mapping each signal ID to a set of start and end positions.
     """
-    print("Reading Dynamont output from " + file)
+    print("Reading Dynamont output from " + file, file=sys.stderr)
     readMap = defaultdict(set)
     with open(file, 'r') as f:
         next(f) # skip header
@@ -90,7 +91,7 @@ def readDorado(file: str) -> dict:
     dict
         A dictionary mapping each signal ID to a set of start and end positions.
     """
-    print("Reading Dorado output from " + file)
+    print("Reading Dorado output from " + file, file=sys.stderr)
     readMap = defaultdict(set)
     with open(file, 'r') as f:
         next(f) # skip header
@@ -117,7 +118,7 @@ def readF5CEventalign(file: str, summary : str) -> dict:
     dict
         A dictionary mapping each read ID to a set of start and end positions.
     """
-    print("Reading f5c eventalign output from " + file)
+    print("Reading f5c eventalign output from " + file, file=sys.stderr)
     readIdMap = {}
     with open(summary, 'r') as f:
         next(f) # skip header
@@ -149,7 +150,7 @@ def readF5CResquiggle(file: str) -> dict:
     dict
         A dictionary mapping each read ID to a set of start and end positions.
     """
-    print("Reading f5c resquiggle output from " + file)
+    print("Reading f5c resquiggle output from " + file, file=sys.stderr)
     readMap = defaultdict(set)
     with open(file, 'r') as f:
         next(f) # skip header
@@ -164,7 +165,7 @@ def readF5CResquiggle(file: str) -> dict:
     return readMap
 
 def readUncalled4(file : str) -> dict:
-    print("Reading uncalled 4 output from " + file)
+    print("Reading uncalled 4 output from " + file, file=sys.stderr)
     readMap = defaultdict(set)
     with open(file, 'r') as f:
         next(f) # skip header
@@ -190,7 +191,7 @@ def getFast5s(directory: str) -> list:
     list
         A list of paths to all FAST5 files found in the directory and its subdirectories.
     """
-    print("Reading FAST5 files from " + directory)
+    print("Reading FAST5 files from " + directory, file=sys.stderr)
     fast5Files = []
     for root, _, files in os.walk(directory):
         # check if root is absolute path
@@ -200,7 +201,7 @@ def getFast5s(directory: str) -> list:
             if file.endswith('.fast5'):
                 filepath = os.path.join(root, file)
                 if not os.path.exists(filepath):
-                    print("File not found, path may be broken!: " + filepath)
+                    print("File not found, path may be broken!: " + filepath, file=sys.stderr)
                     exit(1)
                 fast5Files.append(filepath)
     return fast5Files
@@ -219,7 +220,7 @@ def readTombo(directory: str) -> dict:
     dict
         A dictionary mapping each read ID to a set of start positions.
     """
-    print("Reading tombo output from " + directory)
+    print("Reading tombo output from " + directory, file=sys.stderr)
     fast5s = getFast5s(directory)
     readMap = defaultdict(set)
     for fast5 in fast5s:
@@ -255,7 +256,7 @@ def readChangepoints(file : str) -> dict:
     dict
         A dictionary mapping each read ID to a set of changepoints.
     """
-    print("Reading changepoints from " + file)
+    print("Reading changepoints from " + file, file=sys.stderr)
     readMap = defaultdict(set)
     with h5py.File(file, 'r') as h5:
         for readid in h5.keys():
@@ -477,7 +478,7 @@ def generateControl(bamFile : str) -> tuple:
         A tuple containing two dictionaries: randomBorders and uniformBorders.
         Each dictionary contains a list of borders for each read in the bam file.
     """
-    print("Generating control set from " + bamFile)
+    print("Generating control set from " + bamFile, file=sys.stderr)
     import pysam
     basecalledRegions = {}
     with pysam.AlignmentFile(bamFile, "rb", check_sq=False) as bamfile:
@@ -564,13 +565,13 @@ def getResults(args : Namespace, pool) -> dict:
 
 def evaluateAgainstGroundTruth(groundTruths : np.ndarray, toolsResult : dict, maxDistance : int, output : str, pool) -> pd.DataFrame:
 
-    print("Done\nStart Evaluating...")
+    print("Done\nStart Evaluating...", file=sys.stderr)
     # df = pd.DataFrame()
     outfile = open(output, 'w')
     outfile.write("Tool,Distance Threshold,Found Change Points,Total Change Points,Found Change Points Ratio,Segmented Reads,Total Reads,Segmented Reads Ratio\n")
     outfile.flush()
     for tool, result in toolsResult.items():
-        print(f"Evaluating {tool} on distance {maxDistance}...")
+        print(f"Evaluating {tool} on distance {maxDistance}...", file=sys.stderr)
 
         totalEdges = 0 # total edges in ground truth
         foundEdges = np.zeros(2*maxDistance + 1, dtype=int)
@@ -591,7 +592,7 @@ def evaluateAgainstGroundTruth(groundTruths : np.ndarray, toolsResult : dict, ma
 
         for i, job in enumerate(jobs):
             # if (i+1) % 1000 == 0:
-            print(f'{i+1}/{len(groundTruths)}', end='\r')
+            print(f'{i+1}/{len(groundTruths)}', end='\r', file=sys.stderr)
             for j, n in enumerate(job.get()):
                 foundEdges[j] += n
         
@@ -603,7 +604,7 @@ def evaluateAgainstGroundTruth(groundTruths : np.ndarray, toolsResult : dict, ma
 
 def plotSegmentSizeDistribution(toolsResult : dict, output : str) -> None:
     for tool in toolsResult:
-        print("Plotting segment size distribution for " + tool)
+        print("Plotting segment size distribution for " + tool, file=sys.stderr)
 
         distance_list = [np.diff(toolsResult[tool][readid]) for readid in toolsResult[tool]]
         distances = np.concatenate(distance_list) if distance_list else np.array([])
@@ -804,11 +805,11 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
     toolNames = list(toolsResult.keys())
 
     # Find reads segmented by all tools
-    print("Finding reads segmented by all tools...")
+    print("Finding reads segmented by all tools...", file=sys.stderr)
     all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
 
     # Parallel processing of reads
-    print("Start multiprocessing...")
+    print("Start multiprocessing...", file=sys.stderr)
     read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
 
     # Open output file for incremental writing
@@ -827,7 +828,7 @@ def scoreTools(toolsResult: dict, pod5: str, output: str, pool, window : int) ->
                         for score in scores[:, i]:
                             f.write(f"{tool},{score},{quality}\n")
 
-    print(f"Scoring complete. Results saved to {output_file}")
+    print(f"Scoring complete. Results saved to {output_file}", file=sys.stderr)
 
     return output_file
 
@@ -840,7 +841,7 @@ def plot_scores(score_file : str, output_prefix : str) -> None:
     - output_prefix (str): Prefix for saving the output plots.
     """
     # Load the score file
-    print(f"Loading score file: {score_file}")
+    print(f"Loading score file: {score_file}", file=sys.stderr)
     df = pd.read_csv(score_file)
 
         # Compute median and mean scores per tool
@@ -873,7 +874,7 @@ def plot_scores(score_file : str, output_prefix : str) -> None:
         .pivot(index="Tool", columns="Segment Quality", values="Score")
     )
 
-    print("Plotting scores...")
+    print("Plotting scores...", file=sys.stderr)
     plt.figure(figsize=(12, 6))
     sns.set_theme(style="whitegrid")
 
@@ -931,7 +932,7 @@ def plot_scores(score_file : str, output_prefix : str) -> None:
     plt.close()
     sns.reset_defaults()
 
-    print("Saving scores")
+    print("Saving scores", file=sys.stderr)
     # Create DataFrame
     score_summary = pd.DataFrame({
         "Tool": list(median_delta.index) * df["Segment Quality"].nunique(),  # Repeat tools for all segment qualities
@@ -955,11 +956,11 @@ def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) 
         toolNames = list(toolsResult.keys())
 
         # Find reads segmented by all tools
-        print("Finding reads segmented by all tools...")
+        print("Finding reads segmented by all tools...", file=sys.stderr)
         all_reads = list(set.intersection(*[set(toolsResult[tool].keys()) for tool in toolNames]))
 
         # Parallel processing of reads
-        print("Start multiprocessing...")
+        print("Start multiprocessing...", file=sys.stderr)
         read_chunks = [(read, toolsResult, toolNames, pod5, window) for read in all_reads]
         # segmentCounts_list = pool.map(processReadSegments, read_chunks)
         segmentCounts_list = list(
@@ -971,7 +972,7 @@ def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) 
         )
 
         # Merge segment counts from all workers
-        print("Aggregating counts...")
+        print("Aggregating counts...", file=sys.stderr)
         segmentCounts = {}
         for local_counts in segmentCounts_list:
             for key, value in local_counts.items():
@@ -982,14 +983,14 @@ def compareTools(toolsResult: dict, pod5: str, output: str, pool, window : int) 
         df = from_memberships([list(k) for k in segmentCounts.keys()], list(segmentCounts.values()))
         df.to_csv(output + "_upset.csv")
     else:
-        print("Reading data from existing file...")
+        print("Reading data from existing file...", file=sys.stderr)
         df = pd.read_csv(output + "_upset.csv", index_col = None)
         df.rename(columns={df.columns[-1]: "count"}, inplace=True)
         toolNames = list(df.columns)[:-1]
         df[toolNames] = df[toolNames].astype(bool)
         df = df.set_index(toolNames).squeeze()
 
-    print("Creating UpSet plot...")
+    print("Creating UpSet plot...", file=sys.stderr)
     # if df.empty:
     #     print("No shared segment borders found for all tools.")
     # else:
@@ -1176,7 +1177,7 @@ def plotReadStats(readLens : dict, output : str) -> None:
 
 def main() -> None:
     args = parse()
-    print(args)
+    print(args, file=sys.stderr)
     output = os.path.splitext(args.output)[0]
 
     pool = mp.Pool(args.processes)

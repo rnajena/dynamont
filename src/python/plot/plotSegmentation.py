@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import read5_ont
 import pysam
 import seaborn as sns
+import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from matplotlib.patches import Rectangle
 from os.path import exists, join
@@ -189,7 +190,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     '''
     Takes read in 3' -> 5' direction
     '''
-    print(f"Segmenting {readid}")
+    print(f"Segmenting {readid}", file=sys.stderr)
 
     kmerModels = pd.read_csv(modelPath, sep='\t', index_col = "kmer")
     PARAMS = {}
@@ -199,7 +200,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     elif mode == 'resquiggle':
         CPP_SCRIPT = 'dynamont-NTC'
     else:
-        print(f'Mode {mode} not implemented')
+        print(f'Mode {mode} not implemented', file=sys.stderr)
         exit(1)
         
     if name == 'nt': # check for windows
@@ -232,7 +233,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     # plt.close()
 
     # check for resquiggle how many new segments were inserted
-    print('Read bases:', len(read), ' Segments:', len(segments), ' Border probs:', len(borderProbs), ' Signal:', end-start)
+    print('Read bases:', len(read), ' Segments:', len(segments), ' Border probs:', len(borderProbs), ' Signal:', end-start, file=sys.stderr)
 
     if not len(segments):
         raise SegmentationError(readid)
@@ -304,7 +305,7 @@ def readF5CResquiggle(file: str) -> dict:
     dict
         A dictionary mapping each read ID to a set of start and end positions.
     """
-    print("Reading f5c resquiggle output from " + file)
+    print("Reading f5c resquiggle output from " + file, file=sys.stderr)
     readMap = {}
     with open(file, 'r') as f:
         next(f) # skip header
@@ -320,7 +321,7 @@ def readF5CResquiggle(file: str) -> dict:
 
 def readChangepoints(file : str, targetID : str) -> np.ndarray:
     import h5py
-    print("Reading changepoints from " + file)
+    print("Reading changepoints from " + file, file=sys.stderr)
     with h5py.File(file, 'r') as h5:
         for readid in h5.keys():
             if readid != targetID:

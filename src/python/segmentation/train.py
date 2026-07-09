@@ -8,6 +8,7 @@ import numpy as np
 import read5_ont
 import multiprocessing as mp
 import pysam
+import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname, basename
 from os import makedirs, name
@@ -100,7 +101,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
             'i2': 0.08645733058947891
             }
     else:
-        print(f'Mode {mode} not implemented')
+        print(f'Mode {mode} not implemented', file=sys.stderr)
         exit(1)
 
     if name == 'nt': # check for windows
@@ -202,15 +203,15 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         trainIDs.append(readid)
 
                     if len(mpItems) == batch_size:
-                        print("============================")
-                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {batchNum}\n{transitionParams}")
-                        print("Training with read:", trainIDs)
+                        print("============================", file=sys.stderr)
+                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {batchNum}\n{transitionParams}", file=sys.stderr)
+                        print("Training with read:", trainIDs, file=sys.stderr)
                         batchNum += 1
                         preZ = np.zeros(batch_size)
 
                         for readid, result in enumerate(p.starmap(trainTransitionsEmissions, mpItems)):
                             if isinstance(result, str):
-                                print(f"No segmentation calculated for {result} in {e}: {trainedModels}.")
+                                print(f"No segmentation calculated for {result} in {e}: {trainedModels}.", file=sys.stderr)
                                 # del mp_items[readid]
                                 continue
 
@@ -231,7 +232,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                                 paramCollector[kmer][0].add(newModels[kmer][0])
                                 paramCollector[kmer][1].add(newModels[kmer][1])
 
-                        print(f"Zs: {preZ}")
+                        print(f"Zs: {preZ}", file=sys.stderr)
 
                         # update parameters
                         paramWriter.write(f'{e},{batchNum},{i},') # log
@@ -239,7 +240,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             try:
                                 transitionParams[param] = paramCollector[param].mean()
                             except:
-                                print(param, paramCollector[param].get_list())
+                                print(param, paramCollector[param].get_list(), file=sys.stderr)
                                 exit(1)
                             paramWriter.write(f'{transitionParams[param]},') # log
 
@@ -257,14 +258,14 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         postZ = np.zeros(batch_size)
                         for j, result in enumerate(p.starmap(calcZ, mpItems)):
                             if isinstance(result, str):
-                                print(f"No segmentation calculated for {result} in {e} calcZ.")
+                                print(f"No segmentation calculated for {result} in {e} calcZ.", file=sys.stderr)
                                 continue
                             Z = result
                             postZ[j] = Z
 
                         dZ = postZ - preZ
 
-                        print(f"Z changes: {dZ}")
+                        print(f"Z changes: {dZ}", file=sys.stderr)
                         deltaZ = np.mean(dZ)
                         paramWriter.write(f'{deltaZ}\n') # log
                         paramWriter.flush() # log
@@ -277,8 +278,8 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                             break
 
         paramWriter.close()
-        print("Done training")
-        print(f"Skipped reads due to low quality: {qualSkipped}")
+        print("Done training", file=sys.stderr)
+        print(f"Skipped reads due to low quality: {qualSkipped}", file=sys.stderr)
 
 def main() -> None:
     args = parse()
@@ -296,7 +297,7 @@ def main() -> None:
     else:
         model_path = getModel(args.pore)
         assert exists(model_path), f"Default model not found for pore: {args.pore}, {model_path}"
-    print(f"Loaded model: {basename(model_path)}")
+    print(f"Loaded model: {basename(model_path)}", file=sys.stderr)
 
     train(args.raw, args.basecalls, args.batch_size, args.epochs, paramFile, args.mode, model_path, args.max_batches, args.pore, args.qscore)
     plotParameters(paramFile, outdir)
