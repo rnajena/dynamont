@@ -87,9 +87,14 @@ add_executable(test_dynamont test/test.cpp src/cpp/NTC.cpp)
 # exclude main from dynamont-NTC.cpp with UNIT_TESTING definition
 target_compile_definitions(test_dynamont PRIVATE UNIT_TESTING)
 # add GTest
-find_package(GTest REQUIRED)
+# find_package(GTest REQUIRED)
 # Link GTest
-target_link_libraries(test_dynamont PRIVATE GTest::GTest GTest::Main)
+target_link_libraries(
+    test_dynamont
+    PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+)
 # Link dynamont_lib to the test executable
 target_link_libraries(test_dynamont PRIVATE NTC_library)
 if(OpenMP_CXX_FOUND)
