@@ -6,6 +6,8 @@
 
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import sys
@@ -13,38 +15,33 @@ from subprocess import PIPE, Popen
 from os.path import join, dirname
 from multiprocessing import Queue
 
-def hampelFilter(signal : np.ndarray, wSize : int = 3, nSigmas : float = 3.0) -> None:
+def hampelFilter(signal : np.ndarray, WINDOW : int = 3, n_sigmas : float = 3.0) -> None:
     """
     Apply Hampel filter in place to detect and replace outliers in a signal.
 
     Parameters:
         signal (np.ndarray): The input signal (1D array).
-        window_size (int): The size of the sliding window. Defaults to 3.
+        WINDOW (int): The size of the sliding window. Defaults to 3.
         n_sigmas (float): The threshold in terms of standard deviations (MAD).
                           Defaults to 3, which is commonly used.
     """
-    from collections import deque
-
     k = 1.4826  # Constant to convert MAD to standard deviation
-    hwSize = wSize // 2 # Half window size for sliding
+    HALF_WINDOW = WINDOW // 2 # Half window size for sliding
 
     # Initialize a deque for the rolling window
-    window = deque(signal[:wSize], maxlen=wSize)
+    original = signal.copy()
+    window = original[:WINDOW].copy()
 
-    # Precompute median and MAD for the initial window
-    median = np.median(window)
-    mad = k * np.median(np.abs(np.array(window) - median))
-    
-    # Loop over the signal with a sliding window
-    for i in range(hwSize, len(signal) - hwSize):
-        # Identify and replace outliers
-        if np.abs(signal[i] - median) > nSigmas * mad:
-            signal[i] = median  # Replace with the median value
-        
-        # Update the rolling window
-        window.append(signal[i + hwSize])
+    for i in range(HALF_WINDOW, len(signal)-HALF_WINDOW):
+
         median = np.median(window)
-        mad = k * np.median(np.abs(np.array(window) - median))
+        mad = k * np.median(np.abs(window - median))
+
+        if np.abs(original[i] - median) > n_sigmas * mad:
+            signal[i] = median
+
+        window[:-1] = window[1:]
+        window[-1] = original[i+HALF_WINDOW+1]
 
 def countNucleotides(sequence):
     """
@@ -126,7 +123,7 @@ def openCPPScript(script : str) -> Popen:
     subprocess : Popen
     '''
     # print("Popen call:", ' '.join(script))
-    return Popen(script, stdout=PIPE, stdin=PIPE, stderr=PIPE, text=True)
+    return Popen([script], stdout=PIPE, stdin=PIPE, stderr=PIPE, text=True)
 
 def openCPPScriptATrain(script : str, params : dict) -> Popen:
     '''
@@ -216,7 +213,7 @@ def openCPPScriptCalcZ(script : str, params : dict, model : str = None) -> Popen
         script.extend(["--model", model])
     return openCPPScript(script)
 
-def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : str = None, signalid : str = None) -> float:
+def calcZ(signal : np.ndarray, read : str, params : dict, script : str, model : str = None, signalid : str = None) -> float | str:
     pipe = openCPPScriptCalcZ(script, params, model)
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
@@ -240,15 +237,22 @@ def feedPipe(signal : np.ndarray, read : str, pipe : Popen) -> tuple[str, str, i
     -------
     result : str
     '''
-    cookie = f"{','.join([f'{x}' for x in signal])}\n{read}\n"
-    results, errors = pipe.communicate(input=cookie)
-    returncode = pipe.returncode
-    pipe.kill()
-    del cookie
-    return results.strip(), errors.strip(), returncode
+    # cookie = ",".join(map(str, signal)) + "\n" + read + "\n"
+    # results, errors = pipe.communicate(input=cookie)
+    pipe.stdin.write(",".join(map(str, signal)))
+    pipe.stdin.write("\n")
+    pipe.stdin.write(read)
+    pipe.stdin.write("\n")
+    pipe.stdin.close()
+    results = pipe.stdout.read()
+    errors = pipe.stderr.read()
+    pipe.wait()
+    # returncode = pipe.returncode
+    # del cookie
+    return results.strip(), errors.strip(), pipe.returncode
 
 # https://stackoverflow.com/questions/32570029/input-to-c-executable-python-subprocess
-def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model : str, signalid : str) -> tuple|str:
+def trainTransitionsEmissions(signal : np.ndarray, read : str, params : dict, script : str, model : str, signalid : str) -> tuple[dict, dict, float] | str:
     '''
     Parse & feed signal & read to the C++ segmentation script.
 
@@ -334,7 +338,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
     result, errors, returncode = feedPipe(signal, read, pipe)
     if returncode:
         print(f"error: {returncode}, {errors} T: {len(signal)} N: {len(read)}", file=sys.stderr)
-        exit(1)
+        sys.exit(1)
 
     try:
         output, probs = result.split('\n') #, *heatmap
@@ -346,7 +350,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
             output  = result.split('\n')
             probs = None
         except:
-            print("ERROR while extracting result in {read}", file=sys.stderr)
+            print(f"ERROR while extracting result in {read}", file=sys.stderr)
             print(signal, file=sys.stderr)
             print(read, file=sys.stderr)
             with open("failed_input.txt", "w") as w:
@@ -354,7 +358,7 @@ def feedSegmentation(signal : np.ndarray, read : str, script : str, sigOffset : 
                 w.write('\n')
                 w.write(read)
                 w.write('\n')
-            exit(1)
+            sys.exit(1)
 
     # receive segmentation result and format output into np.ndarray
     segments = formatSegmentationOutput(output, sigOffset, len(signal) + sigOffset, read, kmerSize, rna)
@@ -501,8 +505,6 @@ def plotParameters(param_file : str, outdir : str) -> None:
     outdir : str
         Directory to save the output PDF files.
     '''
-    import matplotlib
-    matplotlib.use('Agg') # Use non-interactive backend (no GUI)
     df = pd.read_csv(param_file, sep=',')
     for column in df:
         if column in ['epoch', 'batch', 'read']:

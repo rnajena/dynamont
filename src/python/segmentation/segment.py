@@ -264,7 +264,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
         pool.join()
         writer.join()
         print("All processes terminated.", file=sys.stderr)
-        exit(20)
+        sys.exit(20)
 
     finally:
         # tell queue to terminate

@@ -102,7 +102,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
             }
     else:
         print(f'Mode {mode} not implemented', file=sys.stderr)
-        exit(1)
+        sys.exit(1)
 
     if name == 'nt': # check for windows
         CPP_SCRIPT+='.exe'
@@ -241,7 +241,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                                 transitionParams[param] = paramCollector[param].mean()
                             except:
                                 print(param, paramCollector[param].get_list(), file=sys.stderr)
-                                exit(1)
+                                sys.exit(1)
                             paramWriter.write(f'{transitionParams[param]},') # log
 
                         for kmer in kmerSeen:

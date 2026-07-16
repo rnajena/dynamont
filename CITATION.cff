@@ -5,8 +5,17 @@ authors:
     given-names: 'Jannes'
     orcid: 'https://orcid.org/0000-0002-6126-411X'
 title: 'dynamont'
-version: 0.7.3
+version: '0.8.0'
 identifiers:
   - type: doi
-    value: 10.5281/zenodo.15016695
-date-released: 2024-11-29
+    value: '10.5281/zenodo.15016695'
+date-released: '2024-11-29'
+
+preferred-citation:
+  type: article
+  doi: '10.1093/gigascience/giag005'
+  title: 'dynamont'
+  authors:
+    - family-names: 'Spangenberg'
+      given-names: 'Jannes'
+      orcid: 'https://orcid.org/0000-0002-6126-411X'
