@@ -8,7 +8,7 @@
 const double EPSILON = 1e-8; // chose by eye just to distinguish real errors from numeric errors
 bool rna;
 
-const std::map<std::string, double> NTK_rna_r9_transitions = {
+const std::map<std::string, double> NTK_rna002_transitions = {
     {"a1", 0.019326040280789637},
     {"a2", 0.19725479693713352},
     {"p1", 0.1979799841413514},
@@ -23,7 +23,7 @@ const std::map<std::string, double> NTK_rna_r9_transitions = {
     {"e4", 0.9797333838008437},
     {"i1", 2.3852272324574183e-06},
     {"i2", 0.006598130068516047}};
-const std::map<std::string, double> NTK_rna_rp4_transitions = {
+const std::map<std::string, double> NTK_rna004_transitions = {
     {"a1", 0.029709838889618322},
     {"a2", 0.2837864344979079},
     {"p1", 0.15353628902814298},
@@ -85,15 +85,15 @@ const std::map<std::string, double> NTK_dna_r10_400bps_transitions = { // TODO t
     {"i2", 0.10658440170772512}};
 
 // default params for NT
-// const std::map<std::string, double> NT_rna_r9_transitions = {
+// const std::map<std::string, double> NT_rna002_transitions = {
 //     {"m1", 0.03},
 //     {"e1", 1.0},
 //     {"e2", 0.97}};
-const std::map<std::string, double> NT_rna_r9_transitions = {
+const std::map<std::string, double> NT_rna002_transitions = {
     {"m1", 0.019889650396799997},
     {"e1", 1.0},
     {"e2", 0.9801103496029998}};
-const std::map<std::string, double> NT_rna_rp4_transitions = {
+const std::map<std::string, double> NT_rna004_transitions = {
     {"m1", 0.031111753637096777},
     {"e1", 1.0},
     {"e2", 0.9688882463622581}};

@@ -66,7 +66,7 @@ def getDynamontProbs() -> np.ndarray:
     end = 9769
     script = "dynamont-NT"
     kmerSize = 9
-    pore = "rna_rp4"
+    pore = "rna004"
     PARAMS = {
         'm' : "/home/yi98suv/projects/dynamont/models/rna/rp4/rna004_9mer.model",
         'p' : True, # return posterior probabilities

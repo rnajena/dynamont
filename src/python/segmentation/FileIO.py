@@ -532,8 +532,8 @@ def getModel(pore : str) -> str:
         Path to the kmer model file.
     """
     MODELS = {
-        "rna_r9" : "models/rna/r9.4.1/rna002_5mer.model",
-        "rna_rp4" : "models/rna/rp4/rna004_9mer.model",
+        "rna002" : "models/rna/r9.4.1/rna002_5mer.model",
+        "rna004" : "models/rna/rp4/rna004_9mer.model",
         "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
         "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
     }

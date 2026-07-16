@@ -22,7 +22,7 @@ def parse() -> Namespace:
     parser.add_argument("-r", "--raw", type=str, required=True, metavar="FAST5|POD5", help="Input raw file format (FAST5, POD5)")
     parser.add_argument("-b", "--basecalls", type=str, required=True, metavar="BAM", help="Basecalls of ONT training data as.bam file")
     parser.add_argument("-o", "--output", type=str, required=True, metavar="HDF5", help="Output HDF5 file")
-    parser.add_argument("--pore", type=str, required=True, metavar="STR", choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"])
+    parser.add_argument("--pore", type=str, required=True, metavar="STR", choices=["rna002", "dna_r9", "rna004", "dna_r10_260bps", "dna_r10_400bps"])
     parser.add_argument("-p", "--processes", type=int, default=mp.cpu_count(), metavar="INT", help="Number of processes to use for parallel processing (default: all available CPUs)")
     return parser.parse_args()
 
@@ -123,7 +123,7 @@ def writer(h5file : str, q : mp.Queue) -> None:
         
 def extractEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue, numBases : int) -> None:
     r5 = read5_ont.read(rawFile)
-    if pore in ["rna_r9", "dna_r9"]:
+    if pore in ["rna002", "dna_r9"]:
         signal = r5.getpASignal(signalid)
     else:
         signal = r5.getSignal(signalid)
@@ -183,7 +183,7 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
 
 def countEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str) -> None:
     r5 = read5_ont.read(rawFile)
-    if pore in ["rna_r9", "dna_r9"]:
+    if pore in ["rna002", "dna_r9"]:
         signal = r5.getpASignal(signalid)
     else:
         signal = r5.getSignal(signalid)

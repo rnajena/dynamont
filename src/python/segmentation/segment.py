@@ -41,7 +41,7 @@ def parse() -> Namespace:
     parser.add_argument('-o', '--outfile', type=str, required=True, help='Path to output file. Will be zstd level 3 compressed. If directory is given, will write to dynamont.csv in that directory.')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     parser.add_argument('--processes', type=int, default=mp.cpu_count()-1, help='Number of processes to use for segmentation')
-    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9", 
+    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna002", "rna004", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9", 
     parser.add_argument('--model_path', type=str, help='Which kmer model to use for segmentation')
     parser.add_argument('-q', '--qscore', type=float, default=0.0, help='Minimal allowed quality score')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
@@ -116,7 +116,7 @@ def asyncSegmentation(q : Queue, script : str, modelpath : str, pore : str, rawF
     None
     """
     r5 = read5_ont.read(rawFile)
-    if "r9" in pore: # in ["dna_r9", "rna_r9"]:
+    if "r9" in pore: # in ["dna_r9", "rna002"]:
         # for r9 pores, shift and scale are stored for pA signal in bam
         # signal = r5.getpASignal(signalid)[start:end]
         kmerSize = 5

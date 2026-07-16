@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
   argparse::ArgumentParser program("dynamont basic", PROJECT_VERSION);
   // parameters for DP
   program.add_argument("-m", "--model").help("Path to kmer model table").required().store_into(modelpath);
-  program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
+  program.add_argument("-r", "--pore").help("Pore used to sequence the data").required().choices("rna002", "dna_r9", "rna004", "dna_r10_260bps", "dna_r10_400bps").store_into(pore);
 
   program.add_argument("-m1", "--matchscore1").help("Segment transition probability, should be close to (expected number of nucleotdes)/(signal length). Leave at -1 if unset.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["m1"]);
   program.add_argument("-e1", "--extendscore1").help("First extend probability.").default_value(-1.0).scan<'g', double>().store_into(transitions_NT["e1"]);
@@ -39,11 +39,11 @@ int main(int argc, char *argv[])
   omp_set_num_threads(program.get<int>("-t"));
 
   // load default and set parameters
-  if (pore == "rna_r9")
+  if (pore == "rna002")
   {
     rna = true;
     // taken from the trained NT version of dynamont
-    updateTransitions(NT_rna_r9_transitions, transitions_NT);
+    updateTransitions(NT_rna002_transitions, transitions_NT);
   }
   else if (pore == "dna_r9")
   {
@@ -51,11 +51,11 @@ int main(int argc, char *argv[])
     // taken from the trained NT version of dynamont
     updateTransitions(NT_dna_r9_transitions, transitions_NT);
   }
-  else if (pore == "rna_rp4")
+  else if (pore == "rna004")
   {
     rna = true;
     // taken from the trained NT version of dynamont
-    updateTransitions(NT_rna_rp4_transitions, transitions_NT);
+    updateTransitions(NT_rna004_transitions, transitions_NT);
   }
   else if (pore == "dna_r10_260bps")
   {

@@ -25,7 +25,7 @@ def parse() -> Namespace:
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
     parser.add_argument('--readid', type=str, required=True, help='Read to plot')
-    parser.add_argument('--pore',  type=str, required=True, choices=["rna_r9", "dna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
+    parser.add_argument('--pore',  type=str, required=True, choices=["rna002", "dna_r9", "rna004", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data')
     # optional
     parser.add_argument('--f5cResquiggle', type=str, default=None, help='f5c resquiggle segmentation file')
     parser.add_argument('--model_path', type=str, required=True, help='Kmer model file')
@@ -273,7 +273,7 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             # normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float32)
             shift = basecalledRead.get_tag("sm")
             scale = basecalledRead.get_tag("sd")
-            if pore in ["dna_r9", "rna_r9"]:
+            if pore in ["dna_r9", "rna002"]:
                 # for r9 pores, shift and scale are stored for pA signal in bam
                 signal = r5.getpASignal(readid)
             else:

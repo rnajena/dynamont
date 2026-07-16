@@ -22,15 +22,15 @@ extern const double EPSILON; // chose by eye just to distinguish real errors fro
 extern bool rna;
 
 // default params for NTK
-extern const std::map<std::string, double> NTK_rna_r9_transitions;
-extern const std::map<std::string, double> NTK_rna_rp4_transitions;
+extern const std::map<std::string, double> NTK_rna002_transitions;
+extern const std::map<std::string, double> NTK_rna004_transitions;
 extern const std::map<std::string, double> NTK_dna_r9_transitions;
 extern const std::map<std::string, double> NTK_dna_r10_260bps_transitions;
 extern const std::map<std::string, double> NTK_dna_r10_400bps_transitions;
 
 // default params for NT
-extern const std::map<std::string, double> NT_rna_r9_transitions;
-extern const std::map<std::string, double> NT_rna_rp4_transitions;
+extern const std::map<std::string, double> NT_rna002_transitions;
+extern const std::map<std::string, double> NT_rna004_transitions;
 extern const std::map<std::string, double> NT_dna_r9_transitions;
 extern const std::map<std::string, double> NT_dna_r10_260bps_transitions;
 extern const std::map<std::string, double> NT_dna_r10_400bps_transitions;

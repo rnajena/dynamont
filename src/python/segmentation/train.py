@@ -55,7 +55,7 @@ def parse() -> Namespace:
     parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
-    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9"
+    parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna002", "rna004", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9"
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     # optional
     parser.add_argument('--model_path', type=str, help='Which initial kmer models to use for training')
@@ -161,7 +161,7 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                     if len(mpItems) < batch_size:
                         # saw more consistency for short reads when using the mean
                         try:
-                            if pore in ["dna_r9", "rna_r9"]:
+                            if pore in ["dna_r9", "rna002"]:
                                 # for r9 pores, shift and scale are stored for pA signal in bam
                                 signal = r5.getpASignal(readid)
 
