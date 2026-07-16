@@ -1,39 +1,64 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 BUILD_DIR="build"
-BIN_DIR="src/bin/"
+BIN_DIR="src/bin"
 
-# Ensure clean build dirs
-rm -rf "$BUILD_DIR" "$BIN_DIR"
-mkdir -p "$BUILD_DIR" "$BIN_DIR"
-cd $BUILD_DIR
+if [[ "${1:-}" == "--clean" ]]; then
+    echo "[INFO] Cleaning build..."
+    rm -rf "${BUILD_DIR}" "${BIN_DIR}"
+fi
 
-# Extract version from VCS (via hatch)
+mkdir -p "${BIN_DIR}"
+
+for cmd in cmake hatch python; do
+    if ! command -v "${cmd}" >/dev/null; then
+        echo "[ERROR] ${cmd} not found"
+        exit 1
+    fi
+done
+
 echo "[INFO] Getting project version..."
 PROJECT_VERSION=$(hatch version)
+echo " -> Version: ${PROJECT_VERSION}"
 export PROJECT_VERSION
-echo " -> Version: $PROJECT_VERSION"
 
-# Build C++ binaries with static libstdc++/libgcc
-echo "[INFO] Building C++ binaries with CMake..."
-cmake .. \
-  -DPROJECT_VERSION="$PROJECT_VERSION" \
-  -DCMAKE_INSTALL_PREFIX=. \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
-  -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
-make -j$(nproc)
-make install
-cd ..
+if command -v nproc >/dev/null; then
+    JOBS=$(nproc)
+elif command -v sysctl >/dev/null; then
+    JOBS=$(sysctl -n hw.ncpu)
+else
+    JOBS=1
+fi
 
-mkdir -p src/bin
-cp $BUILD_DIR/bin/dynamont-NTC $BIN_DIR
-cp $BUILD_DIR/bin/dynamont-NT-banded $BIN_DIR
-cp $BUILD_DIR/bin/dynamont-NT $BIN_DIR
-strip "$BIN_DIR/dynamont-NTC" "$BIN_DIR/dynamont-NT-banded" "$BIN_DIR/dynamont-NT"
+echo "[INFO] Configuring CMake..."
 
-# Build Python package (wheel + sdist)
+cmake -S . \
+      -B "${BUILD_DIR}" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="${BUILD_DIR}" \
+      -DPROJECT_VERSION="${PROJECT_VERSION}" \
+      -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+
+
+echo "[INFO] Building..."
+cmake --build "${BUILD_DIR}" --parallel "${JOBS}"
+echo "[INFO] Installing binaries..."
+cmake --install "${BUILD_DIR}"
+echo "[INFO] Copying binaries..."
+
+cp "${BUILD_DIR}/bin/dynamont-NTC" \
+   "${BUILD_DIR}/bin/dynamont-NT-banded" \
+   "${BUILD_DIR}/bin/dynamont-NT" \
+   "${BIN_DIR}/"
+
+echo "[INFO] Stripping binaries..."
+
+strip \
+    "${BIN_DIR}/dynamont-NTC" \
+    "${BIN_DIR}/dynamont-NT-banded" \
+    "${BIN_DIR}/dynamont-NT"
+
 echo "[INFO] Building Python package..."
 python -m build
-rm -rf $BUILD_DIR
-# twine upload dist/*
+echo "[INFO] Build completed successfully."
