@@ -32,7 +32,7 @@ def hampelFilter(signal : np.ndarray, WINDOW : int = 3, n_sigmas : float = 3.0) 
     original = signal.copy()
     window = original[:WINDOW].copy()
 
-    for i in range(HALF_WINDOW, len(signal)-HALF_WINDOW):
+    for i in range(HALF_WINDOW, len(signal)-HALF_WINDOW-1):
 
         median = np.median(window)
         mad = k * np.median(np.abs(window - median))

@@ -17,14 +17,6 @@ from os import makedirs, name, getpid
 from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
 from python._version import __version__
 
-def get_memory_usage():
-    """
-    Returns the memory usage of the current Python process in MB.
-    """
-    process = psutil.Process(getpid())  # Get the current process
-    memory_info = process.memory_info()   # Get memory usage details
-    return memory_info.rss / 1024**2      # Convert from bytes to MB
-
 def parse() -> Namespace:
     """
     Parse command line arguments for segmentation.

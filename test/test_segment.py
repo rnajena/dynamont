@@ -1,25 +1,5 @@
 class TestSegment():
 
-    # Returns memory usage in MB for the current process
-    def test_returns_memory_usage_in_mb(self, mocker):
-        from python.segmentation.segment import get_memory_usage
-        import psutil
-        # Given
-        mock_process = mocker.Mock()
-        mock_memory_info = mocker.Mock()
-        mock_memory_info.rss = 104857600  # 100 MB in bytes
-        mock_process.memory_info.return_value = mock_memory_info
-        mocker.patch('psutil.Process', return_value=mock_process)
-        mocker.patch('python.segmentation.segment.getpid', return_value=12345)
-    
-        # When
-        result = get_memory_usage()
-    
-        # Then
-        assert result == 100.0  # 100 MB
-        psutil.Process.assert_called_once_with(12345)
-        mock_process.memory_info.assert_called_once()
-
     # Parse command line arguments with all required parameters
     def test_parse_with_all_required_parameters(self):
         # Given

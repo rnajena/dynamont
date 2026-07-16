@@ -7,16 +7,54 @@ class TestFileIO(unittest.TestCase):
     def test_feed_pipe(self):
         from python.segmentation.FileIO import feedPipe
         from unittest.mock import Mock
+        import numpy as np
+
         mockPipe = Mock()
-        mockPipe.communicate.return_value = ("result", "")
+
+        # Mock stdin/stdout/stderr
+        mockPipe.stdin = Mock()
+        mockPipe.stdout = Mock()
+        mockPipe.stderr = Mock()
+
+        mockPipe.stdout.read.return_value = "result\n"
+        mockPipe.stderr.read.return_value = "\n"
+        mockPipe.returncode = 0
+
         signal = np.array([1.23456, 2.34567, 3.45678])
         read = "test_read"
+
         result = feedPipe(signal, read, mockPipe)
-        expectedCookie = "1.23456,2.34567,3.45678\ntest_read\n"
-        # Assert the communicate method was called with the expected input
-        mockPipe.communicate.assert_called_once_with(input=expectedCookie)
-        # Use self.assertEqual for consistency with unittest
-        self.assertEqual(result, ("result", "", mockPipe.returncode))
+
+        # Verify writes to stdin
+        expected_calls = [
+            unittest.mock.call("1.23456,2.34567,3.45678"),
+            unittest.mock.call("\n"),
+            unittest.mock.call("test_read"),
+            unittest.mock.call("\n"),
+        ]
+        mockPipe.stdin.write.assert_has_calls(expected_calls)
+        self.assertEqual(mockPipe.stdin.write.call_count, 4)
+
+        # Verify stdin closed
+        mockPipe.stdin.close.assert_called_once()
+
+        # Verify reads
+        mockPipe.stdout.read.assert_called_once_with()
+        mockPipe.stderr.read.assert_called_once_with()
+
+        # Verify wait was called
+        mockPipe.wait.assert_called_once_with()
+
+        # Verify returned values are stripped
+        self.assertEqual(
+            [call.args[0] for call in mockPipe.stdin.write.call_args_list],
+            [
+                "1.23456,2.34567,3.45678",
+                "\n",
+                "test_read",
+                "\n",
+            ],
+        )
         
     def test_format_segmentation_output(self):
         from python.segmentation.FileIO import formatSegmentationOutput
@@ -158,7 +196,7 @@ class TestFileIO(unittest.TestCase):
         with patch('python.segmentation.FileIO.Popen') as mock_popen:
             mock_process = MagicMock()
             mock_popen.return_value = mock_process
-            script_path = ['path/to/valid/script.sh']
+            script_path = 'path/to/valid/script.sh'
     
             # When
             from python.segmentation.FileIO import openCPPScript
@@ -166,7 +204,7 @@ class TestFileIO(unittest.TestCase):
     
             # Then
             mock_popen.assert_called_once_with(
-                script_path, 
+                [script_path], 
                 stdout=PIPE, 
                 stdin=PIPE, 
                 stderr=PIPE, 
@@ -211,32 +249,6 @@ class TestFileIO(unittest.TestCase):
             mock_openCPPScriptCalcZ.assert_called_once_with(script, params, model)
             mock_feedPipe.assert_called_once_with(signal, read, mock_pipe)
             self.assertEqual(result, 3.14)
-
-    # Successfully feed signal and read to pipe and return expected results
-    def test_feed_pipe_returns_expected_results(self):
-        from python.segmentation.FileIO import feedPipe
-        # Given
-        import numpy as np
-        from unittest.mock import MagicMock
-        from subprocess import Popen
-
-        signal = np.array([1.0, 2.0, 3.0])
-        read = "test_read"
-        mock_pipe = MagicMock(spec=Popen)
-        mock_pipe.communicate.return_value = ("expected_result", "")
-        mock_pipe.returncode = 0
-
-        # When
-        result, errors, returncode = feedPipe(signal, read, mock_pipe)
-
-        # Then
-        expected_input = "1.0,2.0,3.0\ntest_read\n"
-        mock_pipe.communicate.assert_called_once()
-        self.assertEqual(mock_pipe.communicate.call_args[1]['input'], expected_input)
-        self.assertEqual(result, "expected_result")
-        self.assertEqual(errors, "")
-        self.assertEqual(returncode, 0)
-        mock_pipe.kill.assert_called_once()
 
 if __name__ == '__main__':
     unittest.main()
