@@ -3,19 +3,51 @@
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
-import gc
-import read5_ont
 import multiprocessing as mp
 import pysam
-import psutil
+import read5_ont
+import signal
 import sys
 import zstandard as zstd
-from multiprocessing.queues import Queue
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from collections import OrderedDict
+from multiprocessing.queues import Queue
 from os.path import exists, join, dirname, splitext, basename, isdir
-from os import makedirs, name, getpid
+from os import makedirs, name
 from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
 from python._version import __version__
+
+# Globals that exist separately inside every worker process
+SCRIPT = None
+MODELPATH = None
+PORE = None
+QUEUE = None
+OPTIONS = None
+IS_RNA = None
+RAW_CACHE = None
+RAW_CACHE_SIZE = None
+KMERSIZE = None
+
+def init_worker(script, modelpath, pore, queue, is_rna, kmer_size):
+    global SCRIPT, MODELPATH, PORE, QUEUE, OPTIONS, IS_RNA, RAW_CACHE, KMERSIZE, RAW_CACHE_SIZE
+
+    # Let the parent process handle Ctrl+C
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    SCRIPT = script
+    MODELPATH = modelpath
+    PORE = pore
+    QUEUE = queue
+    IS_RNA = is_rna
+    KMERSIZE = kmer_size
+    RAW_CACHE = OrderedDict()
+    RAW_CACHE_SIZE = 4
+
+    OPTIONS = {
+        'm': modelpath,
+        'r': pore,
+        't': 4
+    }
 
 def parse() -> Namespace:
     """
@@ -39,53 +71,61 @@ def parse() -> Namespace:
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     return parser.parse_args()
 
-def listener(q: Queue, outfile: str) -> None:
+def listener(queue: Queue, outfile: str) -> None:
     """
     Listens to a queue and writes segmentation results to a zstd compressed file.
     """
     print(f"{'Segmented':>9} | {'Errors':>8}", file=sys.stderr)
     errfile = splitext(splitext(outfile)[0])[0] + ".errors"
     compressor = zstd.ZstdCompressor(level=3)
-    i = 0
-    e = 0
+    num_reads = 0
+    num_err = 0
 
     with open(outfile, "wb") as raw:
-        with compressor.stream_writer(raw) as f:
+        with compressor.stream_writer(raw) as output:
             # write header
-            f.write(b'readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
+            output.write(b'readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
 
             while True:
-                m = q.get()
+                result = queue.get() # this is already in bytes
 
-                if m == "kill":
+                if result == "kill":
                     break
 
-                elif m.startswith("error"):
+                elif isinstance(result, str): # and result.startswith("error"):
                     with open(errfile, "a") as err:
-                        err.write(f"{m}\n")
-                    e += 1
+                        err.write(f"{result}\n")
+                    num_err += 1
 
                 else:
-                    i += 1
-                    f.write(m.encode())
+                    num_reads += 1
+                    output.write(result)
 
-                print(f"{i:>9} | {e:>8}", end="\r", file=sys.stderr)
-    print(f"\nReads segmented: {i}", f"Errors: {e}", file=sys.stderr)
+                if num_reads%10 == 0:
+                    print(f"{num_reads:>9} | {num_err:>8}", end="\r", file=sys.stderr)
+    print(f"\nReads segmented: {num_reads}", f"Errors: {num_err}", file=sys.stderr)
 
-def asyncSegmentation(q : Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
+def get_raw(path):
+    global RAW_CACHE
+
+    if path in RAW_CACHE:
+        RAW_CACHE.move_to_end(path)
+        return RAW_CACHE[path]
+
+    if len(RAW_CACHE) >= RAW_CACHE_SIZE:
+        _, old = RAW_CACHE.popitem(last=False)
+        old.close()
+
+    RAW_CACHE[path] = read5_ont.read(path)
+
+    return RAW_CACHE[path]
+
+def asyncSegmentation(args) -> None:
     """
     Asynchronously segments a raw signal using a C++ script and places the results in a queue.
 
     Parameters
     ----------
-    q : Queue
-        Queue to store segmentation results or errors.
-    script : str
-        Path to the C++ segmentation script.
-    modelpath : str
-        Path to the kmer model file used for segmentation.
-    pore : str
-        Pore generation used, affects signal processing direction.
     rawFile : str
         Path to the file containing raw signal data.
     shift : float
@@ -107,16 +147,8 @@ def asyncSegmentation(q : Queue, script : str, modelpath : str, pore : str, rawF
     -------
     None
     """
-    r5 = read5_ont.read(rawFile)
-    if "r9" in pore: # in ["dna_r9", "rna002"]:
-        # for r9 pores, shift and scale are stored for pA signal in bam
-        # signal = r5.getpASignal(signalid)[start:end]
-        kmerSize = 5
-    else:
-        # for new pores, shift and scale is directly applied to stored integer signal (DACs)
-        # this way the conversion from DACs to pA is skipped
-        # signal = r5.getSignal(signalid)[start:end]
-        kmerSize = 9
+    rawFile, shift, scale, start, end, read, readid, signalid = args
+    r5 = get_raw(rawFile)
 
     #! I do not know anymore in which version, but in some 0.9.x dorado version, the shift and scale values were taken from the raw DACS values instead of the pA signal
     if shift > 400:
@@ -124,46 +156,104 @@ def asyncSegmentation(q : Queue, script : str, modelpath : str, pore : str, rawF
     else:
         signal = r5.getpASignal(signalid)[start:end]
 
-    r5.close()
+    # shift = np.median(signal[start:end])
+    # scale = np.median(np.abs(signal[start:end] - shift))
 
-    #! normalize poly A region to median 0.9 (as in init models from ONT r9 and rp4) and scale to 0.15 (from training on r9 and rp4)
-    # shift = np.median(signal[:1000])
-    # scale = np.median(np.absolute(signal[:1000] - shift))
-    # signal = ((signal - shift) / scale) * 0.15 + 0.9
-
-    # [start:sp+ns]
-    # slice signal, remove remaining adapter content until polyA starts
-    # start = np.argmax(signal[start:] >= 0.8) + start + 100
-    # signal = signal[start:]
-
-    signal = (signal - shift) / scale
+    # standardize signal
+    signal -= shift
+    signal /= scale
     hampelFilter(signal)
-    if "rna" in pore:
+
+    if IS_RNA:
         read = read[::-1] # change direction from 5' - 3' to 3' - 5'
         if not read.startswith("AAAAAAAAA"):
             read = "AAAAAAAAA" + read
     feedSegmentationAsynchronous(
-                script,
-                {'m': modelpath, 'r' : pore, 't' : 4},
+                SCRIPT,
+                OPTIONS,
                 signal,
                 read,
                 start,
                 readid,
                 signalid,
-                kmerSize,
-                q,
-                "rna" in pore
+                KMERSIZE,
+                QUEUE,
+                IS_RNA
                 )
-    # directly free memory
-    del r5
-    del signal
-    del read
-    del script
-    del readid
-    del signalid
-    gc.collect()
 
-def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = 0) -> None:
+def generate_jobs(dataPath : str, basecalls : str, minQual : float = 0):
+    """
+    Generate segmentation jobs from a BAM/SAM file.
+
+    Yields tuples matching asyncSegmentation() arguments.
+
+    Parameters
+    ----------
+    dataPath : str
+        Path containing raw ONT files.
+    basecalls : str
+        Path to BAM/SAM basecalls.
+    minQual : float
+        Minimum allowed quality score.
+    queue : Queue, optional
+        Queue used for reporting missing raw files.
+
+    Yields
+    ------
+    tuple
+        (
+            rawFile,
+            shift,
+            scale,
+            start,
+            end,
+            sequence,
+            readid,
+            signalid
+        )
+    """
+    qualSkipped = 0
+
+    with pysam.AlignmentFile(basecalls, "rb", check_sq=False) as samfile:
+        for basecalled_read in samfile.fetch(until_eof=True):
+            # skip low qual reads if activated
+            qs = basecalled_read.get_tag("qs")
+            if minQual and qs < minQual:
+                qualSkipped+=1
+                continue
+
+            # init read
+            readid = basecalled_read.query_name
+            # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
+            signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
+            seq = basecalled_read.query_sequence
+            ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+            ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
+            sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
+            rawFile = join(dataPath, basecalled_read.get_tag("fn")) if basecalled_read.has_tag("fn") else join(dataPath, basecalled_read.get_tag("f5"))
+            # if not exists(rawFile): 
+            #     queue.put(f"error: 6, no raw file found\t{rawFile}\t{readid}\t{signalid}")
+            #     continue
+
+            #! normalize whole signal
+            shift = basecalled_read.get_tag("sm")
+            scale = basecalled_read.get_tag("sd")
+            
+            yield (
+                rawFile,
+                shift,
+                scale,
+                sp+ts,
+                sp+ns,
+                seq,
+                readid,
+                signalid
+            )
+
+    print(f"Skipped reads due to low quality: {qualSkipped}", file=sys.stderr)
+    
+
+def segment(dataPath : str, basecalls : str, processes : int, script : str, outfile : str, modelpath : str, pore : str, minQual : float = 0) -> None:
     """
     Segment a set of reads using a C++ script in parallel.
 
@@ -175,7 +265,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
         Path to the basecalls file in BAM format.
     processes : int
         Number of processes to use for segmentation.
-    SCRIPT : str
+    script : str
         Path to the C++ script to use for segmentation.
     outfile : str
         Path to write the segmentation results to.
@@ -192,89 +282,79 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     """
     processes = max(1, processes // 2) # half of the processes will spawn the cpp segmentation process
     print(f"Starting segmentation with {processes} processes.", file=sys.stderr)
-    manager = mp.Manager()
-    queue = manager.Queue(maxsize=1000) # workers naturally backpressure
+    queue = mp.Queue(maxsize=1000) # workers naturally backpressure
+    # queue = mp.SimpleQueue()
     
     writer = mp.Process(target=listener, args=(queue, outfile))
     writer.start()
 
-    pool = mp.Pool(processes)
-    qualSkipped = 0
+    pool = mp.Pool(
+        processes,
+        initializer=init_worker,
+        initargs=(
+            script,
+            modelpath,
+            pore,
+            queue,
+            "rna" in pore,
+            5 if pore in ["dna_r9", "rna002"] else 9
+        )
+    )
 
     try:
-        with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-            for basecalled_read in samfile.fetch(until_eof=True):
-                # skip low qual reads if activated
-                qs = basecalled_read.get_tag("qs")
-                if minQual and qs < minQual:
-                    qualSkipped+=1
-                    continue
+        for _ in pool.imap_unordered(
+            asyncSegmentation,
+            generate_jobs(dataPath, basecalls, minQual),
+            chunksize=16
+        ):
+            pass
 
-                # init read
-                readid = basecalled_read.query_name
-                # if read got split by basecaller, another readid is assign, pi holds the read id from the pod5 file
-                signalid = basecalled_read.get_tag("pi") if basecalled_read.has_tag("pi") else readid
-                seq = basecalled_read.query_sequence
-                ns = basecalled_read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
-                ts = basecalled_read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
-                sp = basecalled_read.get_tag("sp") if basecalled_read.has_tag("sp") else 0 # if split read get start offset of the signal
-                rawFile = join(dataPath, basecalled_read.get_tag("fn")) if basecalled_read.has_tag("fn") else join(dataPath, basecalled_read.get_tag("f5"))
-                if not exists(rawFile): 
-                    queue.put(f"error: 6, no raw file found\t{rawFile}\t{readid}\t{signalid}")
-                    continue
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt detected! Terminating...", file=sys.stderr)
 
-                #! normalize whole signal
-                shift = basecalled_read.get_tag("sm")
-                scale = basecalled_read.get_tag("sd")
+        pool.terminate()
+        writer.terminate()
 
-                pool.apply_async(
-                    asyncSegmentation, (
-                        queue,
-                        SCRIPT,
-                        modelpath,
-                        pore,
-                        rawFile,
-                        shift,
-                        scale,
-                        sp+ts,
-                        sp+ns,
-                        seq,
-                        readid,
-                        signalid
-                        )
-                    )
+        pool.join()
+        writer.join()
 
-        # wait for jobs to finish
+        queue.close()
+        queue.join_thread()
+
+        return
+
+    except Exception:
+        pool.terminate()
+        writer.terminate()
+
+        pool.join()
+        writer.join()
+
+        raise
+
+    else:
         pool.close()
         pool.join()
 
-    except KeyboardInterrupt:
-        print("\nKeyboardInterrupt detected! Terminating processes...", file=sys.stderr)
-        pool.terminate()
-        if writer:
-            writer.terminate()
-        pool.join()
-        writer.join()
-        print("All processes terminated.", file=sys.stderr)
-        sys.exit(20)
-
-    finally:
-        # tell queue to terminate
         queue.put("kill")
         writer.join()
-        manager.shutdown()
-        print(f"Skipped reads: low quality: {qualSkipped}", file=sys.stderr)
+
+    finally:
+        queue.close()
+        queue.join_thread()
 
 def main() -> None:
     args = parse()
 
     outfile = args.outfile
-    if not exists(dirname(outfile)) and dirname(outfile):
-        makedirs(dirname(outfile))
+
     if isdir(outfile):
         outfile = join(outfile, "dynamont.csv.zst")
     elif not outfile.endswith(".zst"):
         outfile += ".zst"
+    parent = dirname(outfile)
+    if parent and not exists(parent):
+        makedirs(parent)
 
     match args.mode:
         case "basic":
@@ -297,4 +377,5 @@ def main() -> None:
     segment(args.raw, args.basecalls, args.processes, CPP_SCRIPT, outfile, model_path, args.pore, args.qscore)
 
 if __name__ == '__main__':
+    mp.set_start_method("fork")
     main()

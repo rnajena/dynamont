@@ -66,7 +66,7 @@ def plotBorders(normSignal : np.ndarray, start : int, end : int, read : str, seg
     
     sns.set_theme()
 
-    motifLength = 5 if "r9" in pore else 9
+    motifLength = 5 if pore in ["dna_r9", "rna002"] else 9
 
     lb, ub = -5, 3
     nPlots = 1
@@ -210,7 +210,7 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     PARAMS['p'] = probability
     PARAMS['r'] = pore
 
-    # if "r9" in pore:
+    # if pore in ["dna_r9", "rna002"]:
     kmerSize = 5
     # else:
         # kmerSize = 9

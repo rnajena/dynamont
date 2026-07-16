@@ -18,10 +18,10 @@ Contains models for RNA sequencing with Oxford Nanopore Technologies.
 
 ### RNA004
 
-1. [rna004.model](https://github.com/nanoporetech/kmer_models/blob/master/rna004/9mer_levels_v1.txt)
-2. [trained rp4 models](rna/rp4/trained_rna004.model)
+1. [rna004.model](rna/rna004/9mer_levels_v1.txt)
+2. [trained_rna004.models](rna/rna004/trained_rna004.model)
 
 ### RNA002
 
-1. [rna_r9.4_180mv_70bps.model](rna/r9.4.1/rna_r9.4_180mv_70bps.model)
-2. [trained_r9.4.1_180mv_70bps.model](rna/r9.4.1/trained_rna_r9.4_180mv_70bps.model)
+1. [rna_r9.4_180mv_70bps.model](rna/rna002/rna002_5mer.model)
+2. [trained_r9.4.1_180mv_70bps.model](rna/rna002/trained_rna002_5mer.model)

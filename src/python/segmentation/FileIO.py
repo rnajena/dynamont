@@ -123,7 +123,7 @@ def openCPPScript(script : str) -> Popen:
     subprocess : Popen
     '''
     # print("Popen call:", ' '.join(script))
-    return Popen([script], stdout=PIPE, stdin=PIPE, stderr=PIPE, text=True)
+    return Popen(script, stdout=PIPE, stdin=PIPE, stderr=PIPE, text=True)
 
 def openCPPScriptATrain(script : str, params : dict) -> Popen:
     '''
@@ -474,12 +474,14 @@ def formatSegmentation(readid : str, signalid : str, segmentation : np.ndarray) 
     table : str
         string to write in a segmentation result file
     '''
+    prefix = f"{readid},{signalid},"
     # The generator expression avoids creating intermediate lists, which is crucial for large segmentation arrays.
     # Use a generator to format each line and join them all at once
-    return '\n'.join(
-        f"{readid},{signalid}," + ','.join(map(str, segment))
-        for segment in segmentation
-    ) + '\n'
+    return (
+        '\n'.join(
+            prefix + ','.join(map(str, segment)) for segment in segmentation
+        ) + '\n'
+    ).encode('utf-8')  # Ensure the output is in bytes for writing to a file
 
 def stopFeeding(pipe : Popen) -> None:
     '''
@@ -532,8 +534,8 @@ def getModel(pore : str) -> str:
         Path to the kmer model file.
     """
     MODELS = {
-        "rna002" : "models/rna/r9.4.1/rna002_5mer.model",
-        "rna004" : "models/rna/rp4/rna004_9mer.model",
+        "rna002" : "models/rna/rna002/rna002_5mer.model",
+        "rna004" : "models/rna/rna004/rna004_9mer.model",
         "dna_r10_260bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model",
         "dna_r10_400bps" : "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model",
     }

@@ -13,6 +13,7 @@ Dynamont was tested on
 [![Anaconda-Server Badge](https://anaconda.org/jannessp/dynamont/badges/version.svg)](https://anaconda.org/jannessp/dynamont) ![Conda](https://img.shields.io/conda/dn/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/latest_release_date.svg)](https://anaconda.org/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/platforms.svg)](https://anaconda.org/jannessp/dynamont)
 
 [![DOI](https://zenodo.org/badge/608215683.svg)](https://zenodo.org/badge/latestdoi/608215683)
+[![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1093/gigascience/giag005)](https://juleskreuer.eu/citation-badge/)
 
 ---
 
@@ -57,8 +58,8 @@ dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic -o <ou
 
 # Default models:
 
-- [rna002](models/rna/r9.4.1/rna002_5mer.model) (tested)
-- [rna004](models/rna/rp4/rna004_9mer.model) (tested)
+- [rna002](models/rna/rna002/rna002_5mer.model) (tested)
+- [rna004](models/rna/rna004/rna004_9mer.model) (tested)
 - dna_r9 not available
 - [dna_r10.4.1 260 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model) (not tested)
 - [dna_r10.4.1 400 bps](models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model) (tested)

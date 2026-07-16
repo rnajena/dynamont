@@ -204,7 +204,7 @@ class TestFileIO(unittest.TestCase):
     
             # Then
             mock_popen.assert_called_once_with(
-                [script_path], 
+                script_path, 
                 stdout=PIPE, 
                 stdin=PIPE, 
                 stderr=PIPE, 
