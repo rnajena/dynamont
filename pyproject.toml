@@ -17,13 +17,14 @@ classifiers = [
   "Intended Audience :: Science/Research"
 ]
 dependencies = [
-  "numpy >=1.26.0",
-  "pandas >=2.2.0",
-  "seaborn >=0.13.0",
-  "matplotlib >=3.2.0",
+  "numpy >=1.26.0,<3",
+  "pandas >=2.2.0,<3",
+  "matplotlib >=3.2.0,<4",
+  "seaborn >=0.13.0,<1",
   "read5_ont >=1.2.8",
   "pysam >=0.22.0",
-  "psutil >=6.0.0",
+  "psutil >=6.0.0,<7",
+  "zstandard >=0.23.0,<1"
 ]
 description = "Segmentation/resquiggling tool for ONT signals."
 dynamic = ["version"]

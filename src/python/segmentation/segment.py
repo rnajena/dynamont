@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 # author: Jannes Spangenberg
-# e-mail: jannes.spangenberg@uni-jena.de
 # github: https://github.com/JannesSP
 # website: https://jannessp.github.io
 
+import gc
 import read5_ont
 import multiprocessing as mp
 import pysam
 import psutil
 import sys
+import zstandard as zstd
+from multiprocessing.queues import Queue
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from os.path import exists, join, dirname, splitext, basename, isfile
+from os.path import exists, join, dirname, splitext, basename, isdir
 from os import makedirs, name, getpid
 from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
 from python._version import __version__
@@ -36,7 +38,7 @@ def parse() -> Namespace:
     )
     parser.add_argument('-r', '--raw',   type=str, required=True, metavar="PATH", help='Path to raw ONT data. [POD5|FAST5]')
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
-    parser.add_argument('-o', '--outfile', type=str, required=True, help='Outpath to write files')
+    parser.add_argument('-o', '--outfile', type=str, required=True, help='Path to output file. Will be zstd level 3 compressed. If directory is given, will write to dynamont.csv in that directory.')
     parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     parser.add_argument('--processes', type=int, default=mp.cpu_count()-1, help='Number of processes to use for segmentation')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna_r9", "rna_rp4", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9", 
@@ -45,53 +47,46 @@ def parse() -> Namespace:
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     return parser.parse_args()
 
-def listener(q : mp.Queue, outfile : str) -> None:
+def listener(q: Queue, outfile: str) -> None:
     """
-    Listens to a queue and writes segmentation results to a file.
-
-    Takes a mp.Queue and a file path to write the results to. The function
-    will run until it receives 'kill' from the queue. If any error occurs it
-    will be printed and counted.
-
-    Parameters
-    ----------
-    q : mp.Queue
-        The queue to listen to
-    outfile : str
-        The path to write the results to
+    Listens to a queue and writes segmentation results to a zstd compressed file.
     """
-    print(f"{'Segmented':>9} | {'Errors':>8} | {'Queued':>8} | {'Writer memory (MB)':>20}", file=sys.stderr)
-    errfile = splitext(outfile)[0] + ".errors"
-    # print(f"[written,\terrors,\tin queue,\tmemory]")
-    with open(outfile, 'w') as f:
-        f.write('readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
-        i = 0
-        e = 0
-        while True:
-            m = q.get()
-            
-            if m == 'kill':
-                break
-            elif m.startswith('error'):
-                # print(m)
-                with open(errfile, 'a') as a:
-                    a.write(m + '\n')
-                e+=1
-            else:
-                i+=1
-                f.write(m)
-            
-            print(f"{i:>9} | {e:>8} | {q.qsize():>8} | {get_memory_usage():>20.0f}", end='\r', file=sys.stderr)
-            # print(f"[{i},\t{e},\t{q.qsize()},\t{get_memory_usage():.2f} MB]\t", end='\r')
+    print(f"{'Segmented':>9} | {'Errors':>8}", file=sys.stderr)
+    errfile = splitext(splitext(outfile)[0])[0] + ".errors"
+    compressor = zstd.ZstdCompressor(level=3)
+    i = 0
+    e = 0
+
+    with open(outfile, "wb") as raw:
+        with compressor.stream_writer(raw) as f:
+            # write header
+            f.write(b'readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
+
+            while True:
+                m = q.get()
+
+                if m == "kill":
+                    break
+
+                elif m.startswith("error"):
+                    with open(errfile, "a") as err:
+                        err.write(f"{m}\n")
+                    e += 1
+
+                else:
+                    i += 1
+                    f.write(m.encode())
+
+                print(f"{i:>9} | {e:>8}", end="\r", file=sys.stderr)
     print(f"\nReads segmented: {i}", f"Errors: {e}", file=sys.stderr)
 
-def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
+def asyncSegmentation(q : Queue, script : str, modelpath : str, pore : str, rawFile : str, shift : float, scale : float, start : int, end : int, read : str, readid : str, signalid : str) -> None:
     """
     Asynchronously segments a raw signal using a C++ script and places the results in a queue.
 
     Parameters
     ----------
-    q : mp.Queue
+    q : Queue
         Queue to store segmentation results or errors.
     script : str
         Path to the C++ segmentation script.
@@ -174,6 +169,7 @@ def asyncSegmentation(q : mp.Queue, script : str, modelpath : str, pore : str, r
     del script
     del readid
     del signalid
+    gc.collect()
 
 def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outfile : str, modelpath : str, pore : str, minQual : float = 0) -> None:
     """
@@ -202,11 +198,14 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     -------
     None
     """
-    processes = max(1, processes - 1)
+    processes = max(1, processes // 2) # half of the processes will spawn the cpp segmentation process
     print(f"Starting segmentation with {processes} processes.", file=sys.stderr)
-    writer = mp.Pool(1)
-    queue = mp.Manager().Queue()
-    writer.apply_async(listener, (queue, outfile))
+    manager = mp.Manager()
+    queue = manager.Queue(maxsize=1000) # workers naturally backpressure
+    
+    writer = mp.Process(target=listener, args=(queue, outfile))
+    writer.start()
+
     pool = mp.Pool(processes)
     qualSkipped = 0
 
@@ -230,6 +229,7 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
                 rawFile = join(dataPath, basecalled_read.get_tag("fn")) if basecalled_read.has_tag("fn") else join(dataPath, basecalled_read.get_tag("f5"))
                 if not exists(rawFile): 
                     queue.put(f"error: 6, no raw file found\t{rawFile}\t{readid}\t{signalid}")
+                    continue
 
                 #! normalize whole signal
                 shift = basecalled_read.get_tag("sm")
@@ -259,7 +259,8 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt detected! Terminating processes...", file=sys.stderr)
         pool.terminate()
-        writer.terminate()
+        if writer:
+            writer.terminate()
         pool.join()
         writer.join()
         print("All processes terminated.", file=sys.stderr)
@@ -268,8 +269,8 @@ def segment(dataPath : str, basecalls : str, processes : int, SCRIPT : str, outf
     finally:
         # tell queue to terminate
         queue.put("kill")
-        writer.close()
         writer.join()
+        manager.shutdown()
         print(f"Skipped reads: low quality: {qualSkipped}", file=sys.stderr)
 
 def main() -> None:
@@ -278,8 +279,10 @@ def main() -> None:
     outfile = args.outfile
     if not exists(dirname(outfile)) and dirname(outfile):
         makedirs(dirname(outfile))
-    if not isfile(outfile):
-        outfile = join(outfile, "dynamont.csv")
+    if isdir(outfile):
+        outfile = join(outfile, "dynamont.csv.zst")
+    elif not outfile.endswith(".zst"):
+        outfile += ".zst"
 
     match args.mode:
         case "basic":
