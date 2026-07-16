@@ -243,7 +243,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
  * @param numKmers number of kmers
  * @return tuple of emission parameter means and stdevs
  */
-std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const int numKmers)
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *forM, const double *forE, const double *backM, const double *backE, const std::size_t T, const std::size_t N, const std::size_t numKmers)
 {
 
     // TODO: calculate this with LP matrices

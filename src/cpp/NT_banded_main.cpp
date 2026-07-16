@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     const std::size_t B = 2 * BANDWIDTH + 3;
     const std::size_t TB = T * B;
 
-    std::vector<std::tuple<long, std::size_t, std::size_t>> bounds = getBounds(T, N, TB, BANDWIDTH);
+    std::vector<std::tuple<long, std::size_t, std::size_t>> bounds = getBounds(T, N, BANDWIDTH);
 
     // calculate segmentation probabilities, fill forward matrices
     double *forM = new double[TB];

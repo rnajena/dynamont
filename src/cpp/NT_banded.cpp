@@ -267,7 +267,7 @@ void traceback(const double *M, const double *E, const double *LPM, const double
  * @param TB Size of the matrix used for dynamic programming.
  * @return A vector of std::tuple containing the lower and upper bounds for each time step.
  */
-std::vector<std::tuple<long, std::size_t, std::size_t>> getBounds(const std::size_t T, const std::size_t N, const std::size_t TB, const std::size_t BANDWIDTH)
+std::vector<std::tuple<long, std::size_t, std::size_t>> getBounds(const std::size_t T, const std::size_t N, const std::size_t BANDWIDTH)
 {
     const double NTRATIO = (double)N / T;
 
@@ -372,7 +372,7 @@ std::tuple<double, double, double> trainTransition(const double *sig, const int 
  * @param numKmers number of kmers
  * @return tuple of emission parameter means and stdevs
  */
-std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *LPM, const double *LPE, const std::size_t T, const std::size_t N, const std::size_t B, const int numKmers, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds)
+std::tuple<double *, double *> trainEmission(const double *sig, const int *kmerSeq, const double *LPM, const double *LPE, const std::size_t T, const std::size_t N, const std::size_t B, const std::size_t numKmers, const std::vector<std::tuple<long, std::size_t, std::size_t>> &bounds)
 {
     // Emission
     // https://courses.grainger.illinois.edu/ece417/fa2021/lectures/lec15.pdf
