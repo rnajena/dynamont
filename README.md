@@ -12,11 +12,12 @@ Dynamont was tested on
 [![PyPI](https://img.shields.io/pypi/v/dynamont) ![PyPI - Downloads](https://img.shields.io/pypi/dm/dynamont)](https://pypi.org/project/dynamont/)
 [![Anaconda-Server Badge](https://anaconda.org/jannessp/dynamont/badges/version.svg)](https://anaconda.org/jannessp/dynamont) ![Conda](https://img.shields.io/conda/dn/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/latest_release_date.svg)](https://anaconda.org/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/platforms.svg)](https://anaconda.org/jannessp/dynamont)
 
-[![DOI](https://zenodo.org/badge/608215683.svg)](https://zenodo.org/badge/latestdoi/608215683)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21398660.svg)](https://doi.org/10.5281/zenodo.21398660)
 [![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1093/gigascience/giag005)](https://juleskreuer.eu/citation-badge/)
 
 ---
 
+- [Segmentation Comparison](#segmentation-comparison)
 - [Installation](#installation)
   - [Pypi/pip](#pypipip)
   - [Conda](#conda)
@@ -27,6 +28,14 @@ Dynamont was tested on
 - [Exit-Codes](#exit-codes)
 
 ---
+
+# Segmentation Comparison
+
+For further details please read: [10.1093/gigascience/giag005](https://doi.org/10.1093/gigascience/giag005)
+
+<!-- ![segmentation_comparison](figures/segmentation_comparison.png) -->
+<img src="figures/segmentation_comparison.png" alt="Segmentation Comparison" width="49%"/>
+<img src="figures/segmentation_scoring_results.png" alt="Segmentation Scoring" width="49%"/>
 
 # Installation
 
@@ -92,6 +101,10 @@ readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish
 476b4ed2-7865-4f81-9f78-82d614fb40a2,476b4ed2-7865-4f81-9f78-82d614fb40a2,12791,12806,51,A,AAAAAAAAA,M,0.11881,NA
 476b4ed2-7865-4f81-9f78-82d614fb40a2,476b4ed2-7865-4f81-9f78-82d614fb40a2,12806,12820,50,A,AAAAAAAAA,M,0.11665,NA
 ```
+
+## Differences Segmentation Tools
+
+<img src="figures/tools_comparison.png" alt="Segmentation Comparison" width="50%"/>
 
 # Exit-Codes
 
