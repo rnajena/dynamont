@@ -75,7 +75,7 @@ class TestFileIO(unittest.TestCase):
         readid = "read123"
         signalid = "signal456"
         segmentation = np.array([[1, 2, 3], [4, 5, 6]])
-        expected_output = "read123,signal456,1,2,3\nread123,signal456,4,5,6\n"
+        expected_output = b"read123,signal456,1,2,3\nread123,signal456,4,5,6\n"
         result = formatSegmentation(readid, signalid, segmentation)
         assert result == expected_output
         
