@@ -20,7 +20,6 @@ Dynamont was tested on
 - [Segmentation Comparison](#segmentation-comparison)
 - [Installation](#installation)
   - [Pypi/pip](#pypipip)
-  - [Conda](#conda)
 - [Usage](#usage)
 - [Default models:](#default-models)
 - [Output](#output)
@@ -34,8 +33,8 @@ Dynamont was tested on
 For further details please read: [10.1093/gigascience/giag005](https://doi.org/10.1093/gigascience/giag005)
 
 <!-- ![segmentation_comparison](figures/segmentation_comparison.png) -->
-<img src="figures/segmentation_comparison.png" alt="Segmentation Comparison" width="49%"/>
-<img src="figures/segmentation_scoring_results.png" alt="Segmentation Scoring" width="49%"/>
+<img src="figures/segmentation_comparison.png" alt="Segmentation Comparison" width="100%"/>
+<img src="figures/segmentation_scoring_results.png" alt="Segmentation Scoring" width="100%"/>
 
 # Installation
 
@@ -45,7 +44,7 @@ For further details please read: [10.1093/gigascience/giag005](https://doi.org/1
 pip install dynamont
 ```
 
-## Conda
+## Conda (not updated anymore)
 
 ```bash
 conda config --add channels jannessp # to install all dependencies from the correct channel
@@ -104,7 +103,7 @@ readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish
 
 ## Differences Segmentation Tools
 
-<img src="figures/tools_comparison.png" alt="Segmentation Comparison" width="50%"/>
+<img src="figures/tools_comparison.png" alt="Segmentation Comparison" width="100%"/>
 
 # Exit-Codes
 
