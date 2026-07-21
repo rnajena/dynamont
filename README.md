@@ -10,10 +10,8 @@ Dynamont was tested on
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dynamont)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-teal.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PyPI](https://img.shields.io/pypi/v/dynamont) ![PyPI - Downloads](https://img.shields.io/pypi/dm/dynamont)](https://pypi.org/project/dynamont/)
-[![Anaconda-Server Badge](https://anaconda.org/jannessp/dynamont/badges/version.svg)](https://anaconda.org/jannessp/dynamont) ![Conda](https://img.shields.io/conda/dn/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/latest_release_date.svg)](https://anaconda.org/jannessp/dynamont) [![Conda package](https://anaconda.org/jannessp/dynamont/badges/platforms.svg)](https://anaconda.org/jannessp/dynamont)
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21398660.svg)](https://doi.org/10.5281/zenodo.21398660)
-[![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1093/gigascience/giag005)](https://juleskreuer.eu/citation-badge/)
+Please cite [10.1093/gigascience/giag005](https://doi.org/10.1093/gigascience/giag005). [![Citation Badge](https://api.juleskreuer.eu/citation-badge.php?doi=10.1093/gigascience/giag005)](https://juleskreuer.eu/citation-badge/)
 
 ---
 

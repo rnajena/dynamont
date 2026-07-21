@@ -16,6 +16,7 @@ from os.path import exists, join, dirname, splitext, basename, isdir
 from os import makedirs, name
 from python.segmentation.FileIO import feedSegmentationAsynchronous, hampelFilter, getModel
 from python._version import __version__
+from tqdm import tqdm
 
 # Globals that exist separately inside every worker process
 SCRIPT = None
@@ -86,23 +87,32 @@ def listener(queue: Queue, outfile: str) -> None:
             # write header
             output.write(b'readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish\n')
 
-            while True:
-                result = queue.get() # this is already in bytes
+            with tqdm(
+                desc="Segmented",
+                unit="reads",
+                mininterval=30,     # update at most every 30 seconds
+                file=sys.stderr
+            ) as pbar:
 
-                if result == "kill":
-                    break
+                while True:
+                    result = queue.get() # this is already in bytes
 
-                elif isinstance(result, str): # and result.startswith("error"):
-                    with open(errfile, "a") as err:
-                        err.write(f"{result}\n")
-                    num_err += 1
+                    if result == "kill":
+                        break
 
-                else:
-                    num_reads += 1
-                    output.write(result)
+                    elif isinstance(result, str): # and result.startswith("error"):
+                        with open(errfile, "a") as err:
+                            err.write(f"{result}\n")
+                        num_err += 1
 
-                if num_reads%10 == 0:
-                    print(f"{num_reads:>9} | {num_err:>8}", end="\r", file=sys.stderr)
+                    else:
+                        num_reads += 1
+                        output.write(result)
+                        pbar.update(1)
+
+                        if num_err:
+                            pbar.set_postfix(errors=num_err)
+
     print(f"\nReads segmented: {num_reads}", f"Errors: {num_err}", file=sys.stderr)
 
 def get_raw(path):
