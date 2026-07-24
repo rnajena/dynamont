@@ -111,8 +111,8 @@ def listener(queue: Queue, outfile: str) -> None:
                         output.write(result)
                         pbar.update(1)
 
-    print(f"{'Segmented':>9} | {'Errors':>8}", file=sys.stderr)
-    print(f"\nReads segmented: {num_reads}", f"Errors: {num_err}", file=sys.stderr)
+    # print(f"{'Segmented':>9} | {'Errors':>8}", file=sys.stderr)
+    # print(f"\nReads segmented: {num_reads}", f"Errors: {num_err}", file=sys.stderr)
 
 def get_raw(path):
     global RAW_CACHE
