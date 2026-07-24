@@ -76,7 +76,6 @@ def listener(queue: Queue, outfile: str) -> None:
     """
     Listens to a queue and writes segmentation results to a zstd compressed file.
     """
-    print(f"{'Segmented':>9} | {'Errors':>8}", file=sys.stderr)
     errfile = splitext(splitext(outfile)[0])[0] + ".errors"
     compressor = zstd.ZstdCompressor(level=3)
     num_reads = 0
@@ -89,8 +88,9 @@ def listener(queue: Queue, outfile: str) -> None:
 
             with tqdm(
                 desc="Segmented",
-                unit="reads",
-                mininterval=30,     # update at most every 30 seconds
+                unit=" reads",
+                dynamic_ncols=False,
+                mininterval=10,     # update at most every 10 seconds
                 file=sys.stderr
             ) as pbar:
 
@@ -104,16 +104,15 @@ def listener(queue: Queue, outfile: str) -> None:
                         with open(errfile, "a") as err:
                             err.write(f"{result}\n")
                         num_err += 1
+                        pbar.set_postfix(errors=num_err)
 
                     else:
                         num_reads += 1
                         output.write(result)
                         pbar.update(1)
 
-                        if num_err:
-                            pbar.set_postfix(errors=num_err)
-
-    print(f"\nReads segmented: {num_reads}", f"Errors: {num_err}", file=sys.stderr)
+    # print(f"{'Segmented':>9} | {'Errors':>8}", file=sys.stderr)
+    # print(f"\nReads segmented: {num_reads}", f"Errors: {num_err}", file=sys.stderr)
 
 def get_raw(path):
     global RAW_CACHE
@@ -293,7 +292,6 @@ def segment(dataPath : str, basecalls : str, processes : int, script : str, outf
     processes = max(1, processes // 2) # half of the processes will spawn the cpp segmentation process
     print(f"Starting segmentation with {processes} processes.", file=sys.stderr)
     queue = mp.Queue(maxsize=1000) # workers naturally backpressure
-    # queue = mp.SimpleQueue()
     
     writer = mp.Process(target=listener, args=(queue, outfile))
     writer.start()
