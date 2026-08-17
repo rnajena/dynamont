@@ -137,6 +137,7 @@ void NTAligner::forward(
             ++eShift;
         }
 
+        // #pragma omp parallel for if (threads_ > 1) num_threads(threads_) schedule(static)
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
@@ -182,6 +183,7 @@ void NTAligner::backward(
             --eShift;
         }
 
+        // #pragma omp parallel for if (threads_ > 1) num_threads(threads_) schedule(static)
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
