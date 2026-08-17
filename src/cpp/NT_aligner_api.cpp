@@ -137,7 +137,6 @@ void NTAligner::forward(
             ++eShift;
         }
 
-        #pragma omp parallel for if (threads_ > 1) schedule(static)
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
@@ -183,7 +182,6 @@ void NTAligner::backward(
             --eShift;
         }
 
-        #pragma omp parallel for if (threads_ > 1) schedule(static)
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
             const std::size_t idx = n + offset;
@@ -217,7 +215,6 @@ void NTAligner::calculatePosterior(
     double Z,
     std::size_t size) const
 {
-    #pragma omp parallel for if (threads_ > 1) schedule(static)
     for (std::size_t i = 0; i < size; ++i)
     {
         output[i] = forward[i] + backward[i] - Z;
@@ -254,7 +251,6 @@ Result NTAligner::align(
 
     const double NEG_INF = -std::numeric_limits<double>::infinity();
 
-    #pragma omp parallel for if (threads_ > 1) schedule(static)
     for(std::size_t i = 0; i < matrixSize; ++i)
     {
         forwardE[i] = NEG_INF;
@@ -518,7 +514,6 @@ TrainingResult NTAligner::runTraining(
     // Update emission model
     result.emissionModel.resize(numKmers_);
 
-    #pragma omp parallel for if (threads_ > 1) schedule(static)
     for (std::size_t k = 0; k < numKmers_; ++k)
     {
         if (weight[k] > 0.0)
