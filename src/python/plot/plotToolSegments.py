@@ -8,10 +8,10 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
-import read5_ont as r5
 from os.path import splitext, join
 import numpy as np
 from matplotlib.patches import Rectangle
+from python.pod5_io import get_signal, open_pod5
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -51,16 +51,19 @@ def getDynamontProbs() -> np.ndarray:
     """
     Hardcoded for Dynamont segments in the manuscript plot.
     """
-    from python.segmentation.FileIO import feedSegmentation, hampelFilter
+    from python.segmentation.utils import feedSegmentation, hampel
     readid = "131ee77f-085b-4024-a175-cc0a79660576"
     read = "AAACTTCAAAGTGAAACCTTACGAGCTCCAGCACCATGTTGGTTCGAGTCTCCTGCTTGAGGGTCCAACGGCTCACAGTCGTGTTCATCGATATAGGACGCCATGGCTGCCCAGCCGTCTGACATGTGATGTTTTGATACAGGTATACAATGTGTAACTATCAAATCCGAGTAACTGGGGTATTGATCATCTTGAGAATTTATCATTTCATGTTAGGAACAGTCCAATTCCACTCTTTTAGTTATTTTAAAATATGCAATAAATTATTAACTG"
     read = read + "AAAAAAAAA" # add poly A to 3' end
     read = read[::-1] # rna is sequenced 3' -> 5', so we reverse the read to match signal orientation
-    signal = r5.read("/data/fass5/projects/js_dynamont/benchmark/data/raw/rna004/h_sapiens/PNXRXX240011_r10k_2.pod5").getSignal(readid)
+    signal = get_signal(
+        open_pod5("/data/fass5/projects/js_dynamont/benchmark/data/raw/rna004/h_sapiens/PNXRXX240011_r10k_2.pod5"),
+        readid,
+    )
     shift = 795.44
     scale = 116.091
     signal = (signal - shift) / scale
-    hampelFilter(signal)
+    hampel(signal)
     start = 2050
     end = 9769
     script = "dynamont-NT"
@@ -70,7 +73,7 @@ def getDynamontProbs() -> np.ndarray:
         'm' : "/home/yi98suv/projects/dynamont/models/rna/rp4/rna004_9mer.model",
         'p' : True, # return posterior probabilities
         'r' : pore, # pore type
-        't' : 4,
+        't' : 1,
     }
     segments, borderProbs, heatmap = feedSegmentation(signal[start:end], read, script, start, kmerSize, "rna" in pore, PARAMS)
     # convert log probabilities to probabilities
@@ -189,10 +192,11 @@ def main() -> None:
     }
 
     outpath = args.out
+    reader = open_pod5(args.pod5)
     try:
-        signal = r5.read(args.pod5).getpASignal(args.readid)
-    except:
-        signal = r5.read(args.pod5).getSignal(signalid)
+        signal = get_signal(reader, args.readid, calibrated=True)
+    except Exception:
+        signal = get_signal(reader, signalid)
 
     fig, ax = plt.subplots(nrows = 5, figsize=(110,15), dpi=300)
     fig.suptitle("Segmentation of the same read by different tools")

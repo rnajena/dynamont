@@ -4,7 +4,7 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from python.segmentation.FileIO import plotParameters
+from python.segmentation.utils import plt_parameters
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -16,7 +16,7 @@ def parse() -> Namespace:
 
 def main() -> None:
     args = parse()
-    plotParameters(args.params, args.outdir)
+    plt_parameters(args.params, args.outdir)
 
 if __name__ == '__main__':
     main()

@@ -6,15 +6,16 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import read5_ont
 import pysam
 import seaborn as sns
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from matplotlib.patches import Rectangle
 from os.path import exists, join
-from os import makedirs, name
-from python.segmentation.FileIO import feedSegmentation, SegmentationError, hampelFilter
+from os import makedirs
+from python import Aligner
+from python.segmentation.utils import SegmentationError, hampel, format_segmentation
+from python.pod5_io import get_signal, open_pod5
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -192,29 +193,16 @@ def segmentRead(normSignal : np.ndarray, start : int, end : int, read : str, rea
     print(f"Segmenting {readid}", file=sys.stderr)
 
     kmerModels = pd.read_csv(modelPath, sep='\t', index_col = "kmer")
-    PARAMS = {}
-
-    if mode == 'basic':
-        CPP_SCRIPT = 'dynamont-NT-banded'
-    elif mode == 'resquiggle':
-        CPP_SCRIPT = 'dynamont-NTC'
-    else:
-        print(f'Mode {mode} not implemented', file=sys.stderr)
-        exit(1)
-        
-    if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
-
-    PARAMS['m'] = modelPath
-    PARAMS['p'] = probability
-    PARAMS['r'] = pore
 
     # if pore in ["dna_r9", "rna002"]:
     kmerSize = 5
     # else:
         # kmerSize = 9
 
-    segments, borderProbs = feedSegmentation(normSignal[start:end], read, CPP_SCRIPT, start, kmerSize, "rna" in pore, PARAMS) # , heatmap
+    aligner = Aligner(modelPath, pore, mode=mode, threads=1, band=400)
+    result = aligner.align(normSignal[start:end], read, calc_probabilities=True)
+    segments = format_segmentation(result, start, end, read, kmerSize, "rna" in pore)
+    borderProbs = np.asarray(result["probabilities"])
 
     # sns.set_theme()
     # plt.figure(dpi=200)
@@ -267,20 +255,14 @@ def start(dataPath : str, basecalls : str, targetID : str, outdir : str, mode : 
             ns = basecalledRead.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
 
             rawFile = join(dataPath, basecalledRead.get_tag("fn"))
-            r5 = read5_ont.read(rawFile)
+            r5 = open_pod5(rawFile)
 
             # normSignal = r5.getZNormSignal(readid, "median")[sp:sp+ns].astype(np.float32)
             shift = basecalledRead.get_tag("sm")
             scale = basecalledRead.get_tag("sd")
-            if pore in ["dna_r9", "rna002"]:
-                # for r9 pores, shift and scale are stored for pA signal in bam
-                signal = r5.getpASignal(readid)
-            else:
-                # for new pores, shift and scale is directly applied to stored integer signal (DACs)
-                # this way the conversion from DACs to pA is skipped
-                signal = r5.getSignal(readid)
+            signal = get_signal(r5, readid, calibrated=pore in ["dna_r9", "rna002"])
             signal = (signal - shift) / scale
-            hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+            hampel(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
 
             # change read from 5'-3' to 3'-5'
             if "rna" in pore:
