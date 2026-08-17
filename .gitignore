@@ -89,3 +89,6 @@ dev/
 .qodo
 src/bin/
 _build/
+old/
+build-py/
+.venv*
