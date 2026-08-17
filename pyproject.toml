@@ -65,6 +65,7 @@ universal = true
 
 
 [tool.scikit-build]
+cmake.build-type = "Release"
 cmake.define = { BUILD_PYTHON_BINDING = "ON" }
 sdist.include = ["models/**"]
 
