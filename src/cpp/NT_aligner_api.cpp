@@ -117,36 +117,31 @@ void NTAligner::forward(
     std::size_t bandwidth,
     const std::vector<Bound>& bounds) const
 {
-    // initial state
     E[bandwidth + 1] = 0.0;
-    std::size_t tB = 0;
-    long oldBandStart = bounds[0].start;
 
-    // populate matrices
     for (std::size_t t = 1; t < T; ++t)
     {
-        tB += B;
         auto [bandStart, nStart, nEnd] = bounds[t];
 
         if (!nStart) [[unlikely]]
             nStart = 1;
 
-        long offset = static_cast<long>(tB) - bandStart + 1;
+        const std::size_t tB = t * B;
+        const long offset = static_cast<long>(tB) - bandStart + 1;
         long mShift = -static_cast<long>(B) - 1;
         long eShift = -static_cast<long>(B);
 
-        if (oldBandStart != bandStart)
+        if (bounds[t - 1].start != bandStart)
         {
             ++mShift;
             ++eShift;
-            oldBandStart = bandStart;
         }
 
         #pragma omp parallel for if (threads_ > 1) schedule(static)
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
-            std::size_t idx = n + offset;
-            double score = scoreKmer(signal[t - 1], kmers[n - 1]);
+            const std::size_t idx = n + offset;
+            const double score = scoreKmer(signal[t - 1], kmers[n - 1]);
 
             M[idx] = E[idx + mShift] + score + transitions_.m1;
             E[idx] = logPlus(
@@ -172,30 +167,26 @@ void NTAligner::backward(
     const std::vector<Bound>& bounds) const
 {
     const double NEG_INF = -std::numeric_limits<double>::infinity();
-    // initial state
-    std::size_t tB = (T - 1) * B;
-    E[tB + bandwidth + 1] = 0.0;
-    long oldBandStart = bounds[T - 1].start;
+    E[(T - 1) * B + bandwidth + 1] = 0.0;
 
     for (std::size_t t = T - 1; t-- > 0;)
     {
-        tB -= B;
         auto [bandStart, nStart, nEnd] = bounds[t];
-        long offset = static_cast<long>(tB) - bandStart + 1;
+        const std::size_t tB = t * B;
+        const long offset = static_cast<long>(tB) - bandStart + 1;
         long mShift = static_cast<long>(B) + 1;
         long eShift = static_cast<long>(B);
 
-        if (oldBandStart != bandStart)
+        if (bounds[t + 1].start != bandStart)
         {
             --mShift;
             --eShift;
-            oldBandStart = bandStart;
         }
 
         #pragma omp parallel for if (threads_ > 1) schedule(static)
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
-            std::size_t idx = n + offset;
+            const std::size_t idx = n + offset;
             double extension = NEG_INF;
 
             if (n + 1 < N) [[likely]]
@@ -345,32 +336,29 @@ std::vector<Segment> NTAligner::calculateSegments(
     std::vector<double> E(size, NEG_INF);
 
     E[bandwidth + 1] = 0.0;
-    std::size_t tB = 0;
-    long oldBandStart = bounds[0].start;
 
     for (std::size_t t = 1; t < T; ++t)
     {
-        tB += B;
         auto [bandStart, nStart, nEnd] = bounds[t];
         
         // forward specific: if start == 0 move it to 1 to prevent 'if's in n-loop
         if (!nStart) [[unlikely]]
             nStart = 1;
  
-        long offset = static_cast<long>(tB) - bandStart + 1; // TN to TB conversion offset
+        const std::size_t tB = t * B;
+        const long offset = static_cast<long>(tB) - bandStart + 1; // TN to TB conversion offset
         long mShift = -static_cast<long>(B) - 1;
         long eShift = -static_cast<long>(B);
 
-        if (oldBandStart != bandStart)
+        if (bounds[t - 1].start != bandStart)
         {
             ++mShift;
             ++eShift;
-            oldBandStart = bandStart;
         }
 
         for (std::size_t n = nStart; n < nEnd; ++n)
         {
-            std::size_t idx = n + offset;
+            const std::size_t idx = n + offset;
             M[idx] = E[idx + mShift] + LPM[idx];
             E[idx] = std::max(M[idx + eShift], E[idx + eShift]) + LPE[idx];
         }
@@ -414,18 +402,16 @@ void NTAligner::decodeMAP(
     // long bandIndex = static_cast<long>(N - 1) - bounds[T - 1].start;
     // std::size_t tBb = (T - 1) * B + static_cast<std::size_t>(bandIndex);
     std::size_t tBb = (T - 1) * B + bandwidth + 1;
-    long oldBStart = bounds[T - 1].start;
 
     while (t && n)
     {
         long mShift = -static_cast<long>(B) - 1;
         long eShift = -static_cast<long>(B);
 
-        if (oldBStart != bounds[t - 1].start)
+        if (bounds[t].start != bounds[t - 1].start)
         {
             ++mShift;
             ++eShift;
-            oldBStart = bounds[t - 1].start;
         }
 
         // Match state
@@ -545,7 +531,7 @@ TrainingResult NTAligner::runTraining(
 
             result.emissionModel[k] = EmissionParams{mean, std::sqrt(variance)};
         }
-        else // no obersvations for this kmer
+        else // no observations for this kmer
         {
             result.emissionModel[k] = model_[k];
         }
