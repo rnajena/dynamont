@@ -24,8 +24,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake libgtest-dev
-          pip install hatch
-          pip install build
+          python -m pip install --upgrade pip
+          python -m pip install build pybind11 scikit-build-core setuptools-scm
           ./build.sh
 
       - name: Install dependencies
