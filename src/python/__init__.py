@@ -1,4 +1,13 @@
+from importlib.metadata import PackageNotFoundError, version
+
 try:
-  from python._version import version as __version__
-except ImportError:
+  __version__ = version("dynamont")
+except PackageNotFoundError:
   __version__ = "unknown"
+
+try:
+  from python._dynamont import Aligner, PoreType
+except ImportError:
+  __all__ = ["__version__"]
+else:
+  __all__ = ["Aligner", "PoreType", "__version__"]
