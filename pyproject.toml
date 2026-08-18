@@ -78,6 +78,7 @@ packages = ["src/dynamont"]
 build = "cp310-* cp311-* cp312-*"
 skip = "*-musllinux_*"
 manylinux-x86_64-image = "manylinux_2_28"
+test-extras = ["test"]
 test-command = "python -m pytest tests --no-cov"
 
 [[tool.dynamic-metadata]]
