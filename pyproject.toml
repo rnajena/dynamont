@@ -1,6 +1,6 @@
 [build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling", "hatch-vcs>=0.3", "setuptools-scm>=7.1"]
+build-backend = "scikit_build_core.build"
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12", "setuptools-scm>=7.1"]
 
 [project]
 authors = [
@@ -21,7 +21,7 @@ dependencies = [
   "pandas >=2.2.0",
   "matplotlib >=3.2.0",
   "seaborn >=0.13.0",
-  "read5_ont >=1.2.8",
+  "pod5 >=0.3.0",
   "pysam >=0.22.0",
   "zstandard >=0.23.0",
   "tqdm >=4.68"
@@ -44,9 +44,6 @@ test = [
 [project.scripts]
 dynamont-resquiggle = "python.segmentation.segment:main"
 dynamont-train = "python.segmentation.train:main"
-dynamont-NTC = "python.ntc_entry:main"
-dynamont-NT-banded = "python.nt_entry_banded:main"
-dynamont-NT = "python.nt_entry:main"
 
 [project.urls]
 repository = "https://github.com/rnajena/dynamont"
@@ -66,40 +63,26 @@ omit = [
 [tool.distutils.bdist_wheel]
 universal = true
 
-[tool.hatch.build.hooks.vcs]
-version-file = "src/python/_version.py"
 
-[tool.hatch.build.targets.wheel]
+[tool.scikit-build]
+cmake.build-type = "Release"
+cmake.define = { BUILD_PYTHON_BINDING = "ON" }
+sdist.include = ["models/**"]
+
+[tool.scikit-build.wheel]
 packages = ["src/python"]
 
-[tool.hatch.build.targets.wheel.force-include]
+[tool.scikit-build.wheel.force-include]
 "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model"
 "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model"
 "models/rna/rna002/rna002_5mer.model" = "models/rna/rna002/rna002_5mer.model"
 "models/rna/rna004/rna004_9mer.model" = "models/rna/rna004/rna004_9mer.model"
-"src/bin/dynamont-NTC" = "src/bin/dynamont-NTC"
-"src/bin/dynamont-NT-banded" = "src/bin/dynamont-NT-banded"
-"src/bin/dynamont-NT" = "src/bin/dynamont-NT"
 
-[tool.hatch.build.targets.sdist]
-include = [
-  "src/python",
-  "pyproject.toml",
-  "README.md",
-  "LICENSE"
-]
+[[tool.dynamic-metadata]]
+provider = "scikit_build_core.metadata.setuptools_scm"
 
-[tool.hatch.build.targets.sdist.force-include]
-"models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model"
-"models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_400bps.model"
-"models/rna/rna002/rna002_5mer.model" = "models/rna/rna002/rna002_5mer.model"
-"models/rna/rna004/rna004_9mer.model" = "models/rna/rna004/rna004_9mer.model"
-"src/bin/dynamont-NTC" = "src/bin/dynamont-NTC"
-"src/bin/dynamont-NT-banded" = "src/bin/dynamont-NT-banded"
-"src/bin/dynamont-NT" = "src/bin/dynamont-NT"
-
-[tool.hatch.version]
-source = "vcs"
+[tool.setuptools_scm]
+version_file = "src/python/_version.py"
 
 [tool.mypy]
 disallow_untyped_defs = true

@@ -15,9 +15,9 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from collections import defaultdict
 import itertools
 # from venn import venn
-import read5_ont
 from scipy.stats import median_abs_deviation as mad
 from tqdm import tqdm
+from python.pod5_io import get_signal, open_pod5
 
 #! Tombo function only supports RNA, not DNA (no issue so far, cause no tombo dna data was analysed)
 
@@ -715,7 +715,8 @@ def processReadSegments(args):
     Worker function to compute segment border overlaps per read.
     """
     readid, toolsResult, toolNames, pod5, windowSize = args
-    signalLength = len(read5_ont.read(pod5).getSignal(readid))
+    reader = open_pod5(pod5)
+    signalLength = len(get_signal(reader, readid))
     
     # Initialize an array to count segment borders at each position
     segmentPresence = np.zeros((len(toolNames), signalLength + 1), dtype=bool)
@@ -754,8 +755,8 @@ def processReadScores(args):
     Worker function to compute segmentation scores per read.
     """
     readid, toolsResult, toolNames, pod5, window = args
-    r5 = read5_ont.read(pod5)
-    signal = r5.getSignal(readid)
+    reader = open_pod5(pod5)
+    signal = get_signal(reader, readid)
     sig_len = len(signal)
 
     toolScores = {}

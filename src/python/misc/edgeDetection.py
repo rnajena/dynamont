@@ -5,14 +5,14 @@
 
 import h5py
 import numpy as np
-import read5_ont
 import pysam
 import pywt
 import multiprocessing as mp
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import join
-from python.segmentation.FileIO import hampelFilter
+from python.segmentation.utils import hampel
+from python.pod5_io import get_signal, open_pod5
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -121,13 +121,10 @@ def writer(h5file : str, q : mp.Queue) -> None:
         print(file=sys.stderr)
         
 def extractEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str, queue : mp.Queue, numBases : int) -> None:
-    r5 = read5_ont.read(rawFile)
-    if pore in ["rna002", "dna_r9"]:
-        signal = r5.getpASignal(signalid)
-    else:
-        signal = r5.getSignal(signalid)
+    r5 = open_pod5(rawFile)
+    signal = get_signal(r5, signalid, calibrated=pore in ["rna002", "dna_r9"])
     signal = (signal - shift) / scale
-    hampelFilter(signal, 6, 5.)
+    hampel(signal, 6, 5.)
     # edges = windowEdges(signal[start:end], threshold, 6) + start
     edges = waveletPeaks(signal[start:end], threshold, 'gaus1') + start
     queue.put((signalid, edges, numBases))
@@ -181,13 +178,10 @@ def wavelet(raw : str, basecalls : str, outfile: str, processes : int, pore : st
 
 
 def countEdges(signalid : str, rawFile : str, start : int, end : int, threshold : float, shift : float, scale : float, pore : str) -> None:
-    r5 = read5_ont.read(rawFile)
-    if pore in ["rna002", "dna_r9"]:
-        signal = r5.getpASignal(signalid)
-    else:
-        signal = r5.getSignal(signalid)
+    r5 = open_pod5(rawFile)
+    signal = get_signal(r5, signalid, calibrated=pore in ["rna002", "dna_r9"])
     signal = (signal - shift) / scale
-    hampelFilter(signal, 6, 5.)
+    hampel(signal, 6, 5.)
     # edges = waveletPeaks(signal[start:end], threshold, 'gaus1')
     edges = windowEdges(signal[start:end], threshold, 6)
     return len(edges)

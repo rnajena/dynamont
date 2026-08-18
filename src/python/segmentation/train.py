@@ -4,17 +4,17 @@
 # website: https://jannessp.github.io
 
 import numpy as np
-import read5_ont
 import multiprocessing as mp
 import pysam
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import exists, join, dirname, basename
-from os import makedirs, name
+from os import makedirs
 from datetime import datetime
 from collections import deque
-from python.segmentation.FileIO import calcZ, plotParameters, trainTransitionsEmissions, readKmerModels, writeKmerModels, hampelFilter, countNucleotideRatios, getModel
-from python._version import __version__
+from python.segmentation.utils import calcZ, plt_parameters, train_transition_emission, read_kmer_model, write_kmer_model, hampel, cnt_nts_ratios, get_model
+from python import __version__
+from python.pod5_io import get_signal, open_pod5
 
 class ManagedList:
     def __init__(self, values, max_size=100):
@@ -55,35 +55,34 @@ def parse() -> Namespace:
     parser.add_argument('-b', '--basecalls', type=str, required=True, metavar="BAM", help='Basecalls of ONT training data as .bam file')
     parser.add_argument('-o', '--outdir',   type=str, required=True, metavar="PATH", help='Outpath to write files')
     parser.add_argument('-p', '--pore',  type=str, required=True, choices=["rna002", "rna004", "dna_r10_260bps", "dna_r10_400bps"], help='Pore generation used to sequence the data') # "dna_r9"
-    parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
+    # parser.add_argument('--mode',  type=str, required=True, choices=['basic', 'resquiggle'], help='Segmentation algorithm used for segmentation')
     # optional
     parser.add_argument('--model_path', type=str, help='Which initial kmer models to use for training')
     parser.add_argument('--batch_size', type=int, default=24, help='Number of reads to train before updating')
     parser.add_argument('--max_batches', type=int, default=None, help='Numbers of batches to train each epoch')
     parser.add_argument('-e', '--epochs', type=int, default=1, help='Number of training epochs')
-    parser.add_argument('-q', '--qscore', type=int, default=10, help='Minimal allowed quality score')
+    parser.add_argument('-q', '--qscore', type=float, default=10.0, help='Minimal allowed quality score')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     return parser.parse_args()
 
-def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, maxBatch : int, pore : str, minQual : float = None) -> None:
+def train(data_path : str, basecalls : str, batch_size : int, epochs :int, param_file : str, mode : str, model_path : str, max_batches : int, pore : str, minq : float = None) -> None:
 
-    kmerModels = readKmerModels(model_path)
-    trainedModels = join(dirname(param_file), 'trained_0_0.model')
-    writeKmerModels(trainedModels, kmerModels)
+    model = read_kmer_model(model_path)
+    trained_model = join(dirname(param_file), 'trained_0_0.model')
+    write_kmer_model(trained_model, model)
     
-    paramWriter = open(param_file, 'w')
+    param_writer = open(param_file, 'w')
 
     if mode == 'basic':
-        # CPP_SCRIPT = 'dynamont-NT'
-        CPP_SCRIPT = 'dynamont-NT-banded'
-        transitionParams = {
+        ALIGNER_MODE = 'basic'
+        transition_params = {
             'e1': 1.0,
             'm1': 0.03,
             'e2': 0.97
             }
     elif mode == 'resquiggle':
-        CPP_SCRIPT = 'dynamont-NTC'
-        transitionParams = {
+        ALIGNER_MODE = 'resquiggle'
+        transition_params = {
             'a1': 0.012252440188168037,
             'a2': 0.246584724985145,
             'p1': 0.04477093133243305,
@@ -103,41 +102,38 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
         print(f'Mode {mode} not implemented', file=sys.stderr)
         sys.exit(1)
 
-    if name == 'nt': # check for windows
-        CPP_SCRIPT+='.exe'
-
     # collect trained parameters to get an ensemble training in the end to reduce outlier trainings
-    paramCollector = {kmer:(ManagedList([kmerModels[kmer][0]]), ManagedList([kmerModels[kmer][1]])) for kmer in kmerModels}
-    paramCollector = paramCollector | {param : ManagedList([transitionParams[param]]) for param in transitionParams}
-    kmerSeen = set()
-    paramWriter.write("epoch,batch,read,")
-    for param in transitionParams:
-        paramWriter.write(param+',')
-    paramWriter.write("Zchange\n")
+    param_collector = {kmer:(ManagedList([model[kmer][0]]), ManagedList([model[kmer][1]])) for kmer in model}
+    param_collector = param_collector | {param : ManagedList([transition_params[param]]) for param in transition_params}
+    kmers_seen = set()
+    param_writer.write("epoch,batch,read,")
+    for param in transition_params:
+        param_writer.write(param+',')
+    param_writer.write("Zchange\n")
     i = 0
-    qualSkipped = 0
-    noMatchingReadid = 0
+    qskips = 0
+    readid_mismatches = 0
 
-    with mp.Pool(batch_size) as p:
+    with mp.Pool(batch_size) as pool:
 
         for e in range(epochs):
-            mpItems = []
+            mp_items = []
             trainIDs = []
-            batchNum = 0
+            cbatch = 0
             oldFile = None
 
             with pysam.AlignmentFile(basecalls, "r" if basecalls.endswith('.sam') else "rb", check_sq=False) as samfile:
-                for basecalledRead in samfile.fetch(until_eof=True):
+                for read in samfile.fetch(until_eof=True):
                     
                     # skip low qual reads if activated
-                    qual = basecalledRead.get_tag("qs")
-                    if minQual and qual < minQual:
-                        qualSkipped+=1
+                    qual = read.get_tag("qs")
+                    if minq and qual < minq:
+                        qskips+=1
                         continue
 
                     # init read
-                    seq = basecalledRead.query_sequence
-                    counts = countNucleotideRatios(seq)
+                    seq = read.query_sequence
+                    counts = cnt_nts_ratios(seq)
 
                     # saw weird signals in rp4 data, a very homogenous signal jumping between two values
                     # does not look like a normal read, more like an artifact
@@ -146,139 +142,115 @@ def train(dataPath : str, basecalls : str, batch_size : int, epochs :int, param_
                         continue
 
                     # init read, sometimes a read got split by the basecaller and got a new id
-                    readid = basecalledRead.get_tag("pi") if basecalledRead.has_tag("pi") else basecalledRead.query_name
-                    sp = basecalledRead.get_tag("sp") if basecalledRead.has_tag("sp") else 0 # if split read get start offset of the signal
-                    ns = basecalledRead.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
-                    ts = basecalledRead.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
-                    rawFile = join(dataPath, basecalledRead.get_tag("fn"))
+                    readid = read.get_tag("pi") if read.has_tag("pi") else read.query_name
+                    sp = read.get_tag("sp") if read.has_tag("sp") else 0 # if split read get start offset of the signal
+                    ns = read.get_tag("ns") # ns:i: 	the number of samples in the signal prior to trimming
+                    ts = read.get_tag("ts") # ts:i: 	the number of samples trimmed from the start of the signal
+                    ont_file = join(data_path, read.get_tag("fn"))
+                    start = sp+ts
+                    end = sp + ns
+                    shift = read.get_tag("sm")
+                    scale = read.get_tag("sd")
 
-                    if oldFile != rawFile:
-                        oldFile = rawFile
-                        r5 = read5_ont.read(rawFile)
+                    if oldFile != ont_file:
+                        oldFile = ont_file
+                        r5 = open_pod5(ont_file)
 
                     # fill batch
-                    if len(mpItems) < batch_size:
+                    if len(mp_items) < batch_size:
                         # saw more consistency for short reads when using the mean
                         try:
-                            if pore in ["dna_r9", "rna002"]:
-                                # for r9 pores, shift and scale are stored for pA signal in bam
-                                signal = r5.getpASignal(readid)
-
-                                # signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
-
-                            else:
-                                # for new pores, shift and scale is directly applied to stored integer signal (DACs)
-                                # this way the conversion from DACs to pA is skipped
-                                signal = r5.getSignal(readid)
-                                
-                                # norm_signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
-                                # # slice signal, remove remaining adapter content until polyA starts
-                                # start = np.argmax(norm_signal[sp+ts:] >= 0.8) + sp + ts + 100
-                                # signal = signal[start : sp+ns]
-
-                                #! normalize poly A region to median 0.9 (as in init models from ONT r9 and rp4) and scale to 0.15 (from training on r9 and rp4)
-                                # shift = np.median(signal[:1000])
-                                # scale = np.median(np.absolute(signal[:1000] - shift))
-                                # signal = ((signal - shift) / scale) * 0.15 + 0.9
-
-
-                            #! normalize whole signal
-                            # mad = np.median(np.absolute(signal - np.median(signal)))
-                            # if mad < 70: # check again for weird repetitive reads/signals with high quality
-                            #     continue
-                            signal = (signal - basecalledRead.get_tag("sm")) / basecalledRead.get_tag("sd")
-                            signal = signal[sp+ts : sp+ns]
-                        
+                            signal = get_signal(r5, readid, calibrated=shift <= 400)[start:end]
                         except:
-                            noMatchingReadid+=1
+                            readid_mismatches+=1
                             continue
-                        # signal = hampel(signal, 6, 5.).filtered_data # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
-                        hampelFilter(signal, 6, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
+
+                        signal -= shift
+                        signal /= scale
+                        hampel(signal, 7, 5.) # small window and high variance allowed: just to filter outliers that result from sensor errors, rest of the original signal should be kept
                         if "rna" in pore:
                             seq = seq[::-1]
                             if not seq.startswith("AAAAAAAAA"):
                                 seq = "AAAAAAAAA" + seq
-                        mpItems.append([signal, seq, transitionParams | {'r' : pore, 't' : 4}, CPP_SCRIPT, trainedModels, readid])
+                        mp_items.append([signal, seq, transition_params | {'r' : pore, 't' : 4}, ALIGNER_MODE, trained_model, readid])
                         trainIDs.append(readid)
 
-                    if len(mpItems) == batch_size:
+                    if len(mp_items) == batch_size:
                         print("============================", file=sys.stderr)
-                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {batchNum}\n{transitionParams}", file=sys.stderr)
+                        print(f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}: Training epoch: {e}, reads: {i}, batch: {cbatch}\n{transition_params}", file=sys.stderr)
                         print("Training with read:", trainIDs, file=sys.stderr)
-                        batchNum += 1
-                        preZ = np.zeros(batch_size)
+                        cbatch += 1
+                        preZ = []
 
-                        for readid, result in enumerate(p.starmap(trainTransitionsEmissions, mpItems)):
+                        for result in pool.starmap(train_transition_emission, mp_items):
                             if isinstance(result, str):
-                                print(f"No segmentation calculated for {result} in {e}: {trainedModels}.", file=sys.stderr)
-                                # del mp_items[readid]
+                                print(f"No segmentation calculated for {result} in {e}: {trained_model}.", file=sys.stderr)
                                 continue
 
                             trainedParams, newModels, Z = result
 
                             i += 1
-                            preZ[readid] = Z
+                            preZ.append(Z)
 
                             for param in trainedParams:
-                                paramCollector[param].add(trainedParams[param])
+                                param_collector[param].add(trainedParams[param])
 
                             #! skip weird trainings
                             if ('AAAAAAAAA' in newModels and newModels['AAAAAAAAA'][0] < 0.5) or ('AAAAA' in newModels and newModels['AAAAA'][0] < 0.5):
                                 continue
 
                             for kmer in newModels:
-                                kmerSeen.add(kmer)
-                                paramCollector[kmer][0].add(newModels[kmer][0])
-                                paramCollector[kmer][1].add(newModels[kmer][1])
+                                kmers_seen.add(kmer)
+                                param_collector[kmer][0].add(newModels[kmer][0])
+                                param_collector[kmer][1].add(newModels[kmer][1])
 
                         print(f"Zs: {preZ}", file=sys.stderr)
 
                         # update parameters
-                        paramWriter.write(f'{e},{batchNum},{i},') # log
-                        for param in transitionParams:
+                        param_writer.write(f'{e},{cbatch},{i},') # log
+                        for param in transition_params:
                             try:
-                                transitionParams[param] = paramCollector[param].mean()
+                                transition_params[param] = param_collector[param].mean()
                             except:
-                                print(param, paramCollector[param].get_list(), file=sys.stderr)
+                                print(param, param_collector[param].get_list(), file=sys.stderr)
                                 sys.exit(1)
-                            paramWriter.write(f'{transitionParams[param]},') # log
+                            param_writer.write(f'{transition_params[param]},') # log
 
-                        for kmer in kmerSeen:
-                            kmerModels[kmer] = [paramCollector[kmer][0].mean(), paramCollector[kmer][1].mean()]
+                        for kmer in kmers_seen:
+                            model[kmer] = [param_collector[kmer][0].mean(), param_collector[kmer][1].mean()]
 
-                        trainedModels = join(dirname(trainedModels), f"trained_{e}_{batchNum}.model")
-                        writeKmerModels(trainedModels, kmerModels)
-                        paramWriter.flush()
+                        trained_model = join(dirname(trained_model), f"trained_{e}_{cbatch}.model")
+                        write_kmer_model(trained_model, model)
+                        param_writer.flush()
 
                         # rerun with new parameters to compare Zs
-                        for j in range(len(mpItems)):
-                            mpItems[j][2] = transitionParams | {'r' : pore}
-                            mpItems[j][4] = trainedModels
-                        postZ = np.zeros(batch_size)
-                        for j, result in enumerate(p.starmap(calcZ, mpItems)):
+                        for j in range(len(mp_items)):
+                            mp_items[j][2] = transition_params | {'r' : pore, 't' : 4}
+                            mp_items[j][4] = trained_model
+                        postZ = []
+                        for result in pool.starmap(calcZ, mp_items):
                             if isinstance(result, str):
                                 print(f"No segmentation calculated for {result} in {e} calcZ.", file=sys.stderr)
                                 continue
-                            Z = result
-                            postZ[j] = Z
+                            postZ.append(result)
 
-                        dZ = postZ - preZ
+                        dZ = np.array(postZ) - np.array(preZ)
 
                         print(f"Z changes: {dZ}", file=sys.stderr)
-                        deltaZ = np.mean(dZ)
-                        paramWriter.write(f'{deltaZ}\n') # log
-                        paramWriter.flush() # log
+                        deltaZ = np.mean(dZ) if len(dZ) else 0.0
+                        param_writer.write(f'{deltaZ}\n') # log
+                        param_writer.flush() # log
                         # initialize new batch
-                        kmerSeen = set()
-                        mpItems = []
+                        kmers_seen = set()
+                        mp_items = []
                         trainIDs = []
 
-                        if maxBatch is not None and batchNum >= maxBatch:
+                        if max_batches is not None and cbatch >= max_batches:
                             break
 
-        paramWriter.close()
+        param_writer.close()
         print("Done training", file=sys.stderr)
-        print(f"Skipped reads due to low quality: {qualSkipped}", file=sys.stderr)
+        print(f"Skipped reads due to low quality: {qskips}", file=sys.stderr)
 
 def main() -> None:
     args = parse()
@@ -294,12 +266,12 @@ def main() -> None:
         model_path = args.model_path
         assert exists(model_path), "Model path does not exist"
     else:
-        model_path = getModel(args.pore)
+        model_path = get_model(args.pore)
         assert exists(model_path), f"Default model not found for pore: {args.pore}, {model_path}"
     print(f"Loaded model: {basename(model_path)}", file=sys.stderr)
 
-    train(args.raw, args.basecalls, args.batch_size, args.epochs, paramFile, args.mode, model_path, args.max_batches, args.pore, args.qscore)
-    plotParameters(paramFile, outdir)
+    train(args.raw, args.basecalls, args.batch_size, args.epochs, paramFile, "basic", model_path, args.max_batches, args.pore, args.qscore)
+    plt_parameters(paramFile, outdir)
 
 if __name__ == '__main__':
     main()
