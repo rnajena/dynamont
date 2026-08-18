@@ -51,7 +51,7 @@ target/
 # pyenv python configuration file
 .python-version
 # hatch-vcs version file
-src/python/_version.py
+src/dynamont/_version.py
 # Prerequisites
 *.d
 # Compiled Object files
@@ -82,7 +82,7 @@ src/python/_version.py
 old/
 test/#.codiumai.toml
 eval_banded.sh
-src/python/plot/plotHardCoded.py
+src/dynamont/plot/plotHardCoded.py
 compile.sh
 eval_banded_time_mem.sh
 dev/
@@ -93,3 +93,4 @@ old/
 build-py/
 .venv*
 wheelhouse/
+src/dynamont/_version.py
