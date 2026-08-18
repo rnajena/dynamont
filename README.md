@@ -38,7 +38,7 @@ For further details please read: [10.1093/gigascience/giag005](https://doi.org/1
 
 ## Pypi/pip
 
-Recommendation: us `uv`
+Recommendation: use `uv`
 ```bash
 uv venv path/to/venv/dynamont
 source path/to/venv/dynamont/bin/activate
