@@ -19,7 +19,7 @@ class TestSegment:
         raw = MagicMock()
 
         with patch(
-            "python.segmentation.segment.open_pod5",
+            "dynamont.segmentation.segment.open_pod5",
             return_value=raw,
         ) as mock_open:
             result = segment.get_raw("/tmp/read.pod5")
@@ -35,7 +35,7 @@ class TestSegment:
         segment.RAW_CACHE["/tmp/read.pod5"] = raw
 
         with patch(
-            "python.segmentation.segment.open_pod5"
+            "dynamont.segmentation.segment.open_pod5"
         ) as mock_open:
             result = segment.get_raw("/tmp/read.pod5")
 
@@ -72,7 +72,7 @@ class TestSegment:
         segment.RAW_CACHE["/tmp/read2.pod5"] = existing_raw
 
         with patch(
-            "python.segmentation.segment.open_pod5",
+            "dynamont.segmentation.segment.open_pod5",
             return_value=new_raw,
         ) as mock_open:
             result = segment.get_raw("/tmp/read3.pod5")
@@ -102,7 +102,7 @@ class TestSegment:
         segment.RAW_CACHE["/tmp/read1.pod5"] = old_raw
 
         with patch(
-            "python.segmentation.segment.open_pod5",
+            "dynamont.segmentation.segment.open_pod5",
             return_value=new_raw,
         ):
             result = segment.get_raw("/tmp/read2.pod5")
@@ -136,9 +136,9 @@ class TestSegment:
         tqdm_cm.__enter__.return_value = pbar
 
         with (
-            patch("python.segmentation.segment.zstd.ZstdCompressor", return_value=compressor) as mock_compressor,
-            patch("python.segmentation.segment.open", mock_open()) as mock_open_file,
-            patch("python.segmentation.segment.tqdm", return_value=tqdm_cm),
+            patch("dynamont.segmentation.segment.zstd.ZstdCompressor", return_value=compressor) as mock_compressor,
+            patch("dynamont.segmentation.segment.open", mock_open()) as mock_open_file,
+            patch("dynamont.segmentation.segment.tqdm", return_value=tqdm_cm),
         ):
             # Make the outfile open return our mocked raw file.
             mock_open_file.return_value.__enter__.return_value = raw_file
