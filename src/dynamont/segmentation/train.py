@@ -12,9 +12,9 @@ from os.path import exists, join, dirname, basename
 from os import makedirs
 from datetime import datetime
 from collections import deque
-from python.segmentation.utils import calcZ, plt_parameters, train_transition_emission, read_kmer_model, write_kmer_model, hampel, cnt_nts_ratios, get_model
-from python import __version__
-from python.pod5_io import get_signal, open_pod5
+from dynamont.segmentation.utils import calcZ, plt_parameters, train_transition_emission, read_kmer_model, write_kmer_model, hampel, cnt_nts_ratios, get_model
+from dynamont import __version__
+from dynamont.pod5_io import get_signal, open_pod5
 
 class ManagedList:
     def __init__(self, values, max_size=100):

@@ -1,4 +1,4 @@
-#include "NTK_aligner_api.hpp"
+#include "dynamont/NTK_aligner_api.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -185,7 +185,7 @@ void NTKAligner::logP(
 	std::size_t size,
 	double Z)
 {
-	#pragma omp parallel for schedule(static)
+	// #pragma omp parallel for schedule(static)
 	for (std::size_t i = 0; i < size; ++i)
 	{
 		LP[i] = Aligner::logPlus(
@@ -207,7 +207,7 @@ void NTKAligner::ppForTN(
 	for (std::size_t t = 1; t < T; ++t)
 	{
 		tN += N;
-		#pragma omp parallel for if (threads_ > 1) schedule(static)
+		// #pragma omp parallel for if (threads_ > 1) schedule(static)
 		for (std::size_t n = 1; n < N; ++n)
 		{
 			const double sc = scoreKmer(signal[t - 1], static_cast<std::size_t>(kmerSeq[n - 1]));
@@ -230,7 +230,7 @@ void NTKAligner::ppBackTN(
 	for (std::size_t t = T - 1; t-- > 0;)
 	{
 		tN -= N;
-		#pragma omp parallel for if (threads_ > 1) schedule(static)
+		// #pragma omp parallel for if (threads_ > 1) schedule(static)
 		for (std::size_t n = 0; n < N; ++n)
 		{
 			double ext = NEG_INF;
@@ -265,7 +265,7 @@ void NTKAligner::ppForTK(
 	{
 		const std::size_t prevTK = tK;
 		tK += K;
-		#pragma omp parallel for if (threads_ > 1) schedule(static)
+		// #pragma omp parallel for if (threads_ > 1) schedule(static)
 		for (std::size_t k = 0; k < K; ++k)
 		{
 			double mat = NEG_INF;
@@ -295,7 +295,7 @@ void NTKAligner::ppBackTK(
 	{
 		const std::size_t nextTK = tK;
 		tK -= K;
-		#pragma omp parallel for if (threads_ > 1) schedule(static)
+		// #pragma omp parallel for if (threads_ > 1) schedule(static)
 		for (std::size_t k = 0; k < K; ++k)
 		{
 			double ext = NEG_INF;
@@ -339,7 +339,7 @@ void NTKAligner::preProcTN(
 	logP(LP.data(), forM.data(), backM.data(), forE.data(), backE.data(), TN, Zf);
 
 	tnMap.assign(T, {});
-	#pragma omp parallel for if (threads_ > 1) schedule(static)
+	// #pragma omp parallel for if (threads_ > 1) schedule(static)
 	for (std::size_t t = 0; t < T; ++t)
 	{
 		double sum = NEG_INF;
@@ -385,7 +385,7 @@ void NTKAligner::preProcTK(
 	logP(LP.data(), forM.data(), backM.data(), forE.data(), backE.data(), TK, Zb);
 
 	tkMap.assign(T, {});
-	#pragma omp parallel for if (threads_ > 1) schedule(static)
+	// #pragma omp parallel for if (threads_ > 1) schedule(static)
 	for (std::size_t t = 0; t < T; ++t)
 	{
 		double sum = NEG_INF;

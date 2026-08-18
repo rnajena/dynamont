@@ -6,8 +6,8 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-#include "NTK_aligner_api.hpp"
-#include "NT_aligner_api.hpp"
+#include "dynamont/NTK_aligner_api.hpp"
+#include "dynamont/NT_aligner_api.hpp"
 
 namespace py = pybind11;
 using dynamont::PoreType;

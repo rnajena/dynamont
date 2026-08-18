@@ -38,16 +38,11 @@ For further details please read: [10.1093/gigascience/giag005](https://doi.org/1
 
 ## Pypi/pip
 
+Recommendation: us `uv`
 ```bash
-pip install dynamont
-```
-
-## Conda (not updated anymore)
-
-```bash
-conda config --add channels jannessp # to install all dependencies from the correct channel
-conda create -n dynamont jannessp::dynamont
-conda activate dynamont
+uv venv path/to/venv/dynamont
+source path/to/venv/dynamont/bin/activate
+uv pip install dynamont
 ```
 
 # Usage
@@ -102,21 +97,3 @@ readid,signalid,start,end,basepos,base,motif,state,posterior_probability,polish
 ## Differences Segmentation Tools
 
 <img src="figures/tools_comparison.png" alt="Segmentation Comparison" width="100%"/>
-
-# Exit-Codes
-
-- -11: Segmentation fault
-- -9: Out of Memory error. Decrease the number of processes or move to a system with more memory.
-- -6: std::bad_alloc
-- 1: `resquiggle mode` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and read (N).
-- 2: `resquiggle mode` specific: alignment score (Z) does not match between forward and backward run in preprocessing on signal (T) and error correction (C).
-- 3: Alignment score (Z) does not match between forward and backward pass or is -Infinity
-- 4: Input signal is missing or not found in stdin stream
-- 5: Input read is missing or not found in stdin stream
-- 6: raw file does not exist
-- 7: Invalid model path was provided
-- 8: Provided ONT signal is too short
-- 9: Read is too short
-- 10: Signal is smaller than read
-- 11: Read is smaller than `kmerSize` of provided pore model
-- 20: Terminated using KeyboardInterrupt (Ctrl + C)

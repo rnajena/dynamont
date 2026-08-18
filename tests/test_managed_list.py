@@ -1,4 +1,4 @@
-from python.segmentation.train import ManagedList
+from dynamont.segmentation.train import ManagedList
 
 class TestManagedList():
 

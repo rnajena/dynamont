@@ -1,4 +1,4 @@
-#include "NT_aligner_api.hpp"
+#include "dynamont/NT_aligner_api.hpp"
 
 #include <algorithm>
 #include <cmath>

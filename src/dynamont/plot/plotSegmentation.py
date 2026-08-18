@@ -13,9 +13,9 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from matplotlib.patches import Rectangle
 from os.path import exists, join
 from os import makedirs
-from python import Aligner
-from python.segmentation.utils import SegmentationError, hampel, format_segmentation
-from python.pod5_io import get_signal, open_pod5
+from dynamont import Aligner
+from dynamont.segmentation.utils import SegmentationError, hampel, format_segmentation
+from dynamont.pod5_io import get_signal, open_pod5
 
 def parse() -> Namespace:
     parser = ArgumentParser(

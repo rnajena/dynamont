@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch, mock_open
-from python.segmentation.segment import get_raw
+from dynamont.segmentation.segment import get_raw
 
 from collections import OrderedDict
 from unittest.mock import MagicMock, patch
@@ -8,13 +8,13 @@ from unittest.mock import MagicMock, patch
 class TestSegment:
 
     def setup_method(self):
-        import python.segmentation.segment as segment
+        import dynamont.segmentation.segment as segment
 
         segment.RAW_CACHE = OrderedDict()
         segment.RAW_CACHE_SIZE = 10
 
     def test_get_raw_opens_and_caches_path(self):
-        import python.segmentation.segment as segment
+        import dynamont.segmentation.segment as segment
 
         raw = MagicMock()
 
@@ -29,7 +29,7 @@ class TestSegment:
         assert segment.RAW_CACHE["/tmp/read.pod5"] is raw
 
     def test_get_raw_returns_cached_value(self):
-        import python.segmentation.segment as segment
+        import dynamont.segmentation.segment as segment
 
         raw = MagicMock()
         segment.RAW_CACHE["/tmp/read.pod5"] = raw
@@ -43,7 +43,7 @@ class TestSegment:
         mock_open.assert_not_called()
 
     def test_get_raw_moves_cached_path_to_end(self):
-        import python.segmentation.segment as segment
+        import dynamont.segmentation.segment as segment
 
         raw1 = MagicMock()
         raw2 = MagicMock()
@@ -60,7 +60,7 @@ class TestSegment:
         ]
 
     def test_get_raw_evicts_oldest_entry_when_cache_is_full(self, monkeypatch):
-        import python.segmentation.segment as segment
+        import dynamont.segmentation.segment as segment
 
         monkeypatch.setattr(segment, "RAW_CACHE_SIZE", 2)
 
@@ -90,7 +90,7 @@ class TestSegment:
     def test_get_raw_ignores_error_when_closing_evicted_entry(
         self, monkeypatch
     ):
-        import python.segmentation.segment as segment
+        import dynamont.segmentation.segment as segment
 
         monkeypatch.setattr(segment, "RAW_CACHE_SIZE", 1)
 
@@ -112,7 +112,7 @@ class TestSegment:
         old_raw.close.assert_called_once()
 
     def test_listener_writes_header_results_and_errors(self):
-        from python.segmentation.segment import listener
+        from dynamont.segmentation.segment import listener
         outfile = "/tmp/results.csv.zst"
 
         queue = MagicMock()
@@ -178,7 +178,7 @@ class TestSegment:
 
     def test_hampel_three_point_fast_path_matches_reference(self):
         import numpy as np
-        from python.segmentation.utils import hampel
+        from dynamont.segmentation.utils import hampel
 
         def reference(signal):
             original = signal.copy()
@@ -204,7 +204,7 @@ class TestSegment:
         # Given
         import sys
         from argparse import Namespace
-        from python.segmentation.segment import parse
+        from dynamont.segmentation.segment import parse
     
         # Save original sys.argv
         original_argv = sys.argv.copy()
@@ -238,7 +238,7 @@ class TestSegment:
 
     def test_close_raw_cache_closes_all_cached_readers(self):
         from collections import OrderedDict
-        from python.segmentation import segment
+        from dynamont.segmentation import segment
 
         class FakeReader:
             def __init__(self, name):

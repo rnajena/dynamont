@@ -3,6 +3,9 @@ build-backend = "scikit_build_core.build"
 requires = ["scikit-build-core>=0.10", "pybind11>=2.12", "setuptools-scm>=7.1"]
 
 [project]
+name = "dynamont"
+description = "Segmentation/resquiggling tool for ONT signals."
+dynamic = ["version"]
 authors = [
   {name = "Jannes Spangenberg"}
 ]
@@ -26,10 +29,7 @@ dependencies = [
   "zstandard >=0.23.0",
   "tqdm >=4.68"
 ]
-description = "Segmentation/resquiggling tool for ONT signals."
-dynamic = ["version"]
 license = {text = "GNUv3"}
-name = "dynamont"
 readme = "README.md"
 requires-python = ">=3.10"
 
@@ -42,8 +42,8 @@ test = [
 ]
 
 [project.scripts]
-dynamont-resquiggle = "python.segmentation.segment:main"
-dynamont-train = "python.segmentation.train:main"
+dynamont-resquiggle = "dynamont.segmentation.segment:main"
+dynamont-train = "dynamont.segmentation.train:main"
 
 [project.urls]
 repository = "https://github.com/rnajena/dynamont"
@@ -56,13 +56,9 @@ exclude_lines = [
   'if __name__ == "__main__":'
 ]
 omit = [
-  "src/python/_version.py",
+  "src/dynamont/_version.py",
   "test/*"
 ]
-
-[tool.distutils.bdist_wheel]
-universal = true
-
 
 [tool.scikit-build]
 cmake.build-type = "Release"
@@ -70,7 +66,7 @@ cmake.define = { BUILD_PYTHON_BINDING = "ON" }
 sdist.include = ["models/**"]
 
 [tool.scikit-build.wheel]
-packages = ["src/python"]
+packages = ["src/dynamont"]
 
 [tool.scikit-build.wheel.force-include]
 "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model" = "models/dna/r10.4.1/dna_r10.4.1_e8.2_260bps.model"
@@ -78,15 +74,21 @@ packages = ["src/python"]
 "models/rna/rna002/rna002_5mer.model" = "models/rna/rna002/rna002_5mer.model"
 "models/rna/rna004/rna004_9mer.model" = "models/rna/rna004/rna004_9mer.model"
 
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-*"
+skip = "*-musllinux_*"
+manylinux-x86_64-image = "manylinux_2_28"
+test-command = "python -m pytest test --no-cov"
+
 [[tool.dynamic-metadata]]
 provider = "scikit_build_core.metadata.setuptools_scm"
 
 [tool.setuptools_scm]
-version_file = "src/python/_version.py"
+version_file = "src/dynamont/_version.py"
 
 [tool.mypy]
 disallow_untyped_defs = true
-files = ["src/python/**/*.py"]
+files = ["src/dynamont/**/*.py"]
 python_version = "3.10"
 warn_no_return = true
 
@@ -97,7 +99,7 @@ addopts = [
   "--cov-append",
   "--cov-branch",
   "--cov-report=term-missing",
-  "--cov=src/python",
+  "--cov=src/dynamont",
   "--tb=native",
   "--strict-markers",
   "--durations=20"

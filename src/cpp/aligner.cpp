@@ -1,4 +1,4 @@
-#include "aligner.hpp"
+#include "dynamont/aligner.hpp"
 
 #include <algorithm>
 #include <cmath>

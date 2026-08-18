@@ -5,7 +5,7 @@ class TestUtils(unittest.TestCase):
         
         # Correctly identifies and replaces outliers in a 1D numpy array
     def test_hampel_filter(self):
-        from python.segmentation.utils import hampel
+        from dynamont.segmentation.utils import hampel
         signal = np.array([1, 1, 1, 10, 1, 1, 1])
         expectedOutput = np.array([1, 1, 1, 1, 1, 1, 1])
     
@@ -15,7 +15,7 @@ class TestUtils(unittest.TestCase):
         
     # Count occurrences of A, C, G, T in a standard DNA sequence
     def test_count_nucleotides_in_standard_sequence(self):
-        from python.segmentation.utils import cnt_nts
+        from dynamont.segmentation.utils import cnt_nts
         # Given
         sequence = "ACGTACGT"
     
@@ -30,7 +30,7 @@ class TestUtils(unittest.TestCase):
 
     # Calculate correct ratios for a sequence with equal distribution of nucleotides
     def test_equal_distribution_of_nucleotides(self):
-        from python.segmentation.utils import cnt_nts_ratios
+        from dynamont.segmentation.utils import cnt_nts_ratios
         # Given
         sequence = "ACGTACGTACGTACGT"
         expected_ratios = {"A": 0.25, "C": 0.25, "G": 0.25, "T": 0.25}
@@ -43,7 +43,7 @@ class TestUtils(unittest.TestCase):
 
     # Writing a dictionary of kmer models with valid data to a file
     def test_write_kmer_models_with_valid_data(self):
-        from python.segmentation.utils import write_kmer_model
+        from dynamont.segmentation.utils import write_kmer_model
         # Given
         import os
         import tempfile
@@ -78,7 +78,7 @@ class TestUtils(unittest.TestCase):
 
     # Read a valid TSV file with kmer, level_mean, and level_stdv columns
     def test_read_valid_kmer_model_file(self):
-        from python.segmentation.utils import read_kmer_model
+        from dynamont.segmentation.utils import read_kmer_model
         # Given
         import tempfile
         import os
@@ -115,7 +115,7 @@ class TestUtils(unittest.TestCase):
 
     # Creating a SegmentationError with a read parameter
     def test_segmentation_error_with_read_parameter(self):
-        from python.segmentation.utils import SegmentationError
+        from dynamont.segmentation.utils import SegmentationError
         # Given
         read = "read123"
     

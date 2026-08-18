@@ -11,8 +11,8 @@ import multiprocessing as mp
 import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from os.path import join
-from python.segmentation.utils import hampel
-from python.pod5_io import get_signal, open_pod5
+from dynamont.segmentation.utils import hampel
+from dynamont.pod5_io import get_signal, open_pod5
 
 def parse() -> Namespace:
     parser = ArgumentParser(

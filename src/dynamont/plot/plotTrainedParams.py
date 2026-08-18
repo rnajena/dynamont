@@ -4,7 +4,7 @@
 # website: https://jannessp.github.io
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from python.segmentation.utils import plt_parameters
+from dynamont.segmentation.utils import plt_parameters
 
 def parse() -> Namespace:
     parser = ArgumentParser(

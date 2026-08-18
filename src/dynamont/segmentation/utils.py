@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import sys
 from os.path import join, dirname
-from python import Aligner
+from dynamont import Aligner
 
 def hampel(signal : np.ndarray, WINDOW : int = 3, n_sigmas : float = 3.0) -> None:
     """

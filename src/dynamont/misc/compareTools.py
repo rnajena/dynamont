@@ -17,7 +17,7 @@ import itertools
 # from venn import venn
 from scipy.stats import median_abs_deviation as mad
 from tqdm import tqdm
-from python.pod5_io import get_signal, open_pod5
+from dynamont.pod5_io import get_signal, open_pod5
 
 #! Tombo function only supports RNA, not DNA (no issue so far, cause no tombo dna data was analysed)
 

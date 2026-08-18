@@ -11,7 +11,7 @@ matplotlib.use('Agg')
 from os.path import splitext, join
 import numpy as np
 from matplotlib.patches import Rectangle
-from python.pod5_io import get_signal, open_pod5
+from dynamont.pod5_io import get_signal, open_pod5
 
 def parse() -> Namespace:
     parser = ArgumentParser(
@@ -51,7 +51,7 @@ def getDynamontProbs() -> np.ndarray:
     """
     Hardcoded for Dynamont segments in the manuscript plot.
     """
-    from python.segmentation.utils import feedSegmentation, hampel
+    from dynamont.segmentation.utils import feedSegmentation, hampel
     readid = "131ee77f-085b-4024-a175-cc0a79660576"
     read = "AAACTTCAAAGTGAAACCTTACGAGCTCCAGCACCATGTTGGTTCGAGTCTCCTGCTTGAGGGTCCAACGGCTCACAGTCGTGTTCATCGATATAGGACGCCATGGCTGCCCAGCCGTCTGACATGTGATGTTTTGATACAGGTATACAATGTGTAACTATCAAATCCGAGTAACTGGGGTATTGATCATCTTGAGAATTTATCATTTCATGTTAGGAACAGTCCAATTCCACTCTTTTAGTTATTTTAAAATATGCAATAAATTATTAACTG"
     read = read + "AAAAAAAAA" # add poly A to 3' end

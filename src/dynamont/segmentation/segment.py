@@ -13,9 +13,9 @@ from collections import OrderedDict
 from multiprocessing.queues import Queue
 from os.path import exists, join, dirname, splitext, basename, isdir
 from os import makedirs
-from python import Aligner, __version__
-from python.pod5_io import get_signal, open_pod5
-from python.segmentation.utils import (
+from dynamont import Aligner, __version__
+from dynamont.pod5_io import get_signal, open_pod5
+from dynamont.segmentation.utils import (
     segmentation_to_string,
     hampel,
     get_model,
