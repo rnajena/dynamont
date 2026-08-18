@@ -1,0 +1,24 @@
+name: Build wheels
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build-wheels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: wheelhouse/*.whl
