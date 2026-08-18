@@ -300,7 +300,6 @@ def segment(data_path : str, basecalls : str, processes : int, outfile : str, mo
 
     threads = 1 # currently open mp is disabled, as it showed to be slower than just using more processes, but the option is kept for future use
     processes = (processes - 2) // threads
-    print(f"{threads} threads and {processes} segmentation processes", file=sys.stderr)
 
     pool = mp.Pool(
         processes,
