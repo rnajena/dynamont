@@ -69,18 +69,18 @@ dynamont-train -r <path/to/pod5/dataset/> -b <basecalls.bam> --mode basic -o <ou
 
 Dynamont produces a tabular output with the following columns:  
 
-| Column Name             | Description |
-|-------------------------|-------------|
-| **readid**             | Unique identifier for the read. |
-| **signalid**           | Identifier for the signal corresponding to the read. |
-| **start**              | Start position of the signal segment in the read. |
-| **end**                | End position of the signal segment in the read. |
-| **basepos**            | Base position in the read. |
-| **base**               | The detected base at this position. |
-| **motif**              | The surrounding sequence motif in which the base appears. |
-| **state**              | The methylation state (or modification state) of the base. |
-| **posterior_probability** | Probability assigned to the predicted segment. |
-| **polish**             | Polished kmer, only available in resquiggle mode. |
+| Column Name               | Description                                                 |
+|---------------------------|-------------------------------------------------------------|
+| **readid**                | Unique identifier for the read.                             |
+| **signalid**              | Identifier for the signal corresponding to the read.        |
+| **start**                 | Start position of the signal segment in the read. (0-based) |
+| **end**                   | End position of the signal segment in the read. (0-based)   |
+| **basepos**               | Base position in the read. (0-based)                        |
+| **base**                  | The detected base at this position.                         |
+| **motif**                 | The surrounding sequence motif in which the base appears.   |
+| **state**                 | The methylation state (or modification state) of the base.  |
+| **posterior_probability** | Probability assigned to the predicted segment.              |
+| **polish**                | Polished kmer, only available in resquiggle mode.           |
 
 ## Example Output  
 
